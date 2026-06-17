@@ -1,0 +1,224 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0">
+  <title>Stock — La Galería</title>
+  <link rel="stylesheet" href="assets/css/stock.css">
+</head>
+<body>
+
+  <!-- MAIN TABS -->
+  <div class="main-tabs">
+    <div class="mtab act" id="tab-inv" onclick="setTab('inv')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      Stock
+    </div>
+    <div class="mtab" id="tab-ped" onclick="setTab('ped')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      Pedido<span class="tab-dot" id="ped-dot"></span>
+    </div>
+    <div class="mtab" id="tab-reg" onclick="setTab('reg')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      Registro
+    </div>
+  </div>
+
+  <!-- INVENTARIO -->
+  <div id="view-inv">
+    <div class="sticky-header">
+      <div class="cat-bar">
+        <div class="cpill cpill-all act" onclick="setCat('all', this)">✦ <span class="cpill-lbl">Todo</span></div>
+        <div class="cpill cpill-beb" onclick="setCat('beb', this)">🍺 <span class="cpill-lbl">Bebidas</span></div>
+        <div class="cpill cpill-ali" onclick="setCat('ali', this)">🥩 <span class="cpill-lbl">Alimentación</span></div>
+        <div class="cpill cpill-lim" onclick="setCat('lim', this)">🧴 <span class="cpill-lbl">Limpieza</span></div>
+        <div class="cpill cpill-mat" onclick="setCat('mat', this)">📦 <span class="cpill-lbl">Material</span></div>
+        <div class="cpill cpill-rep" onclick="setCat('rep', this)">⚠ <span class="cpill-lbl">Reponer</span><span class="cpill-rep-count" id="rep-count"></span></div>
+      </div>
+      <div class="inv-banner" id="inv-banner">
+        <div class="inv-banner-lbl">
+          <div class="inv-dot-blue"></div>
+          Actualizando inventario
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn-cancel-inv" onclick="cancelInv()">Cancelar</button>
+          <button class="btn-save-inv" onclick="saveInv()">Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="content" id="prod-list"></div>
+
+    <div class="content" style="padding-bottom:14px">
+      <button class="add-btn" onclick="showModal()">+ Añadir producto</button>
+      <button class="inv-update-btn" id="btn-inv" onclick="toggleInv()">☰ Actualizar inventario</button>
+      <div class="inv-last-update">
+        <div class="inv-dot" id="inv-dot"></div>
+        <span id="inv-status-lbl">Último inventario: hoy 08:30</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PEDIDO -->
+  <div id="view-ped" style="display:none">
+    <div class="ped-wrap" id="ped-content"></div>
+  </div>
+
+  <!-- REGISTRO -->
+  <div id="view-reg" style="display:none">
+    <div class="reg-toolbar">
+      <span id="reg-total-lbl" class="reg-total-lbl"></span>
+      <button class="tbtn" onclick="clearReg()" style="font-size:11px;padding:6px 10px">🗑 Borrar todo</button>
+    </div>
+    <div id="reg-list" class="reg-list"></div>
+  </div>
+
+  <!-- MODAL -->
+  <div class="modal-bg" id="modal-bg" onclick="if(event.target===this)hideModal()">
+    <div class="modal">
+      <div class="modal-hdr">
+        <div class="modal-title">Nuevo producto</div>
+        <button class="modal-cls" onclick="hideModal()">&#215;</button>
+      </div>
+      <div class="field">
+        <label>Nombre</label>
+        <input class="inp" id="np-n" placeholder="Cerveza Estrella, Aceite AOVE...">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Categoría</label>
+          <select class="sel" id="np-c">
+            <option value="beb">🍺 Bebidas</option>
+            <option value="ali">🥩 Alimentación</option>
+            <option value="lim">🧴 Limpieza</option>
+            <option value="mat">📦 Material</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Ubicación</label>
+          <select class="sel" id="np-l">
+            <option value="d">Despensa</option>
+            <option value="g">Garaje</option>
+            <option value="a">Ambos</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Cantidad actual</label>
+          <input class="inp" id="np-q" type="number" min="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label>Unidad</label>
+          <input class="inp" id="np-u" placeholder="bot, kg, caja...">
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Mínimo alerta</label>
+          <input class="inp" id="np-m" type="number" min="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label>Nota</label>
+          <input class="inp" id="np-no" placeholder="Nevera pequeña...">
+        </div>
+      </div>
+      <button class="btn-full" onclick="addProd()">Añadir producto</button>
+    </div>
+  </div>
+
+  <!-- EDIT PRODUCT SHEET -->
+  <div class="edit-sheet-bg" id="edit-sheet-bg" onclick="if(event.target===this)closeEditSheet()">
+    <div class="edit-sheet">
+      <div class="edit-sheet-hdr">
+        <div class="edit-sheet-title" id="edit-sheet-title">Editar producto</div>
+        <div class="sheet-cls" onclick="closeEditSheet()">&#215;</div>
+      </div>
+      <div class="edit-fields">
+        <div class="field">
+          <label>Nombre</label>
+          <input class="inp" id="ep-n" placeholder="Nombre del producto">
+        </div>
+        <div class="edit-row">
+          <div class="field">
+            <label>Categoría</label>
+            <select class="sel" id="ep-c">
+              <option value="beb">🍺 Bebidas</option>
+              <option value="ali">🥩 Alimentación</option>
+              <option value="lim">🧴 Limpieza</option>
+              <option value="mat">📦 Material</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Ubicación</label>
+            <select class="sel" id="ep-l">
+              <option value="d">Despensa</option>
+              <option value="g">Garaje</option>
+              <option value="a">Ambos</option>
+            </select>
+          </div>
+        </div>
+        <div class="edit-row">
+          <div class="field">
+            <label>Cantidad mínima</label>
+            <input class="inp" id="ep-m" type="number" min="0">
+          </div>
+          <div class="field">
+            <label>Unidad</label>
+            <input class="inp" id="ep-u" placeholder="bot, kg...">
+          </div>
+        </div>
+        <div class="field">
+          <label>Nota</label>
+          <input class="inp" id="ep-no" placeholder="Nevera pequeña, 4 abajo...">
+        </div>
+      </div>
+      <button class="btn-full" onclick="saveEditProd()">Guardar cambios</button>
+      <button class="btn-del-prod" onclick="deleteProd()">🗑 Eliminar producto del inventario</button>
+    </div>
+  </div>
+
+  <!-- ONE-OFF MODAL -->
+  <div class="oneoff-modal-bg" id="oneoff-modal-bg" onclick="if(event.target===this)closeOneoffModal()">
+    <div class="oneoff-modal">
+      <div class="edit-sheet-hdr">
+        <div class="edit-sheet-title">Añadir al pedido</div>
+        <div class="sheet-cls" onclick="closeOneoffModal()">&#215;</div>
+      </div>
+      <p style="font-size:12px;color:var(--dim);margin-bottom:14px;line-height:1.5">Producto puntual — no se guarda en el inventario. Se incluye solo en este pedido.</p>
+      <div class="field" style="margin-bottom:10px">
+        <label>Nombre</label>
+        <input class="inp" id="oo-n" placeholder="Balletas de colores, escoba...">
+      </div>
+      <div class="edit-row" style="margin-bottom:14px">
+        <div class="field">
+          <label>Cantidad</label>
+          <input class="inp" id="oo-q" type="number" min="1" placeholder="1">
+        </div>
+        <div class="field">
+          <label>Unidad</label>
+          <input class="inp" id="oo-u" placeholder="ud, caja, pak...">
+        </div>
+      </div>
+      <button class="btn-full" onclick="addOneoff()">Añadir al pedido</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="assets/js/stock.js" defer></script>
+
+  <!-- CONFIRM DELETE MODAL -->
+  <div class="modal-bg" id="confirm-del-bg" onclick="if(event.target===this)closeConfirmDel()">
+    <div class="modal" style="max-width:320px">
+      <div style="text-align:center;padding:8px 0 16px">
+        <div style="font-size:32px;margin-bottom:12px">🗑</div>
+        <div style="font-size:15px;font-weight:700;color:var(--txt);margin-bottom:8px" id="confirm-del-name"></div>
+        <div style="font-size:12px;color:var(--dim);line-height:1.5">Esta acción es permanente.<br>Los movimientos del registro se conservarán.</div>
+      </div>
+      <button class="btn-full" style="background:rgba(180,50,50,.15);border:1px solid var(--red-bd);color:var(--red);margin-bottom:8px" onclick="confirmDelProd()">Eliminar producto</button>
+      <button class="btn-full" style="background:transparent;border:1px solid var(--brd2);color:var(--muted)" onclick="closeConfirmDel()">Cancelar</button>
+    </div>
+  </div>
+</body>
+</html>
