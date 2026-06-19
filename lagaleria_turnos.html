@@ -614,6 +614,13 @@ input[type=file]{display:none}
   .tpill{padding:6px 8px}
 }
 
+/* ── SAVE INDICATOR ── */
+#save-indicator{display:flex;align-items:center;justify-content:center;width:26px;height:26px;color:#C9A84C;opacity:.35;transition:opacity .3s,color .3s;flex-shrink:0;cursor:default}
+#save-indicator.saving{opacity:1;animation:save-pulse 1.2s ease-in-out infinite}
+#save-indicator.saved{opacity:1}
+#save-indicator.save-err{color:#cc6060;opacity:1}
+@keyframes save-pulse{0%,100%{opacity:.5}50%{opacity:1}}
+
 </style>
 </head>
 <body>
@@ -638,6 +645,7 @@ input[type=file]{display:none}
         <div class="tt-sub" id="wsub">Semana 21</div>
       </div>
       <button class="wbtn tt-arrow" onclick="changeWeek(1)">&#8250;</button>
+      <div id="save-indicator" title="Guardado automático"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
     </div>
     <div class="tp-actions">
       <button class="tpill tpill-accent" onclick="openAutoModal()">
@@ -699,6 +707,7 @@ input[type=file]{display:none}
       <button class="ftab active" onclick="fSec('all',this)">Todos</button>
       <button class="ftab" onclick="fSec('sala',this)">Sala</button>
       <button class="ftab" onclick="fSec('cocina',this)">Cocina</button>
+      <button class="ftab" onclick="openArchivedWorkers()" style="border-color:rgba(197,166,105,.35);color:var(--dim)">Archivados</button>
       <input class="psearch" type="text" placeholder="Buscar..." oninput="fName(this.value)">
       <select class="sort-sel" onchange="setSort(this.value)">
         <option value="td">Turnos ↓</option>
@@ -913,15 +922,27 @@ input[type=file]{display:none}
   </div>
 </div>
 
+<!-- TRABAJADORES ARCHIVADOS -->
+<div class="overlay" id="ov-archived">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-hdr">
+      <div><div class="modal-title">Trabajadores archivados</div><div class="modal-sub">Siguen en el historial de turnos pasados</div></div>
+      <button class="mclose" onclick="closeOv('ov-archived')">&#215;</button>
+    </div>
+    <div class="plist" id="archived-list" style="max-height:380px"></div>
+    <p id="archived-empty" style="display:none;font-size:12px;color:var(--faint);font-style:italic;padding:4px 0">No hay trabajadores archivados.</p>
+  </div>
+</div>
+
 <!-- CONFIRM DELETE -->
 <div class="overlay" id="ov-confirm">
   <div class="confirm-modal">
     <div style="font-size:32px;margin-bottom:12px">&#9888;&#65039;</div>
-    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">¿Eliminar trabajador?</div>
+    <div id="confirm-title" style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">¿Eliminar trabajador?</div>
     <div style="font-size:13px;color:var(--dim);line-height:1.5;margin-bottom:16px" id="confirm-body"></div>
     <div style="display:flex;gap:12px;justify-content:center">
-      <button class="mbtn-c" onclick="closeOv('ov-confirm');showOv('ov-preview')">Cancelar</button>
-      <button class="mbtn-d" onclick="doDeleteWorker()">Sí, eliminar</button>
+      <button class="mbtn-c" onclick="_doConfirmCancel()">Cancelar</button>
+      <button class="mbtn-d" id="confirm-ok-btn" onclick="_doConfirmOk()">Sí, eliminar</button>
     </div>
   </div>
 </div>
@@ -1146,9 +1167,8 @@ async function sbSaveTurno(turno) {
 async function sbInitTrabajadores() {
   if (!_sb) { console.warn('[SB] sbInitTrabajadores: _sb no disponible'); return; }
   const {data, error} = await _sb.from('trabajadores')
-    .select('id, nombre, seccion, prioridad, min_turnos, max_turnos, tel, foto_url')
+    .select('id, nombre, seccion, prioridad, min_turnos, max_turnos, tel, foto_url, activo')
     .eq('local_id', LOCAL_ID)
-    .eq('activo', true)
     .order('nombre');
   if (error) { console.warn('[SB] sbInitTrabajadores:', error.message); return; }
   _sbTrabajadores = data || [];
@@ -1176,6 +1196,7 @@ async function sbInitTrabajadores() {
       minT:        t.min_turnos != null ? t.min_turnos : 0,
       maxT:        t.max_turnos != null ? t.max_turnos : 0,
       prioridad:   t.prioridad || 'eventual',
+      activo:      t.activo !== false,
       skills:      {},  /* TODO Fase 3: cargar de trabajador_skill */
       unavailMed:  [],  /* TODO Fase 3: cargar de disponibilidad */
       unavailNoch: [],  /* TODO Fase 3: cargar de disponibilidad */
@@ -1198,6 +1219,50 @@ function sbIdToNombre(id) {
   return nombre || null;
 }
 
+async function sbUpdateTrabajador(id, campos) {
+  if (!_sb || !id) { console.warn('[SB] sbUpdateTrabajador: sin conexión o sin id'); return; }
+  const { error } = await _sb.from('trabajadores').update(campos).eq('id', id);
+  if (error) { console.error('[SB] sbUpdateTrabajador:', error.message); return; }
+  console.log('[SB] ✅ trabajador actualizado:', campos);
+}
+async function sbUploadFotoTrabajador(id, file) {
+  const MAX = 2 * 1024 * 1024;
+  if (!id || !file) return { error: 'Sin id o archivo' };
+  if (file.size > MAX) return { error: 'La imagen supera el límite de 2 MB' };
+  if (!_sb) return { error: 'Supabase no disponible' };
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${id}.${ext}`;
+  const { error: upErr } = await _sb.storage.from('avatares').upload(path, file, { upsert: true });
+  if (upErr) { console.error('[SB] sbUploadFotoTrabajador:', upErr.message); return { error: upErr.message }; }
+  const { data } = _sb.storage.from('avatares').getPublicUrl(path);
+  const url = data?.publicUrl ? data.publicUrl + '?t=' + Date.now() : null;
+  if (url) await sbUpdateTrabajador(id, { foto_url: url });
+  return { url };
+}
+
+async function sbArchivarTrabajador(id) {
+  if (!_sb || !id) return;
+  const { error } = await _sb.from('trabajadores').update({ activo: false }).eq('id', id);
+  if (error) console.error('[SB] sbArchivarTrabajador:', error.message);
+  else console.log('[SB] ✅ trabajador archivado:', id);
+}
+
+async function sbRestaurarTrabajador(id) {
+  if (!_sb || !id) return;
+  const { error } = await _sb.from('trabajadores').update({ activo: true }).eq('id', id);
+  if (error) console.error('[SB] sbRestaurarTrabajador:', error.message);
+  else console.log('[SB] ✅ trabajador restaurado:', id);
+}
+
+async function sbBorrarTrabajadorDefinitivo(id) {
+  if (!_sb || !id) return;
+  const { error: e1 } = await _sb.from('turnos').delete().eq('trabajador_id', id);
+  if (e1) { console.error('[SB] sbBorrarDefinitivo (turnos):', e1.message); return; }
+  const { error: e2 } = await _sb.from('trabajadores').delete().eq('id', id);
+  if (e2) console.error('[SB] sbBorrarDefinitivo (trabajadores):', e2.message);
+  else console.log('[SB] ✅ trabajador borrado definitivamente:', id);
+}
+
 /* ── CARGA DE SEMANA DESDE SUPABASE ── */
 async function loadWeekFromSupabase(semanaInicio) {
   const filas = await sbLoadTurnos(semanaInicio);
@@ -1218,6 +1283,70 @@ async function loadWeekFromSupabase(semanaInicio) {
 }
 
 /* ── /SUPABASE Fase 1 ── */
+
+/* ── AUTOSAVE (Fase A2) ── */
+let _saveTimer = null, _saveDimTimer = null;
+
+function _setIndicator(state) {
+  const el = document.getElementById('save-indicator');
+  if (!el) return;
+  el.classList.remove('saving', 'saved', 'save-err');
+  clearTimeout(_saveDimTimer);
+  if (state === 'saving') {
+    el.classList.add('saving');
+    el.title = 'Guardando cambios automáticamente';
+  } else if (state === 'saved') {
+    el.classList.add('saved');
+    el.title = 'Cambios guardados';
+    _saveDimTimer = setTimeout(() => { el.classList.remove('saved'); }, 3000);
+  } else if (state === 'error') {
+    el.classList.add('save-err');
+    el.title = 'Error al guardar — revisa la conexión';
+  } else {
+    el.title = 'Guardado automático';
+  }
+}
+
+async function saveWeekSnapshot() {
+  if (!_sb) { console.warn('[autosave] Supabase no disponible'); return; }
+  const semana = WEEK_STARTS[curWeek];
+  const { error: delErr } = await _sb.from('turnos')
+    .delete()
+    .eq('local_id', LOCAL_ID)
+    .eq('semana_inicio', semana);
+  if (delErr) { console.error('[autosave] Error borrando:', delErr.message); _setIndicator('error'); return; }
+  const rows = [];
+  ROWS.forEach(slot => {
+    for (let dia = 0; dia < 7; dia++) {
+      (L().data[slot][dia] || []).forEach(raw => {
+        const { name, hour } = parse(raw);
+        const trabajador_id = sbNombreToId(name);
+        if (!trabajador_id) return;
+        rows.push({ local_id: LOCAL_ID, semana_inicio: semana, slot, dia, trabajador_id, hora_especial: hour || null });
+      });
+    }
+  });
+  if (rows.length) {
+    const { error: insErr } = await _sb.from('turnos').insert(rows);
+    if (insErr) { console.error('[autosave] Error insertando:', insErr.message); _setIndicator('error'); return; }
+  }
+  _setIndicator('saved');
+  console.log('[autosave] ✅', rows.length, 'filas guardadas, semana', semana);
+}
+
+function scheduleAutosave() {
+  _setIndicator('saving');
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => { _saveTimer = null; await saveWeekSnapshot(); }, 2000);
+}
+
+async function flushSave() {
+  if (_saveTimer === null) return;
+  clearTimeout(_saveTimer);
+  _saveTimer = null;
+  await saveWeekSnapshot();
+}
+/* ── /AUTOSAVE ── */
 
 /* ── CONSTANTES Y DATOS LOCALES ── */
 const DAYS_S=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
@@ -1515,6 +1644,7 @@ function toggleSg(cell){
     L().data[row][col]=L().data[row][col].filter(n=>parse(n).name!==_previewName);
   }
   updateAlert();
+  scheduleAutosave();
 }
 
 function toggleUnavail(el){
@@ -1633,6 +1763,9 @@ function saveProfile(){
   // Restaurar scroll
   if(gs)gs.scrollLeft=scrollLeft;
   window.scrollTo(0,scrollTop);
+  if (w._sbId) sbUpdateTrabajador(w._sbId, { min_turnos: w.minT, max_turnos: w.maxT, prioridad: w.prioridad || 'eventual' });
+  showToast('Perfil guardado ✓');
+  scheduleAutosave();
 }
 
 /* ── CONTACTO ── */
@@ -1644,6 +1777,7 @@ function saveTel(){
   const w=getW(_previewName);const v=document.getElementById("prev-tel-input").value.trim();if(w)w.tel=v;
   const td=document.getElementById("prev-tel-display"),ti=document.getElementById("prev-tel-input");
   ti.style.display="none";if(v){td.textContent=v;td.className="w-tel-display";}else{td.textContent="+ Tel";td.className="w-tel-display empty";}td.style.display="";
+  if (w && w._sbId) sbUpdateTrabajador(w._sbId, { tel: v || null });
 }
 function callWorker(){const w=getW(_previewName);if(w&&w.tel)window.location.href=`tel:${w.tel.replace(/\s/g,"")}`;}
 function waWorker(){const w=getW(_previewName);if(w&&w.tel)window.open(`https://wa.me/34${w.tel.replace(/\D/g,"")}`);}
@@ -1655,27 +1789,140 @@ function triggerPhoto(){
   const w=getW(_previewName);
   if(w&&isSafeImg(w.photo)){
     const win=window.open("","_blank");
-    win.document.write(`<!DOCTYPE html><html><body style="margin:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px"><img src="${w.photo}" style="max-width:100%;max-height:80vh;object-fit:contain"><div style="display:flex;gap:10px"><button onclick="document.getElementById('fi').click()" style="background:#C5A669;color:#222;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">Cambiar</button><button onclick="window.opener.removeWorkerPhoto();window.close()" style="background:rgba(200,60,60,.8);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer">Quitar</button></div><input type="file" id="fi" accept="image/*" style="display:none" onchange="const r=new FileReader();r.onload=e=>{window.opener.setWorkerPhoto(e.target.result);window.close();};r.readAsDataURL(this.files[0])"><\/body><\/html>`);
+    win.document.write(`<!DOCTYPE html><html><body style="margin:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px"><img src="${w.photo}" style="max-width:100%;max-height:80vh;object-fit:contain"><div style="display:flex;gap:10px"><button onclick="document.getElementById('fi').click()" style="background:#C5A669;color:#222;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">Cambiar</button><button onclick="window.opener.removeWorkerPhoto();window.close()" style="background:rgba(200,60,60,.8);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer">Quitar</button></div><input type="file" id="fi" accept="image/*" style="display:none" onchange="const f=this.files[0];if(!f)return;if(f.size>2097152){alert('La imagen supera el límite de 2 MB');return;}const r=new FileReader();r.onload=e=>{window.opener.setWorkerPhoto(e.target.result,f);window.close();};r.readAsDataURL(f)"><\/body><\/html>`);
   }else{_photoTarget=_previewName;document.getElementById("photo-input").click();}
 }
-window.removeWorkerPhoto=()=>{const w=getW(_previewName);if(w){w.photo=null;openPreview(_previewName);buildGrid();renderTrabajadores();}};
-window.setWorkerPhoto=src=>{const w=getW(_previewName);if(w){w.photo=src;openPreview(_previewName);buildGrid();renderTrabajadores();}};
+window.removeWorkerPhoto=()=>{
+  const w=getW(_previewName);if(!w)return;
+  const sbId=w._sbId,prev=w.photo;
+  w.photo=null;openPreview(_previewName);buildGrid();renderTrabajadores();
+  if(sbId){
+    sbUpdateTrabajador(sbId,{foto_url:null});
+    if(prev&&typeof prev==='string'&&prev.includes('/storage/v1/object/public/avatares/')){
+      const path=prev.split('/storage/v1/object/public/avatares/')[1]?.split('?')[0];
+      if(path)_sb?.storage.from('avatares').remove([path]).then(({error})=>{if(error)console.error('[SB] remove foto:',error.message);});
+    }
+  }
+};
+window.setWorkerPhoto=(src,file)=>{
+  const w=getW(_previewName);if(!w)return;
+  w.photo=src;openPreview(_previewName);buildGrid();renderTrabajadores();
+  if(file&&w._sbId){sbUploadFotoTrabajador(w._sbId,file).then(res=>{
+    if(res.url){w.photo=res.url;buildGrid();renderTrabajadores();}
+    else if(res.error)showToast('Error al subir la foto');
+  });}
+};
 document.getElementById("photo-input").addEventListener("change",function(){
   const file=this.files[0];if(!file)return;
+  if(file.size>2*1024*1024){showToast('La imagen supera el límite de 2 MB');this.value="";return;}
+  const target=_photoTarget;
   const reader=new FileReader();
-  reader.onload=e=>{const w=L().staff.find(s=>s.name===_photoTarget);if(w){w.photo=e.target.result;buildGrid();renderTrabajadores();if(document.getElementById("ov-preview").classList.contains("show"))openPreview(_photoTarget);}};
+  reader.onload=e=>{
+    const w=L().staff.find(s=>s.name===target);if(!w)return;
+    w.photo=e.target.result;buildGrid();renderTrabajadores();
+    if(document.getElementById("ov-preview").classList.contains("show"))openPreview(target);
+    if(w._sbId){sbUploadFotoTrabajador(w._sbId,file).then(res=>{
+      if(res.url){w.photo=res.url;buildGrid();renderTrabajadores();}
+      else if(res.error)showToast('Error al subir la foto');
+    });}
+  };
   reader.readAsDataURL(file);this.value="";_photoTarget=null;
 });
 
-/* ── CONFIRMAR / ELIMINAR TRABAJADOR ── */
+/* ── CONFIRM DIALOG (genérico) ── */
+let _confirmOkCb = null, _confirmCancelCb = null;
+function _doConfirmOk()    { if (_confirmOkCb)     _confirmOkCb(); }
+function _doConfirmCancel(){ if (_confirmCancelCb) _confirmCancelCb(); else closeOv('ov-confirm'); }
+function showConfirmDialog(title, body, okText, okCb, cancelCb) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-body').textContent  = body;
+  document.getElementById('confirm-ok-btn').textContent = okText;
+  _confirmOkCb     = okCb;
+  _confirmCancelCb = cancelCb;
+  showOv('ov-confirm');
+}
+
+/* ── ARCHIVAR / ELIMINAR TRABAJADOR ── */
 function confirmDelete(){
-  document.getElementById("confirm-body").textContent=`Vas a eliminar a ${_previewName} de la plantilla. Esta acción es permanente — se borrará del plan semanal y no podrás recuperar sus datos.`;
-  closeOv("ov-preview");showOv("ov-confirm");
+  closeOv('ov-preview');
+  showConfirmDialog(
+    '¿Eliminar trabajador?',
+    `Vas a archivar a ${_previewName}. Desaparecerá de los listados activos pero su historial de turnos quedará intacto.`,
+    'Sí, eliminar',
+    () => doDeleteWorker(),
+    () => { closeOv('ov-confirm'); showOv('ov-preview'); }
+  );
 }
 function doDeleteWorker(){
-  const idx=L().staff.findIndex(w=>w.name===_previewName);if(idx>-1)L().staff.splice(idx,1);
-  ROWS.forEach(r=>L().data[r].forEach((d,i)=>{L().data[r][i]=d.filter(n=>parse(n).name!==_previewName);}));
-  closeOv("ov-confirm");buildGrid();renderTrabajadores();renderW();updateStats();
+  const w = getW(_previewName); if (!w) return;
+  w.activo = false;
+  if (w._sbId) sbArchivarTrabajador(w._sbId);
+  closeOv('ov-confirm');
+  buildGrid(); renderTrabajadores(); renderW(); updateStats();
+  showToast('El trabajador ha sido archivado. Puedes borrarlo en Trabajadores archivados.');
+}
+
+/* ── TRABAJADORES ARCHIVADOS ── */
+function openArchivedWorkers(){
+  renderArchivedWorkers();
+  showOv('ov-archived');
+}
+
+function renderArchivedWorkers(){
+  const archived = L().staff.filter(w => w.activo === false);
+  const list  = document.getElementById('archived-list');
+  const empty = document.getElementById('archived-empty');
+  if (!archived.length) {
+    list.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = archived.map(w => `
+    <div class="pitem" style="cursor:default">
+      <div class="p-av">${isSafeImg(w.photo)?`<img src="${w.photo}" alt="${w.name}">`:`${ini(w.name)}`}</div>
+      <div class="p-info"><div class="p-name">${w.name}</div><div class="p-sect">${w.sec==='sala'?'Sala':w.sec==='cocina'?'Cocina':'Ambos'}</div></div>
+      <div style="display:flex;gap:5px;flex-shrink:0">
+        <button class="topbar-pill" onclick="restaurarTrabajador('${w.name}')" style="font-size:11px;padding:5px 9px;color:var(--acc);border-color:var(--acc-bd)">Restaurar</button>
+        <button class="topbar-pill" onclick="confirmarBorrarDefinitivo('${w.name}')" style="font-size:11px;padding:5px 9px;color:#cc6060;border-color:rgba(200,60,60,.3)">Borrar</button>
+      </div>
+    </div>`).join('');
+}
+
+function restaurarTrabajador(name){
+  const w = getW(name); if (!w) return;
+  w.activo = true;
+  if (w._sbId) sbRestaurarTrabajador(w._sbId);
+  renderArchivedWorkers();
+  buildGrid(); renderTrabajadores(); renderW(); updateStats();
+  showToast(`${name} restaurado ✓`);
+}
+
+let _pendingPermDeleteName = null;
+function confirmarBorrarDefinitivo(name){
+  _pendingPermDeleteName = name;
+  closeOv('ov-archived');
+  showConfirmDialog(
+    '¿Borrar definitivamente?',
+    `Esto borrará permanentemente a ${name} y toda su información, incluida su participación en turnos pasados. Esta acción no se puede deshacer.`,
+    'Borrar definitivamente',
+    () => doBorrarDefinitivo(),
+    () => { closeOv('ov-confirm'); showOv('ov-archived'); }
+  );
+}
+
+async function doBorrarDefinitivo(){
+  const name = _pendingPermDeleteName; if (!name) return;
+  const w = getW(name); if (!w) return;
+  closeOv('ov-confirm');
+  if (w._sbId) await sbBorrarTrabajadorDefinitivo(w._sbId);
+  const idx = L().staff.findIndex(x => x.name === name);
+  if (idx > -1) L().staff.splice(idx, 1);
+  ROWS.forEach(r => L().data[r].forEach((d, i) => { L().data[r][i] = d.filter(n => parse(n).name !== name); }));
+  _pendingPermDeleteName = null;
+  buildGrid(); renderTrabajadores(); renderW(); updateStats();
+  scheduleAutosave();
+  showToast(`${name} eliminado definitivamente`);
 }
 
 /* ── MODAL AÑADIR AL TURNO ── */
@@ -1685,7 +1932,7 @@ function openAddModal(row,col){
   document.getElementById("add-sub").textContent=`${ROW_LBL[row]} · ${DAYS_L[col]}`;
   const assigned=(L().data[row][col]||[]).map(n=>parse(n).name);
   const list=document.getElementById("add-worker-list");list.innerHTML="";
-  L().staff.forEach(w=>{
+  L().staff.filter(w=>w.activo!==false).forEach(w=>{
     const isAssigned=assigned.includes(w.name);
     const item=document.createElement("div");item.className="aw-item"+(isAssigned?" assigned":"");
     item.innerHTML=`<div class="aw-av">${isSafeImg(w.photo)?`<img src="${w.photo}">`:`${ini(w.name)}`}</div><div class="aw-name">${w.name}</div><span class="aw-tag">${w.sec}</span>${isAssigned?`<span class="aw-assigned-badge">ya asignado</span>`:""}`;
@@ -1707,7 +1954,7 @@ function openTrabajadores(){
 }
 function renderTrabajadores(){
   updateStats();
-  document.getElementById("plist").innerHTML=L().staff.map(w=>`
+  document.getElementById("plist").innerHTML=L().staff.filter(w=>w.activo!==false).map(w=>`
     <div class="pitem" onclick="closeOv('ov-trabajadores');openPreview('${w.name}')">
       <div class="p-av">${isSafeImg(w.photo)?`<img src="${w.photo}" alt="${w.name}">`:`${ini(w.name)}`}</div>
       <div class="p-info"><div class="p-name">${w.name}</div><div class="p-sect">${w.sec==="sala"?"Sala":w.sec==="cocina"?"Cocina":"Ambos"} · ${cntT(w.name)} turnos</div></div>
@@ -1829,7 +2076,7 @@ function wDayCell(name,d){
 }
 function renderW(){
   buildPersonaHeader();
-  let f=L().staff.filter(w=>(curSec==="all"||w.sec===curSec||w.sec==="ambos")&&w.name.toLowerCase().includes(curSearch.toLowerCase()));
+  let f=L().staff.filter(w=>w.activo!==false&&(curSec==="all"||w.sec===curSec||w.sec==="ambos")&&w.name.toLowerCase().includes(curSearch.toLowerCase()));
   if(curSort==="td")f.sort((a,b)=>cntT(b.name)-cntT(a.name));
   else if(curSort==="ta")f.sort((a,b)=>cntT(a.name)-cntT(b.name));
   else if(curSort==="na")f.sort((a,b)=>a.name.localeCompare(b.name));
@@ -1848,6 +2095,7 @@ function renderW(){
 }
 
 function setView(v){
+  flushSave();
   document.getElementById("view-semana").style.display=v==="semana"?"":"none";
   document.getElementById("view-persona").style.display=v==="persona"?"":"none";
   document.getElementById("vtab-s").classList.toggle("active",v==="semana");
@@ -2018,6 +2266,7 @@ document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{
 /* ── INICIALIZACIÓN ── */
 buildGrid();renderW();updateStats();
 sbInitTrabajadores().then(()=>changeWeek(0)); /* carga diccionario nombre↔UUID, actualiza label y carga semana actual */
+window.addEventListener('beforeunload', () => { if (_saveTimer !== null) { clearTimeout(_saveTimer); _saveTimer = null; saveWeekSnapshot(); } });
 
 
 
@@ -2430,6 +2679,7 @@ function limpiarSemana(){
   ROWS.forEach(r=>{ for(let d=0;d<7;d++) L().data[r][d]=[]; });
   buildGrid(); renderW(); updateStats();
   showToast('Semana limpiada ✓');
+  scheduleAutosave();
 }
 
 function runAutoGen(){
@@ -2465,6 +2715,7 @@ function _runAutoGenCore(){
     assigned.push({name:w.name,slot,day});
   }
   function isAvail(w,slot,day){
+    if(w.activo===false) return false;
     if(alreadyIn(slot,day).includes(w.name)) return false;
     if(alreadyInRun(w.name,slot,day)) return false;
     const med=isMed[slot];
@@ -2579,6 +2830,7 @@ function _runAutoGenCore(){
   }
   res.innerHTML=h;
   buildGrid(); renderW(); updateStats();
+  scheduleAutosave();
 } // end _runAutoGenCore
 
 
