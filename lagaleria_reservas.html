@@ -514,7 +514,7 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
 <script>
 /* ── SUPABASE CLIENT ── */
 const SUPABASE_URL  = 'https://nnmaedehqeeogmhzqzji.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ubWFlZGVocWVlb2dtaHpxemppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0OTA0MzAsImV4cCI6MjA2NTA2NjQzMH0.gh7aVMzKQP6mMTMBaZ18M8_L6xCVESnzTiE1GAfMvtA';
+const SUPABASE_ANON = 'sb_publishable_spxukgcwMf-VFre7l_E68g_tWatBs9X';
 const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 const LOCAL_ID = '3fd1108c-1c7b-4a0e-9141-8527db4e5ccc';
 
@@ -600,16 +600,18 @@ async function sbLoadEventos(fecha){
     if(error) throw error;
     return (data||[]).map(function(e){
       return {
-        id:     e.id,
-        nombre: e.descripcion,
-        fecha:  e.fecha,
-        hora:   e.hora ? e.hora.slice(0,5) : '',
-        tipo:   e.tipo||'evento',
-        precio: e.precio||'',
-        aforo:  e.aforo||null,
-        nota:   e.nota||'',
-        foto:   e.img_url||null,
-        _sbId:  e.id,
+        id:         e.id,
+        nombre:     e.descripcion,
+        fecha:      e.fecha,
+        hora:       e.hora ? e.hora.slice(0,5) : '',
+        tipo:       e.tipo||'evento',
+        precio:     e.precio||'',
+        aforo:      e.aforo||null,
+        nota:       e.nota||'',
+        foto:       e.img_url||null,
+        zonasIds:   [],
+        asistentes: [],
+        _sbId:      e.id,
       };
     });
   }catch(e){ console.error('sbLoadEventos',e); return []; }
@@ -703,8 +705,9 @@ function loadZonas(){
   ];
 }
 
-function hoyStr(){const d=new Date();return d.toISOString().split('T')[0];}
-function manaStr(){const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().split('T')[0];}
+function localDateStr(d){const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const day=String(d.getDate()).padStart(2,'0');return`${y}-${m}-${day}`;}
+function hoyStr(){return localDateStr(new Date());}
+function manaStr(){const d=new Date();d.setDate(d.getDate()+1);return localDateStr(d);}
 
 let reservas = [
   {id:1, nombre:'Familia Rodríguez', tel:'634 123 456', fecha:hoyStr(), hora:'14:30', pax:6, mesas:2, zonaId:1, estado:'confirmada', nota:''},
@@ -748,9 +751,13 @@ function initDay(){
 function changeDay(d){
   const cur=new Date(curDay+'T00:00:00');
   cur.setDate(cur.getDate()+d);
-  curDay=cur.toISOString().split('T')[0];
+  const y=cur.getFullYear();
+  const m=String(cur.getMonth()+1).padStart(2,'0');
+  const day=String(cur.getDate()).padStart(2,'0');
+  curDay=`${y}-${m}-${day}`;
   updateDateLbl();
   renderRes();
+  renderEventos();
 }
 function updateDateLbl(){
   const lbl=document.getElementById('res-date-lbl');
@@ -1105,12 +1112,13 @@ let eventos = [
 function renderEventos(){
   const list=document.getElementById('ev-list');
   const empty=document.getElementById('ev-empty');
-  if(empty) empty.style.display=eventos.length?'none':'block';
-  list.innerHTML=eventos.map(ev=>{
+  const dayEvs=eventos.filter(ev=>ev.fecha===curDay);
+  if(empty) empty.style.display=dayEvs.length?'none':'block';
+  list.innerHTML=dayEvs.map(ev=>{
     const tipo=TIPOS_EVENTO[ev.tipo]||TIPOS_EVENTO.evento;
-    const zonasBloq=ev.zonasIds.map(id=>zonas.find(z=>z.id===id)).filter(Boolean);
-    const totalPax=ev.asistentes.reduce((s,a)=>s+1+(a.acomp||0),0);
-    const pagados=ev.asistentes.filter(a=>a.pagado).length;
+    const zonasBloq=(ev.zonasIds||[]).map(id=>zonas.find(z=>z.id===id)).filter(Boolean);
+    const totalPax=(ev.asistentes||[]).reduce((s,a)=>s+1+(a.acomp||0),0);
+    const pagados=(ev.asistentes||[]).filter(a=>a.pagado).length;
     const aforoWarn=ev.aforo&&totalPax>ev.aforo;
     return`<div class="ev-card" onclick="openEvDetail(${ev.id})">
       <span class="ev-card-icon">${tipo.icon}</span>

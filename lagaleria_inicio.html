@@ -955,7 +955,7 @@ input[type=file]{display:none}
 <script>
 /* ── SUPABASE CLIENT ── */
 const SUPABASE_URL  = 'https://nnmaedehqeeogmhzqzji.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ubWFlZGVocWVlb2dtaHpxemppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0OTA0MzAsImV4cCI6MjA2NTA2NjQzMH0.gh7aVMzKQP6mMTMBaZ18M8_L6xCVESnzTiE1GAfMvtA';
+const SUPABASE_ANON = 'sb_publishable_spxukgcwMf-VFre7l_E68g_tWatBs9X';
 const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
 const LOCAL_ID = '3fd1108c-1c7b-4a0e-9141-8527db4e5ccc';
@@ -993,12 +993,23 @@ async function sbLoadTrabajadores(){
 
 async function sbSaveTrabajador(t){
   try{
-    if(t.id){
-      const {error} = await _sb.from('trabajadores').update(t).eq('id',t.id);
+    const payload = {
+      nombre:     t.name     || t.nombre   || '',
+      seccion:    t.sec      || t.seccion  || 'sala',
+      tel:        t.tel      || null,
+      foto_url:   t.photo    || t.foto_url || null,
+      min_turnos: t.minT     != null ? t.minT : (t.min_turnos != null ? t.min_turnos : 3),
+      max_turnos: t.maxT     != null ? t.maxT : (t.max_turnos != null ? t.max_turnos : 6),
+      prioridad:  t.prioridad || 'eventual',
+      activo:     t.activo   !== false,
+    };
+    const sbId = t._sbId || t.id;
+    if(sbId){
+      const {error} = await _sb.from('trabajadores').update(payload).eq('id', sbId);
       if(error) throw error;
     } else {
-      t.local_id = LOCAL_ID;
-      const {error} = await _sb.from('trabajadores').insert(t);
+      payload.local_id = LOCAL_ID;
+      const {error} = await _sb.from('trabajadores').insert(payload);
       if(error) throw error;
     }
     return true;
@@ -1151,7 +1162,7 @@ function showConfirm(opts){
 
 /* ── Supabase credentials ── */
 var SUPA_URL = 'https://nnmaedehqeeogmhzqzji.supabase.co';
-var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ubWFlZGVocWVlb2dtaHpxemppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMjU4NDgsImV4cCI6MjA5NjYwMTg0OH0.8fSJchNwCp9CPbh5zjjPYWd_lYrM2KUQt4Th5OB9QH8';
+var SUPA_KEY = 'sb_publishable_spxukgcwMf-VFre7l_E68g_tWatBs9X';
 
 /* ── Helper: fetch autenticado hacia Supabase REST ──
    Recoge el JWT de la sesión activa del parent (Supabase Auth).
@@ -1219,8 +1230,10 @@ function initFromParent(){
           applyRolPermissions(rol);
         }
       }catch(e){}
-      showMockBadge();
-      loadZonasFromParent();
+      /* sin parent también usa Supabase real salvo ?mock=1 explícito */
+      var isMockDirect = new URLSearchParams(window.location.search).get('mock') === '1';
+      if(isMockDirect){ showMockBadge(); loadZonasFromParent(); }
+      else{ localId = LOCAL_ID; fetchZonas(); fetchReservasHoy(); initSupabase(); }
       return;
     }
     rol = p.currentUser.rol;
@@ -1234,50 +1247,13 @@ function initFromParent(){
       document.getElementById('badge-trabajadores').textContent = local.trabajadores || '—';
     }
 
-    /* en local siempre mock, en producción Supabase */
-    var isLocal = window.location.protocol === 'file:' ||
-                  new URLSearchParams(window.location.search).get('mock') === '1' ||
-                  window.location.hostname === 'localhost' ||
-                  window.location.hostname === '127.0.0.1';
-    if(isLocal){ showMockBadge(); loadZonasFromParent(); }
-    else{ fetchLocalId(); }
+    var isMock = new URLSearchParams(window.location.search).get('mock') === '1';
+    if(isMock){ showMockBadge(); loadZonasFromParent(); }
+    else{ localId = LOCAL_ID; fetchZonas(); fetchReservasHoy(); initSupabase(); }
 
   }catch(e){ console.error('initFromParent', e); }
 }
 
-/* ── Obtener el uuid del local activo desde Supabase ──
-   ?mock=1 en la URL → salta Supabase y carga mock instantáneo.
-   Útil para trabajar en local sin esperar el timeout. */
-async function fetchLocalId(){
-  /* file:// siempre en mock — no hay servidor que responda */
-  var isMock = window.location.protocol === 'file:' ||
-               new URLSearchParams(window.location.search).get('mock') === '1';
-  if(isMock){
-    console.info('Modo mock — file:// o ?mock=1');
-    showMockBadge();
-    loadZonasFromParent();
-    return;
-  }
-  try{
-    var controller = new AbortController();
-    var timeout = setTimeout(function(){ controller.abort(); }, 3000);
-    var res = await supaFetch('/rest/v1/locales?select=id,nombre,slug&slug=eq.galeria&limit=1', {
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-    if(!res.ok) throw new Error(res.status);
-    var data = await res.json();
-    if(data && data.length){
-      localId = data[0].id;
-      fetchZonas();
-      fetchReservasHoy();
-    }
-  }catch(e){
-    console.info('Supabase no disponible — usando datos mock');
-    showMockBadge();
-    loadZonasFromParent();
-  }
-}
 
 /* ── Fallback si Supabase no responde ──
    Orden de prioridad:
@@ -1674,7 +1650,6 @@ function L(){return{staff:_trabWorkers,data:{sm:[[],[],[],[],[],[],[]],sn:[[],[]
    Future: /src/modules/workers.js
    ═══════════════════════════════════════════════════ */
 function openTrabajadores(){
-  loadWorkers();
   document.getElementById('view-editar-list').style.display='none';
   document.getElementById('view-trabajadores').classList.add('active');
   renderTrabajadores();
@@ -2451,6 +2426,13 @@ function _wcMarkDirty(){
    4. DASHBOARD — Stats + TRABAJADORES preview/modal
    Future: /src/modules/dashboard.js + workers.js
    ═══════════════════════════════════════════════════ */
+function toggleDashDispo(el){
+  var exp = el.parentElement.querySelector('.dash-expand');
+  var chev = el.querySelector('.dash-chev');
+  if(exp) exp.classList.toggle('open');
+  if(chev) chev.classList.toggle('open');
+}
+
 function initDashboard(){
   var d=new Date();
   var dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
@@ -2638,7 +2620,7 @@ const ROW_LBL={sm:"Sala Med",sn:"Sala Noche",cm:"Cocina Med",cn:"Cocina Noche"};
 const DAYS_L=["Lunes 18","Martes 19","Miércoles 20","Jueves 21","Viernes 22","Sábado 23","Domingo 24"];
 
 
-var _trabWorkers = []; /* loaded from lg_workers_v1 localStorage */
+var _trabWorkers = []; /* loaded from Supabase via initSupabase() */
 var _previewName = '';
 var _horaRows    = [];
 var _tpCtx = '', _tpIdx = -1, _tpH = 0, _tpM = 0, _tpBtn = null;
@@ -2895,7 +2877,7 @@ function triggerPhoto(){
   </div>
 </div>
 
-</body></html>`);
+<\/body><\/html>`);
   }else{_photoTarget=_previewName;document.getElementById("photo-input").click();}
 }
 window.removeWorkerPhoto=()=>{const w=getW(_previewName);if(w){w.photo=null;openPreview(_previewName);buildGrid();renderTrabajadores();}};
@@ -3180,70 +3162,19 @@ function toggleUnavail(el){
 }
 
 
-/* ══════════════════════════════════════════════════
-   WORKERS STORE — lg_workers_v1
-   Capa de datos temporal sobre localStorage.
-   TODO: reemplazar loadWorkers/saveWorkers con
-         llamadas a Supabase cuando esté disponible.
-══════════════════════════════════════════════════ */
-var LG_WORKERS_KEY = 'lg_workers_v1';
-
-/* Datos por defecto — se usan si no hay nada en localStorage */
-var WORKERS_DEFAULT = [
-  {name:"Lorenzo",sec:"ambos",photo:null,tel:"666 123 456",estado:"activo",minT:4,maxT:8,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"fijo",skills:{}},
-  {name:"Manu",sec:"sala",photo:null,tel:"677 234 567",estado:"activo",minT:3,maxT:6,unavailMed:[0],unavailNoch:[],vacaciones:[],prioridad:"fijo",skills:{}},
-  {name:"Luis",sec:"sala",photo:null,tel:"688 345 678",minT:3,maxT:6,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{}},
-  {name:"Mayte",sec:"sala",photo:null,tel:"699 456 789",minT:3,maxT:5,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"fijo",skills:{}},
-  {name:"Bryan",sec:"sala",photo:null,tel:"611 567 890",minT:3,maxT:5,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{}},
-  {name:"Antonio",sec:"ambos",photo:null,tel:"622 678 901",minT:2,maxT:5,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{}},
-  {name:"Alejandro",sec:"sala",photo:null,tel:"633 789 012",minT:3,maxT:6,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"fijo",skills:{}},
-  {name:"Sara",sec:"sala",photo:null,tel:"644 890 123",minT:2,maxT:5,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{}},
-  {name:"Noa",sec:"sala",photo:null,tel:"655 901 234",minT:2,maxT:5,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{}},
-  {name:"Josep",sec:"sala",photo:null,tel:"666 012 345",minT:2,maxT:5,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{}},
-  {name:"Israel",sec:"ambos",photo:null,tel:"611 987 654",minT:5,maxT:10,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"fijo",skills:{}},
-  {name:"Noemi",sec:"ambos",photo:null,tel:"622 876 543",minT:4,maxT:8,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"fijo",skills:{}},
-  {name:"JL",sec:"cocina",photo:null,tel:"633 765 432",minT:3,maxT:6,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"fijo",skills:{}},
-  {name:"Ruben",sec:"cocina",photo:null,tel:"644 654 321",minT:3,maxT:6,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{}},
-  {name:"JI",sec:"cocina",photo:null,tel:"655 543 210",minT:3,maxT:6,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{}},
-  {name:"Noa C",sec:"cocina",photo:null,tel:"666 432 109",minT:2,maxT:5,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{}},
-  {name:"Josep C",sec:"cocina",photo:null,tel:"677 321 098",minT:2,maxT:5,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{}},
-  {name:"Refuerzo X",sec:"ambos",photo:null,tel:"",minT:0,maxT:5,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{}}
-,
-  {name:"Carmen",sec:"sala",photo:null,tel:"",email:"",minT:3,maxT:6,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{},estado:"sin_telefono"},
-  {name:"Diego",sec:"cocina",photo:null,tel:"688 999 111",email:"",minT:3,maxT:6,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{},estado:"sin_acceso"},
-  {name:"Sara",sec:"sala",photo:null,tel:"699 222 333",email:"",minT:3,maxT:6,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:"eventual",skills:{},estado:"invitado"}];
-
-/* TODO: reemplazar con fetch a Supabase tabla 'trabajadores' */
-
 /* ═══════════════════════════════════════════════════
-   10. STORES — localStorage → Supabase (Zustand)
+   10. STORES — Workers via Supabase
    Future: /src/stores/
    ═══════════════════════════════════════════════════ */
-function loadWorkers(){
-  try {
-    var raw = localStorage.getItem(LG_WORKERS_KEY);
-    if(raw){ _trabWorkers = JSON.parse(raw); return; }
-  } catch(e){}
-  _trabWorkers = JSON.parse(JSON.stringify(WORKERS_DEFAULT));
-  saveWorkers();
-}
-
-/* TODO: reemplazar con upsert a Supabase tabla 'trabajadores' */
-function saveWorkers(){
-  try { localStorage.setItem(LG_WORKERS_KEY, JSON.stringify(_trabWorkers)); }
-  catch(e){ console.warn('saveWorkers failed', e); }
-}
-
-/* TODO: reemplazar con update a Supabase */
 function saveWorker(name){
   var w = getW(name); if(!w) return;
-  saveWorkers();
+  sbSaveTrabajador(w).catch(function(e){ console.warn('[SB] saveWorker failed:', e); });
 }
 
-/* TODO: reemplazar con delete en Supabase */
 function deleteWorker(name){
-  _trabWorkers = _trabWorkers.filter(function(w){ return w.name !== name; });
-  saveWorkers();
+  var w = getW(name);
+  if(w){ sbDeleteTrabajador(w._sbId || w.id).catch(function(e){ console.warn('[SB] deleteWorker failed:', e); }); }
+  _trabWorkers = _trabWorkers.filter(function(x){ return x.name !== name; });
 }
 
 
@@ -3726,7 +3657,7 @@ function inv_send(){
 
   if(typeof _trabWorkers !== 'undefined'){
     _trabWorkers.push(newWorker);
-    if(typeof saveWorkers === 'function') saveWorkers();
+    sbSaveTrabajador(newWorker).catch(function(e){ console.warn('[SB] create worker failed:', e); });
     if(typeof renderTrabajadores === 'function') renderTrabajadores();
   }
 
@@ -3759,7 +3690,7 @@ function prev_sendInvite(name){
   var w=(_trabWorkers||[]).find(function(x){return x.name===name;});
   if(!w) return;
   w.estado='invitado';
-  if(typeof saveWorkers==='function') saveWorkers();
+  if(typeof saveWorker==='function') saveWorker(name);
   var estadoEl=document.getElementById('prev-estado');
   if(estadoEl) estadoEl.textContent='🟡 Invitado';
   var invBtn=document.getElementById('prev-invite-btn');
@@ -3802,23 +3733,6 @@ function applyRolPermissions(r){
       : JSON.parse(localStorage.getItem('lg_session')||'{}');
     if(greetUser && u.nombre) greetUser.textContent = u.nombre.split(' ')[0];
   }catch(e){}
-}
-
-
-function prev_resetPin(){
-  var w = (_trabWorkers||[]).find(function(x){
-    return x.name === document.getElementById('prev-title').textContent;
-  });
-  if(!w) return;
-  showConfirm({
-    message: 'El PIN de ' + w.name + ' volverá a 1234 y tendrá que cambiarlo en su próximo acceso.',
-    confirmLabel: 'Resetear PIN',
-    onConfirm: function(){
-      /* TODO: supabase → flag reset_pin=true en tabla profiles */
-      try{ localStorage.removeItem('lg_onboarding_done_'+(w.initials||w.sec)); }catch(e){}
-      showToast('PIN de ' + w.name + ' reseteado a 1234');
-    }
-  });
 }
 
 
