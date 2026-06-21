@@ -406,7 +406,7 @@ body{
 .pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--brd2);background:transparent;transition:all .15s}
 .pin-dot.filled{background:var(--acc);border-color:var(--acc)}
 .pin-dot.error{background:#fc8181;border-color:#fc8181}
-.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 6px;place-items:center}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:10px 0 6px;place-items:center}
 .pin-btn{width:56px;height:56px;border-radius:50%;border:1px solid var(--brd2);background:var(--nav);color:var(--txt);font-size:20px;font-weight:600;cursor:pointer;transition:all .1s;display:flex;align-items:center;justify-content:center;margin:0 auto}
 .pin-btn:active{background:var(--acc-bg);border-color:var(--acc-bd);color:var(--acc);transform:scale(.95)}
 .pin-btn-del{color:var(--dim)}
@@ -434,6 +434,7 @@ body{
 .ls-title{font-size:20px;font-weight:700;color:var(--txt);margin-bottom:6px}
 .ls-hint{font-size:13px;color:var(--dim)}
 .ls-back{position:absolute;left:0;top:4px;background:none;border:none;color:var(--dim);cursor:pointer;padding:4px;display:flex;align-items:center}
+.ls-body{display:flex;flex-direction:column;gap:16px;width:100%}
 .ls-#login-screen .l-input-wrap{border:1px solid rgba(197,166,105,.3);background:rgba(197,166,105,.06);border-radius:12px}
 #login-screen .l-input-wrap:focus-within{border-color:var(--acc)}
 #login-screen input{font-size:16px}
@@ -758,7 +759,7 @@ footer#app-footer{
 <script>
 /* ── SUPABASE CLIENT ── */
 const SUPABASE_URL  = 'https://nnmaedehqeeogmhzqzji.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ubWFlZGVocWVlb2dtaHpxemppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0OTA0MzAsImV4cCI6MjA2NTA2NjQzMH0.gh7aVMzKQP6mMTMBaZ18M8_L6xCVESnzTiE1GAfMvtA';
+const SUPABASE_ANON = 'sb_publishable_spxukgcwMf-VFre7l_E68g_tWatBs9X';
 const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 const LOCAL_ID = '3fd1108c-1c7b-4a0e-9141-8527db4e5ccc';
 
@@ -905,7 +906,7 @@ var ZONA_EMOJIS = [
    Eliminar toda la lógica de localStorage de esta sección cuando se migre. */
 var LS_KEY = 'ag_session';
 
-function applySession(profile){
+function applySession(profile, remember){
   currentUser = {
     nombre:   profile.nombre,
     initials: profile.initials,
@@ -925,12 +926,10 @@ function applySession(profile){
     if(avatarBtn) avatarBtn.style.display = '';
   }
 
-
-
-  /* Save session for submodules */
+  /* Acceso para sub-módulos (iframes) — siempre disponible mientras dure la pestaña */
   try{ localStorage.setItem('lg_session', JSON.stringify(currentUser)); }catch(e){}
-
-  try{ localStorage.setItem('lg_session', JSON.stringify(currentUser)); }catch(e){}
+  /* Restaurar shell al recargar — solo si el toggle "Recordar" estaba activo */
+  if(remember){ try{ localStorage.setItem(LS_KEY, JSON.stringify(currentUser)); }catch(e){} }
   /* Load local config from Supabase */
   sbLoadLocal();
   var canSeeInicio = (currentUser.rol === 'admin' || currentUser.rol === 'encargado');
@@ -947,17 +946,12 @@ function applySession(profile){
   setTimeout(function(){ onboarding_check(); }, 400);
 }
 
-/* auto-login al cargar si hay sesión guardada */
-(function checkSavedSession(){
-  try{
-    var saved = localStorage.getItem(LS_KEY);
-    if(saved){ applySession(JSON.parse(saved)); }
-  }catch(e){}
-})();
+/* auto-login — se ejecuta desde ls_init (DOMContentLoaded), no antes */
 
 function doLogout(){
   /* limpiar sesión guardada */
   try{ localStorage.removeItem(LS_KEY); }catch(e){}
+  try{ localStorage.removeItem('lg_session'); }catch(e){}
   /* TODO: await supabase.auth.signOut() */
   currentUser = null;
   closeAll();
@@ -1475,9 +1469,15 @@ function doLogin(){
 
 /* ══ LOGIN STEPS ══ */
 function ls_init(){
+  /* Restaurar sesión guardada — DOM ya está listo aquí */
   try{
-    var saved=localStorage.getItem('lg_saved_tel');
-    if(saved){ var el=document.getElementById('l-tel'); if(el){ el.value=saved; ls_onTelInput(el); } }
+    var saved = localStorage.getItem(LS_KEY);
+    if(saved){ applySession(JSON.parse(saved)); return; }
+  }catch(e){}
+  /* Sin sesión — mostrar login normal */
+  try{
+    var savedTel=localStorage.getItem('lg_saved_tel');
+    if(savedTel){ var el=document.getElementById('l-tel'); if(el){ el.value=savedTel; ls_onTelInput(el); } }
   }catch(e){}
   setTimeout(function(){ ls_show('ls-tel'); }, 1500);
 }
@@ -1518,18 +1518,16 @@ function pin_submit(){
       }
       if(_pin!=='1234'){ pin_error(); return; }
     }
-    if(document.getElementById('l-remember').checked){
-      try{ localStorage.setItem('lg_saved_tel',tel); }catch(e){}
-    }
-    applySession(profile);
+    var remember = document.getElementById('l-remember').checked;
+    if(remember){ try{ localStorage.setItem('lg_saved_tel',tel); }catch(e){} }
+    applySession(profile, remember);
   }).catch(function(){
     /* Network error — usar mock */
     var profile = MOCK_PROFILES[tel]||MOCK_PROFILES[tel.replace('+34','')]||null;
     if(!profile||_pin!=='1234'){ pin_error(); return; }
-    if(document.getElementById('l-remember').checked){
-      try{ localStorage.setItem('lg_saved_tel',tel); }catch(e){}
-    }
-    applySession(profile);
+    var remember = document.getElementById('l-remember').checked;
+    if(remember){ try{ localStorage.setItem('lg_saved_tel',tel); }catch(e){} }
+    applySession(profile, remember);
   });
 }
 

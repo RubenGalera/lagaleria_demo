@@ -102,6 +102,7 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .prod-info{flex:1;min-width:0}
 .prod-name{font-size:13px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .prod-meta{display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap}
+.cat-badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;background:var(--acc-bg);color:var(--acc);border:1px solid var(--acc-bd)}
 .loc-badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0}
 .loc-g{background:rgba(180,130,0,.15);color:var(--amb);border:1px solid var(--amb-bd)}
 .loc-d{background:rgba(60,140,70,.12);color:var(--grn);border:1px solid var(--grn-bd)}
@@ -210,3 +211,9 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .sval-origin-row{height:14px;display:flex;align-items:center;justify-content:center;gap:3px;overflow:hidden}
 .sval-origin{font-size:10px;color:var(--faint);font-weight:600;line-height:1}
 .sval-arrow{font-size:9px;color:var(--faint);line-height:1}
+.reg-del-card{background:none;border:none;color:var(--faint);cursor:pointer;font-size:13px;padding:4px 7px;border-radius:6px;line-height:1;transition:color .15s,background .15s;flex-shrink:0;margin-left:auto}
+.reg-del-card:active{color:var(--red);background:var(--red-bg)}
+.reg-mov{gap:8px}
+.reg-mov-time{font-size:10px;color:var(--faint);min-width:36px;flex-shrink:0;font-variant-numeric:tabular-nums}
+.reg-mov .reg-mov-prod{flex:1}
+.reg-loading{text-align:center;padding:40px 20px;font-size:13px;color:var(--dim)}

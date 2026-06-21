@@ -395,6 +395,7 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
           <option value="cata">Cata</option>
           <option value="menu">Menú especial</option>
           <option value="evento" selected>Evento</option>
+          <option value="birthday">Cumpleaños</option>
         </select>
       </div>
     </div>
@@ -598,7 +599,19 @@ async function sbLoadEventos(fecha){
     if(fecha) q = q.eq('fecha', fecha);
     const {data,error} = await q.order('hora');
     if(error) throw error;
-    return (data||[]).map(function(e){
+    const evList = data||[];
+
+    /* Cargar asistentes de todos los eventos en una sola query */
+    var allAsi = [];
+    if(evList.length){
+      const {data:asiData} = await _sb.from('evento_asistentes')
+        .select('*')
+        .in('evento_id', evList.map(function(e){return e.id;}))
+        .order('created_at');
+      allAsi = asiData||[];
+    }
+
+    return evList.map(function(e){
       return {
         id:         e.id,
         nombre:     e.descripcion,
@@ -610,8 +623,20 @@ async function sbLoadEventos(fecha){
         nota:       e.nota||'',
         foto:       e.img_url||null,
         zonasIds:   [],
-        asistentes: [],
-        _sbId:      e.id,
+        asistentes: allAsi
+          .filter(function(a){return a.evento_id===e.id;})
+          .map(function(a){
+            return {
+              id:     a.id,
+              nombre: a.nombre,
+              acomp:  Number(a.acompanantes)||0,
+              pagado: a.pago==='pagado',
+              metodo: a.metodo||null,
+              nota:   a.nota||'',
+              _sbId:  a.id,
+            };
+          }),
+        _sbId: e.id,
       };
     });
   }catch(e){ console.error('sbLoadEventos',e); return []; }
@@ -646,6 +671,37 @@ async function sbDeleteEvento(sbId){
     if(error) throw error;
     return true;
   }catch(e){ console.error('sbDeleteEvento',e); return false; }
+}
+
+/* ── ASISTENTES ── */
+async function sbSaveAsistente(a, eventoId){
+  try{
+    const payload={
+      evento_id:    eventoId,
+      nombre:       a.nombre,
+      acompanantes: a.acomp||0,
+      pago:         a.pagado?'pagado':'pendiente',
+      metodo:       a.pagado?(a.metodo||null):null,
+      nota:         a.nota||null,
+    };
+    if(a._sbId){
+      const {error}=await _sb.from('evento_asistentes').update(payload).eq('id',a._sbId);
+      if(error) throw error;
+      return {ok:true,id:a._sbId};
+    } else {
+      const {data,error}=await _sb.from('evento_asistentes').insert(payload).select('id').single();
+      if(error) throw error;
+      return {ok:true,id:data.id};
+    }
+  }catch(e){ console.error('sbSaveAsistente',e); return {ok:false}; }
+}
+
+async function sbDeleteAsistente(sbId){
+  try{
+    const {error}=await _sb.from('evento_asistentes').delete().eq('id',sbId);
+    if(error) throw error;
+    return true;
+  }catch(e){ console.error('sbDeleteAsistente',e); return false; }
 }
 
 /* ── INIT con Supabase ── */
@@ -833,7 +889,7 @@ function secHdr(label,count){
 
 function resCard(r){
   const est=ESTADOS[r.estado]||ESTADOS.pendiente;
-  return`<div class="res-card" style="border-color:${est.bd}" onclick="openDetail(${r.id})">
+  return`<div class="res-card" style="border-color:${est.bd}" onclick="openDetail('${r.id}')">
     <div class="res-stripe" style="background:${est.color}"></div>
     <div class="res-top">
       <div class="res-name">${r.nombre}</div>
@@ -896,7 +952,7 @@ function fillZonaSelect(selectedId){
   const el=document.getElementById('e-zona-pills');if(!el)return;
   const sel=selectedId||zonas[0]?.id;
   el.innerHTML=zonas.map(z=>`
-    <div class="zona-pill${z.id===sel?' act':''}" onclick="selectZona(${z.id},this)">
+    <div class="zona-pill${z.id===sel?' act':''}" onclick="selectZona('${z.id}',this)">
       ${z.emoji} ${z.nombre}
     </div>`).join('');
   el.dataset.selected=sel||'';
@@ -908,7 +964,7 @@ function selectZona(id,el){
   checkCapacity();
 }
 function getSelectedZona(){
-  return parseInt(document.getElementById('e-zona-pills')?.dataset.selected)||zonas[0]?.id;
+  return document.getElementById('e-zona-pills')?.dataset.selected||zonas[0]?.id;
 }
 function fillEstadoPills(selectedEstado){
   const el=document.getElementById('e-estado-pills');if(!el)return;
@@ -917,6 +973,7 @@ function fillEstadoPills(selectedEstado){
     return`<button class="est-pill" style="background:${act?e.bg:'transparent'};border-color:${act?e.bd:'var(--brd2)'};color:${act?e.color:'var(--dim)'}"
       onclick="selectEstado('${k}',this)" data-estado="${k}">${e.label}</button>`;
   }).join('');
+  el.dataset.selected=selectedEstado;
 }
 function selectEstado(k,el){
   const est=ESTADOS[k];if(!est)return;
@@ -941,8 +998,8 @@ function openNewRes(){
   document.getElementById('e-tel').value='';
   document.getElementById('e-fecha').value=curDay;
   document.getElementById('e-hora').value='';
-  document.getElementById('e-pax').value='';
-  document.getElementById('e-mesas').value='';
+  document.getElementById('e-pax').value='4';
+  document.getElementById('e-mesas').value='1';
   document.getElementById('e-nota').value='';
   delete document.getElementById('e-pax').dataset.manual;
   delete document.getElementById('e-mesas').dataset.manual;
@@ -1047,8 +1104,14 @@ function cancelDelRes(){
   document.getElementById('del-confirm-row').style.display='none';
   document.getElementById('btn-del-res').style.display='block';
 }
-function confirmDelRes(){
+async function confirmDelRes(){
   if(!editingId)return;
+  var r=reservas.find(function(x){return x.id===editingId;});
+  var sbId=r&&r._sbId;
+  if(sbId){
+    var ok=await sbDeleteReserva(sbId);
+    if(!ok){ toast('Error al eliminar — inténtalo de nuevo'); return; }
+  }
   reservas=reservas.filter(x=>x.id!==editingId);
   document.getElementById('del-confirm-row').style.display='none';
   closeModal('ov-edit');
@@ -1082,9 +1145,10 @@ let selectedEmoji = '☀️';
 
 /* ── EVENTOS DATA ── */
 const TIPOS_EVENTO = {
-  cata:  {label:'Cata',          icon:'🍷', color:'#9b7fd4', bg:'rgba(155,127,212,.15)', bd:'rgba(155,127,212,.4)'},
-  menu:  {label:'Menú especial', icon:'🍽️', color:'#5599bb', bg:'rgba(85,153,187,.15)',  bd:'rgba(85,153,187,.4)'},
-  evento:{label:'Evento',        icon:'🎉', color:'#C5A669', bg:'rgba(197,166,105,.12)', bd:'rgba(197,166,105,.35)'},
+  cata:    {label:'Cata',          icon:'🍷', color:'#9b7fd4', bg:'rgba(155,127,212,.15)', bd:'rgba(155,127,212,.4)'},
+  menu:    {label:'Menú especial', icon:'🍽️', color:'#5599bb', bg:'rgba(85,153,187,.15)',  bd:'rgba(85,153,187,.4)'},
+  evento:  {label:'Evento',        icon:'🎉', color:'#C5A669', bg:'rgba(197,166,105,.12)', bd:'rgba(197,166,105,.35)'},
+  birthday:{label:'Cumpleaños',    icon:'🎂', color:'#e07060', bg:'rgba(220,100,80,.15)',  bd:'rgba(220,100,80,.4)'},
 };
 
 let eventos = [
@@ -1120,7 +1184,7 @@ function renderEventos(){
     const totalPax=(ev.asistentes||[]).reduce((s,a)=>s+1+(a.acomp||0),0);
     const pagados=(ev.asistentes||[]).filter(a=>a.pagado).length;
     const aforoWarn=ev.aforo&&totalPax>ev.aforo;
-    return`<div class="ev-card" onclick="openEvDetail(${ev.id})">
+    return`<div class="ev-card" onclick="openEvDetail('${ev.id}')">
       <span class="ev-card-icon">${tipo.icon}</span>
       <div class="ev-card-body">
         <div class="ev-card-name">${ev.nombre}</div>
@@ -1146,11 +1210,11 @@ function getEvTipo(){return document.getElementById('ev-tipo')?.value||'evento';
 
 function fillEvZonaPills(selectedIds){
   document.getElementById('ev-zona-pills').innerHTML=zonas.map(z=>
-    `<div class="zona-pill${selectedIds.includes(z.id)?' act':''}" data-zid="${z.id}" onclick="toggleEvZona(${z.id},this)">${z.emoji} ${z.nombre}</div>`
+    `<div class="zona-pill${selectedIds.includes(z.id)?' act':''}" data-zid="${z.id}" onclick="toggleEvZona('${z.id}',this)">${z.emoji} ${z.nombre}</div>`
   ).join('');
 }
 function toggleEvZona(id,el){el.classList.toggle('act');}
-function getEvZonas(){return [...document.querySelectorAll('#ev-zona-pills .zona-pill.act')].map(el=>parseInt(el.dataset.zid));}
+function getEvZonas(){return [...document.querySelectorAll('#ev-zona-pills .zona-pill.act')].map(el=>el.dataset.zid);}
 
 let evImgData=null;
 function loadEvImg(input){
@@ -1270,10 +1334,11 @@ function confirmDelEvento(){
 
 /* ── EVENTO DETAIL ── */
 function renderEvStats(ev){
-  const totalPax=ev.asistentes.reduce((s,a)=>s+1+(a.acomp||0),0);
-  const pagados=ev.asistentes.filter(a=>a.pagado).reduce((s,a)=>s+1+(a.acomp||0),0);
-  const totalEur=ev.precio?(totalPax*ev.precio).toFixed(0):null;
-  const pagadoEur=ev.precio?(pagados*ev.precio).toFixed(0):null;
+  const totalPax=ev.asistentes.reduce((s,a)=>s+1+(Number(a.acomp)||0),0);
+  const pagados=ev.asistentes.filter(a=>a.pagado).reduce((s,a)=>s+1+(Number(a.acomp)||0),0);
+  const precio=parseFloat(ev.precio)||0;
+  const totalEur=precio>0?(totalPax*precio).toFixed(0):null;
+  const pagadoEur=precio>0?(pagados*precio).toFixed(0):null;
   const aforoWarn=ev.aforo&&totalPax>ev.aforo;
   document.getElementById('evd-stats').innerHTML=`
     <div class="info-box"><div class="info-val">${ev.asistentes.length}</div><div class="info-lbl">registros</div></div>
@@ -1302,7 +1367,7 @@ function renderAsistentes(ev){
     const pagStyle=a.pagado
       ?'background:rgba(60,140,70,.15);color:#4a9a5a'
       :'background:rgba(180,130,0,.15);color:#c89030';
-    return`<div class="asi-row" onclick="openEditAsistente(${ev.id},${a.id})">
+    return`<div class="asi-row" onclick="openEditAsistente('${ev.id}','${a.id}')">
       <div class="asi-info">
         <div class="asi-name">${a.nombre}${acompStr}</div>
         ${a.nota?`<div class="asi-sub">${a.nota}</div>`:''}
@@ -1360,26 +1425,50 @@ function openEditAsistente(evId,aId){
   document.getElementById('asi-nota').value=a.nota||'';
   showModal('ov-asistente');
 }
-function saveAsistente(){
+async function saveAsistente(){
   const nombre=document.getElementById('asi-nombre').value.trim();
   if(!nombre){toast('Introduce un nombre');return;}
   const ev=eventos.find(x=>x.id===currentEventoId);if(!ev)return;
   const pagado=getAsiPago()==='pagado';
-  const data={nombre, acomp:parseInt(document.getElementById('asi-acomp').value)||0, pagado, metodo:pagado?getAsiMetodo():null, nota:document.getElementById('asi-nota').value.trim()};
+  const data={nombre,acomp:parseInt(document.getElementById('asi-acomp').value)||0,pagado,metodo:pagado?getAsiMetodo():null,nota:document.getElementById('asi-nota').value.trim()};
+
   if(editingAsiId){
+    /* EDITAR — actualiza memoria inmediatamente, sincroniza Supabase en segundo plano */
     const a=ev.asistentes.find(x=>x.id===editingAsiId);
     if(a) Object.assign(a,data);
+    closeModal('ov-asistente');
+    renderEvStats(ev);renderAsistentes(ev);renderEventos();
+    toast('Asistente actualizado ✓');
+    if(a&&a._sbId&&ev._sbId){
+      sbSaveAsistente(a,ev._sbId).then(function(r){
+        if(!r.ok) console.error('[sbSaveAsistente] update failed:',a._sbId);
+      });
+    }
   } else {
-    ev.asistentes.push({id:++nid,...data});
+    /* NUEVO — espera UUID de Supabase antes de cerrar el modal */
+    var newA={...data};
+    if(ev._sbId){
+      const result=await sbSaveAsistente(newA,ev._sbId);
+      if(!result.ok){toast('Error al guardar — inténtalo de nuevo');return;}
+      newA.id=result.id;
+      newA._sbId=result.id;
+    } else {
+      newA.id=++nid;
+    }
+    ev.asistentes.push(newA);
+    closeModal('ov-asistente');
+    renderEvStats(ev);renderAsistentes(ev);renderEventos();
+    toast('Asistente añadido ✓');
   }
-  closeModal('ov-asistente');
-  renderEvStats(ev);
-  renderAsistentes(ev);
-  renderEventos();
-  toast(editingAsiId?'Asistente actualizado ✓':'Asistente añadido ✓');
 }
-function confirmDelAsistente(){
+async function confirmDelAsistente(){
   const ev=eventos.find(x=>x.id===currentEventoId);if(!ev)return;
+  const a=ev.asistentes.find(x=>x.id===editingAsiId);
+  const sbId=a&&a._sbId;
+  if(sbId){
+    const ok=await sbDeleteAsistente(sbId);
+    if(!ok){toast('Error al eliminar — inténtalo de nuevo');return;}
+  }
   ev.asistentes=ev.asistentes.filter(x=>x.id!==editingAsiId);
   closeModal('ov-asistente');
   renderEvStats(ev);
@@ -1402,7 +1491,7 @@ function rebuildZonaBar(){
   if(!bar) return;
   const activas = zonas.filter(z => z.activa !== false);
   bar.innerHTML = `<div class="zpill act" onclick="setZona('all',this)"><span class="zpill-icon">✦</span><span class="zpill-lbl">Todas</span></div>` +
-    activas.map(z => `<div class="zpill" onclick="setZona(${z.id},this)"><span class="zpill-icon">${z.emoji}</span><span class="zpill-lbl">${z.nombre}</span></div>`).join('');
+    activas.map(z => `<div class="zpill" onclick="setZona('${z.id}',this)"><span class="zpill-icon">${z.emoji}</span><span class="zpill-lbl">${z.nombre}</span></div>`).join('');
 }
 
 /* ── INIT ── */

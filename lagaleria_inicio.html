@@ -2433,7 +2433,7 @@ function toggleDashDispo(el){
   if(chev) chev.classList.toggle('open');
 }
 
-function initDashboard(){
+async function initDashboard(){
   var d=new Date();
   var dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   var meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -2460,24 +2460,46 @@ function initDashboard(){
     });
   }catch(e){}
 
-  /* Fallback localStorage cuando no hay iframes */
-  if(!prods){
-    try{
-      var stockRaw=localStorage.getItem('lg_stock_v1');
-      if(stockRaw) prods=JSON.parse(stockRaw);
-    }catch(e){}
-  }
-  if(!reservas){
-    try{
-      var resRaw=localStorage.getItem('lg_reservas_v1');
-      if(resRaw) reservas=JSON.parse(resRaw);
-    }catch(e){}
-  }
-  if(!eventos){
-    try{
-      var evRaw=localStorage.getItem('lg_eventos_v1');
-      if(evRaw) eventos=JSON.parse(evRaw);
-    }catch(e){}
+  /* Fallback Supabase — cuando no hay iframes o no tienen datos aún */
+  if (_sb && (!eventos || !reservas || !prods)) {
+    try {
+      var hoyStr = new Date().toISOString().split('T')[0];
+      /* Semana actual: lunes a domingo */
+      var _td=new Date(),_dow=_td.getDay(),_moff=_dow===0?-6:1-_dow;
+      var _mon=new Date(_td);_mon.setDate(_td.getDate()+_moff);
+      var _sun=new Date(_mon);_sun.setDate(_mon.getDate()+6);
+      var _monStr=_mon.toISOString().split('T')[0],_sunStr=_sun.toISOString().split('T')[0];
+
+      var _qEv   = eventos   ? null : _sb.from('eventos').select('id,descripcion,fecha,hora').eq('local_id',LOCAL_ID).gte('fecha',_monStr).lte('fecha',_sunStr).order('fecha').order('hora');
+      var _qRes  = reservas  ? null : _sb.from('reservas').select('*').eq('local_id',LOCAL_ID).eq('fecha',hoyStr).order('hora');
+      var _qProd = prods     ? null : _sb.from('productos').select('nombre,cantidad,minimo').eq('local_id',LOCAL_ID).eq('activo',true);
+      var _qZona = reservas  ? null : _sb.from('zonas').select('id,emoji').eq('local_id',LOCAL_ID);
+
+      var _rs = await Promise.all([
+        _qEv   || Promise.resolve({data:null}),
+        _qRes  || Promise.resolve({data:null}),
+        _qProd || Promise.resolve({data:null}),
+        _qZona || Promise.resolve({data:null}),
+      ]);
+
+      var _evData=_rs[0].data, _resData=_rs[1].data, _prodData=_rs[2].data, _zonaData=_rs[3].data;
+
+      if (!eventos && _evData) {
+        eventos = _evData.map(function(e){
+          return { dia: new Date(e.fecha+'T00:00:00').getDay(), desc: e.descripcion||'', hora: e.hora?e.hora.slice(0,5):'' };
+        });
+      }
+      if (!reservas && _resData) {
+        var _zm={};
+        (_zonaData||[]).forEach(function(z){ _zm[z.id]=z.emoji; });
+        reservas = _resData.map(function(r){
+          return { nombre:r.nombre, fecha:r.fecha, hora:r.hora?r.hora.slice(0,5):'', pax:r.pax, mesas:r.mesas, estado:r.estado, zonaId:r.zona_id, emoji:_zm[r.zona_id]||'📍', nota:r.nota||'' };
+        });
+      }
+      if (!prods && _prodData) {
+        prods = _prodData.map(function(p){ return { name:p.nombre, qty:p.cantidad, min:p.minimo }; });
+      }
+    } catch(e){ console.error('[dash] sbFallback:', e); }
   }
   if(!loc){
     loc=L(); /* usa _trabWorkers local */
@@ -3287,7 +3309,7 @@ var ST_CATS_DEFAULT = [
   {id:'mat',label:'Material',    icon:'📦',color:'#c89030'}
 ];
 var ST_LOCS_DEFAULT = [
-  {id:'d',label:'Despensa'},{id:'g',label:'Garaje'},{id:'a',label:'Ambos'}
+  {id:'d',label:'Almacén'},{id:'g',label:'Garaje'},{id:'a',label:'Ambos'}
 ];
 var ST_PRODS_DEFAULT = [
   {id:1,name:'Cerveza Estrella',cat:'beb',loc:'a',qty:8,min:24,unit:'bot',note:'Nevera grande barra',active:true},

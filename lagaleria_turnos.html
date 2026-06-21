@@ -1136,6 +1136,8 @@ const LOCAL_ID = '3fd1108c-1c7b-4a0e-9141-8527db4e5ccc';
 let _nombreToId = {};
 let _idToNombre = {};
 let _sbTrabajadores = [];
+let _skillLocalToUUID = {};  /* slug 'barra' → UUID del catálogo skills */
+let _skillUUIDToLocal = {};  /* UUID → slug 'barra' */
 
 async function sbLoadTurnos(semanaInicio) {
   if (!_sb) { console.warn('sbLoadTurnos: Supabase no disponible'); return []; }
@@ -1166,6 +1168,8 @@ async function sbSaveTurno(turno) {
 
 async function sbInitTrabajadores() {
   if (!_sb) { console.warn('[SB] sbInitTrabajadores: _sb no disponible'); return; }
+
+  /* 1 — Trabajadores base */
   const {data, error} = await _sb.from('trabajadores')
     .select('id, nombre, seccion, prioridad, min_turnos, max_turnos, tel, foto_url, activo')
     .eq('local_id', LOCAL_ID)
@@ -1186,26 +1190,78 @@ async function sbInitTrabajadores() {
   const nDups = Object.keys(duplicates).length;
   console.log(`[SB] ✅ trabajadores cargados: ${_sbTrabajadores.length}` + (nDups ? ` (⚠ ${nDups} nombre/s duplicado/s)` : ''));
 
-  /* Poblar locals.galeria.staff con datos reales de Supabase */
-  if (_sbTrabajadores.length) {
-    locals.galeria.staff = _sbTrabajadores.map(t => ({
-      name:        t.nombre,
-      sec:         t.seccion,
-      photo:       t.foto_url || null,
-      tel:         t.tel || '',
-      minT:        t.min_turnos != null ? t.min_turnos : 0,
-      maxT:        t.max_turnos != null ? t.max_turnos : 0,
-      prioridad:   t.prioridad || 'eventual',
-      activo:      t.activo !== false,
-      skills:      {},  /* TODO Fase 3: cargar de trabajador_skill */
-      unavailMed:  [],  /* TODO Fase 3: cargar de disponibilidad */
-      unavailNoch: [],  /* TODO Fase 3: cargar de disponibilidad */
-      vacaciones:  [],  /* TODO Fase 3: cargar de vacaciones */
-      _sbId:       t.id,
-    }));
-    buildGrid(); renderW(); updateStats();
-    console.log('[SB] ✅ locals.galeria.staff actualizado con', _sbTrabajadores.length, 'trabajadores reales');
-  }
+  if (!_sbTrabajadores.length) return;
+
+  /* 2 — Carga paralela: catálogo skills + tablas relacionadas */
+  const trabIds = _sbTrabajadores.map(t => t.id);
+  const [
+    {data: catalogData,  error: catalogErr},
+    {data: skillsData,   error: skillsErr},
+    {data: dispoData,    error: dispoErr},
+    {data: vacData,      error: vacErr},
+  ] = await Promise.all([
+    _sb.from('skills').select('id, nombre'),
+    _sb.from('trabajador_skill').select('trabajador_id, skill_id, nivel').in('trabajador_id', trabIds),
+    _sb.from('disponibilidad').select('trabajador_id, dia_semana, turno').in('trabajador_id', trabIds),
+    _sb.from('vacaciones').select('id, trabajador_id, desde, hasta, tipo').in('trabajador_id', trabIds),
+  ]);
+  if (catalogErr) console.warn('[SB] skills catalog:', catalogErr.message);
+  if (skillsErr)  console.warn('[SB] trabajador_skill:', skillsErr.message);
+  if (dispoErr)   console.warn('[SB] disponibilidad:', dispoErr.message);
+  if (vacErr)     console.warn('[SB] vacaciones:', vacErr.message);
+
+  /* 3 — Mapa catálogo UUID ↔ slug local */
+  _skillLocalToUUID = {};
+  _skillUUIDToLocal = {};
+  const ALL_ROLES_FLAT = [...ROLES_COCINA, ...ROLES_SALA];
+  (catalogData || []).forEach(s => {
+    const sn = s.nombre.toLowerCase();
+    const role = ALL_ROLES_FLAT.find(r => { const rl=r.label.toLowerCase(); return rl===sn||rl.includes(sn)||sn.includes(rl); });
+    if (role) {
+      _skillLocalToUUID[role.id] = s.id;
+      _skillUUIDToLocal[s.id]    = role.id;
+    } else {
+      console.warn('[SB] skill sin match en ROLES:', s.nombre);
+    }
+  });
+  console.log(`[SB] ✅ skill catalog: ${Object.keys(_skillLocalToUUID).length}/${ALL_ROLES_FLAT.length} roles mapeados`);
+
+  /* 4 — Agrupar por trabajador_id */
+  const skillsByW = {}, dispoByW = {}, vacByW = {};
+  (skillsData || []).forEach(r => {
+    const localId = _skillUUIDToLocal[r.skill_id];
+    if (!localId) return;
+    if (!skillsByW[r.trabajador_id]) skillsByW[r.trabajador_id] = {};
+    skillsByW[r.trabajador_id][localId] = r.nivel;
+  });
+  (dispoData || []).forEach(r => {
+    if (!dispoByW[r.trabajador_id]) dispoByW[r.trabajador_id] = {med: [], noc: []};
+    if (r.turno === 'med')      dispoByW[r.trabajador_id].med.push(r.dia_semana);
+    else if (r.turno === 'noc') dispoByW[r.trabajador_id].noc.push(r.dia_semana);
+  });
+  (vacData || []).forEach(r => {
+    if (!vacByW[r.trabajador_id]) vacByW[r.trabajador_id] = [];
+    vacByW[r.trabajador_id].push({desde: r.desde, hasta: r.hasta, tipo: r.tipo || 'vacaciones', _sbId: r.id});
+  });
+
+  /* 5 — Poblar locals.galeria.staff */
+  locals.galeria.staff = _sbTrabajadores.map(t => ({
+    name:        t.nombre,
+    sec:         t.seccion,
+    photo:       t.foto_url || null,
+    tel:         t.tel || '',
+    minT:        t.min_turnos != null ? t.min_turnos : 0,
+    maxT:        t.max_turnos != null ? t.max_turnos : 0,
+    prioridad:   t.prioridad || 'eventual',
+    activo:      t.activo !== false,
+    skills:      skillsByW[t.id] || {},
+    unavailMed:  dispoByW[t.id]?.med  || [],
+    unavailNoch: dispoByW[t.id]?.noc  || [],
+    vacaciones:  vacByW[t.id]         || [],
+    _sbId:       t.id,
+  }));
+  buildGrid(); renderW(); updateStats();
+  console.log('[SB] ✅ locals.galeria.staff actualizado con', _sbTrabajadores.length, 'trabajadores reales');
 }
 
 function sbNombreToId(nombre) {
@@ -1655,6 +1711,20 @@ function toggleUnavail(el){
     document.querySelector(`#prof-sg .sg-cell[data-row="${r}"][data-col="${d}"]`)?.classList.toggle("unavail",el.classList.contains("active"));
   });
   updateAlert();
+  const w=getW(_previewName); if(!w) return;
+  if(!w.unavailMed) w.unavailMed=[];
+  if(!w.unavailNoch) w.unavailNoch=[];
+  const arr=t==="med"?w.unavailMed:w.unavailNoch;
+  const dbTurno=t==="med"?"med":"noc"; /* UI usa 'noch', DB usa 'noc' */
+  if(el.classList.contains("active")){
+    if(!arr.includes(d)) arr.push(d);
+    if(w._sbId) _sb?.from('disponibilidad').insert({trabajador_id:w._sbId,dia_semana:d,turno:dbTurno})
+      .then(({error})=>{if(error) console.error('[SB] insert dispo:',error.message);});
+  } else {
+    const i=arr.indexOf(d); if(i>=0) arr.splice(i,1);
+    if(w._sbId) _sb?.from('disponibilidad').delete().eq('trabajador_id',w._sbId).eq('dia_semana',d).eq('turno',dbTurno)
+      .then(({error})=>{if(error) console.error('[SB] delete dispo:',error.message);});
+  }
 }
 
 /* ── HORA ESPECIAL ── */
@@ -1941,10 +2011,22 @@ function openAddModal(row,col){
   });
   showOv("ov-add");
 }
-function addNewFromShift(){
+async function addNewFromShift(){
   const n=document.getElementById("add-new-name").value.trim();
-  if(!n)return;L().staff.push({name:n,sec:'ambos',photo:null,tel:"",minT:0,maxT:0,unavailMed:[],unavailNoch:[],vacaciones:[],skills:{}});
-  document.getElementById("add-new-name").value="";closeOv("ov-add");openPreview(n);
+  if(!n)return;
+  if(!_sb){showToast('Sin conexión a Supabase');return;}
+  const {data,error}=await _sb.from('trabajadores').insert({
+    nombre:n, local_id:LOCAL_ID, seccion:'ambos', activo:true, prioridad:'eventual', min_turnos:0, max_turnos:0
+  }).select('id').single();
+  if(error){showToast('Error al crear trabajador');console.error('[SB] addNewFromShift:',error.message);return;}
+  const newW={name:n,sec:'ambos',photo:null,tel:"",minT:0,maxT:0,unavailMed:[],unavailNoch:[],vacaciones:[],skills:{},activo:true,prioridad:'eventual',_sbId:data.id};
+  L().staff.push(newW);
+  _nombreToId[n]=data.id;
+  _idToNombre[data.id]=n;
+  document.getElementById("add-new-name").value="";
+  closeOv("ov-add");
+  buildGrid();renderW();updateStats();
+  openPreview(n);
 }
 
 /* ── PANEL TRABAJADORES ── */
@@ -2330,7 +2412,8 @@ function addVacaciones(){
   if(desde>hasta){showToast("La fecha de inicio debe ser anterior al fin");return;}
   if(!w.vacaciones)w.vacaciones=[];
   const overlap=vacDatesOverlap(w.vacaciones,desde,hasta,-1);
-  w.vacaciones.push({desde,hasta,tipo});
+  const newVac={desde,hasta,tipo};
+  w.vacaciones.push(newVac);
   w.vacaciones.sort((a,b)=>a.desde.localeCompare(b.desde));
   closeOv("ov-vac-popup");
   renderVacList();
@@ -2342,13 +2425,20 @@ function addVacaciones(){
   });
   updateAlert();
   showToast(overlap?"⚠️ Solapamiento detectado — revisa las fechas":"Periodo añadido ✓");
+  if(w._sbId){
+    _sb?.from('vacaciones').insert({trabajador_id:w._sbId,desde,hasta,tipo}).select('id').single()
+      .then(({data,error})=>{
+        if(error){console.error('[SB] insert vac:',error.message); return;}
+        if(data) newVac._sbId=data.id;
+      });
+  }
 }
 
 function delVacaciones(idx){
   const w=getW(_previewName); if(!w)return;
+  const item=w.vacaciones[idx];
   w.vacaciones.splice(idx,1);
   renderVacList();
-  // Refresh sg-cell vacation markers
   document.querySelectorAll("#prof-sg .sg-cell").forEach(c=>{
     c.classList.remove("on-vac");c.removeAttribute("data-vac-icon");
     const col=parseInt(c.dataset.col);
@@ -2356,6 +2446,10 @@ function delVacaciones(idx){
     if(vacIcon){c.classList.add("on-vac");c.setAttribute("data-vac-icon",vacIcon);}
   });
   updateAlert();
+  if(w._sbId && item?._sbId){
+    _sb?.from('vacaciones').delete().eq('id',item._sbId)
+      .then(({error})=>{if(error) console.error('[SB] delete vac:',error.message);});
+  }
 }
 
 function showToast(msg){
@@ -2542,21 +2636,31 @@ function setSkillLive(roleId,level,btn){
   const row=btn.closest('.skill-row');
   if(row) row.querySelectorAll('.skill-pill').forEach(b=>{b.style.opacity='.5';});
   btn.style.opacity='1';
+  if(w._sbId){
+    const skillUUID=_skillLocalToUUID[roleId];
+    if(!skillUUID){ console.warn('[SB] setSkillLive: sin UUID para',roleId); return; }
+    if(level==='none'){
+      _sb?.from('trabajador_skill').delete().eq('trabajador_id',w._sbId).eq('skill_id',skillUUID)
+        .then(({error})=>{if(error) console.error('[SB] delete skill:',error.message);});
+    } else {
+      _sb?.from('trabajador_skill').upsert({trabajador_id:w._sbId,skill_id:skillUUID,nivel:level},{onConflict:'trabajador_id,skill_id'})
+        .then(({error})=>{if(error) console.error('[SB] upsert skill:',error.message);});
+    }
+  }
 }
 
 function applySkills(){
   const w=getW(_previewName);
   if(w){
     ensureSkills(w);
-    // Derive sec from skills
     const hasCocina=ROLES_COCINA.some(r=>(w.skills[r.id]||'none')!=='none');
     const hasSala  =ROLES_SALA.some(r=>(w.skills[r.id]||'none')!=='none');
     if(hasCocina&&hasSala) w.sec='ambos';
     else if(hasCocina)     w.sec='cocina';
     else if(hasSala)       w.sec='sala';
-    // Update subtitle in profile
     const sub=document.getElementById('prev-sub');
     if(sub) sub.textContent=(w.sec==='sala'?'Sala':w.sec==='cocina'?'Cocina':'Ambos')+' · '+(curLocal==='galeria'?'La Galería':'La Sala');
+    if(w._sbId) sbUpdateTrabajador(w._sbId,{seccion:w.sec});
   }
   renderSkillsSummary();
   closeOv('ov-skills');

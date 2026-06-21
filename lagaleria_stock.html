@@ -68,7 +68,7 @@
   <div id="view-reg" style="display:none">
     <div class="reg-toolbar">
       <span id="reg-total-lbl" class="reg-total-lbl"></span>
-      <button class="tbtn" onclick="clearReg()" style="font-size:11px;padding:6px 10px">🗑 Borrar todo</button>
+      <button id="btn-clear-reg" class="tbtn" onclick="clearReg()" style="font-size:11px;padding:6px 10px">🗑 Borrar todo</button>
     </div>
     <div id="reg-list" class="reg-list"></div>
   </div>
@@ -97,7 +97,7 @@
         <div class="field">
           <label>Ubicación</label>
           <select class="sel" id="np-l">
-            <option value="d">Despensa</option>
+            <option value="d">Almacén</option>
             <option value="g">Garaje</option>
             <option value="a">Ambos</option>
           </select>
@@ -152,7 +152,7 @@
           <div class="field">
             <label>Ubicación</label>
             <select class="sel" id="ep-l">
-              <option value="d">Despensa</option>
+              <option value="d">Almacén</option>
               <option value="g">Garaje</option>
               <option value="a">Ambos</option>
             </select>
@@ -206,7 +206,27 @@
 
   <div class="toast" id="toast"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL  = 'https://nnmaedehqeeogmhzqzji.supabase.co';
+    const SUPABASE_ANON = 'sb_publishable_spxukgcwMf-VFre7l_E68g_tWatBs9X';
+    const LOCAL_ID      = '3fd1108c-1c7b-4a0e-9141-8527db4e5ccc';
+    const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  </script>
   <script src="assets/js/stock.js" defer></script>
+
+  <!-- CONFIRM CLEAR REG MODAL -->
+  <div class="modal-bg" id="confirm-reg-bg" onclick="if(event.target===this)closeClearRegConfirm()">
+    <div class="modal" style="max-width:320px">
+      <div style="text-align:center;padding:8px 0 16px">
+        <div style="font-size:32px;margin-bottom:12px">⚠️</div>
+        <div style="font-size:15px;font-weight:700;color:var(--txt);margin-bottom:8px">Borrar todo el registro</div>
+        <div style="font-size:12px;color:var(--dim);line-height:1.5">Se eliminarán todos los movimientos de stock.<br>Esta acción no se puede deshacer.</div>
+      </div>
+      <button class="btn-full" style="background:rgba(180,50,50,.15);border:1px solid var(--red-bd);color:var(--red);margin-bottom:8px" onclick="confirmClearReg()">Sí, borrar todo</button>
+      <button class="btn-full" style="background:transparent;border:1px solid var(--brd2);color:var(--muted)" onclick="closeClearRegConfirm()">Cancelar</button>
+    </div>
+  </div>
 
   <!-- CONFIRM DELETE MODAL -->
   <div class="modal-bg" id="confirm-del-bg" onclick="if(event.target===this)closeConfirmDel()">
