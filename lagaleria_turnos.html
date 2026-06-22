@@ -1122,6 +1122,7 @@ input[type=file]{display:none}
 <input type="file" id="ev-photo-input" accept="image/*">
 <input type="file" id="ev-photo-new-input" accept="image/*">
 
+<script src="assets/js/image-utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 /* ── SUPABASE — Fase 1 ── */
@@ -1286,7 +1287,7 @@ async function sbUploadFotoTrabajador(id, file) {
   if (!id || !file) return { error: 'Sin id o archivo' };
   if (file.size > MAX) return { error: 'La imagen supera el límite de 2 MB' };
   if (!_sb) return { error: 'Supabase no disponible' };
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const ext = (file.name ? file.name.split('.').pop() : 'jpg').toLowerCase();
   const path = `${id}.${ext}`;
   const { error: upErr } = await _sb.storage.from('avatares').upload(path, file, { upsert: true });
   if (upErr) { console.error('[SB] sbUploadFotoTrabajador:', upErr.message); return { error: upErr.message }; }
@@ -1877,10 +1878,14 @@ window.removeWorkerPhoto=()=>{
 window.setWorkerPhoto=(src,file)=>{
   const w=getW(_previewName);if(!w)return;
   w.photo=src;openPreview(_previewName);buildGrid();renderTrabajadores();
-  if(file&&w._sbId){sbUploadFotoTrabajador(w._sbId,file).then(res=>{
-    if(res.url){w.photo=res.url;buildGrid();renderTrabajadores();}
-    else if(res.error)showToast('Error al subir la foto');
-  });}
+  if(file&&w._sbId){
+    compressImage(file).then(function(blob){
+      sbUploadFotoTrabajador(w._sbId,blob).then(res=>{
+        if(res.url){w.photo=res.url;buildGrid();renderTrabajadores();}
+        else if(res.error)showToast('Error al subir la foto');
+      });
+    }).catch(function(err){ console.error('[img] compressImage error:',err); });
+  }
 };
 document.getElementById("photo-input").addEventListener("change",function(){
   const file=this.files[0];if(!file)return;
@@ -1891,10 +1896,14 @@ document.getElementById("photo-input").addEventListener("change",function(){
     const w=L().staff.find(s=>s.name===target);if(!w)return;
     w.photo=e.target.result;buildGrid();renderTrabajadores();
     if(document.getElementById("ov-preview").classList.contains("show"))openPreview(target);
-    if(w._sbId){sbUploadFotoTrabajador(w._sbId,file).then(res=>{
-      if(res.url){w.photo=res.url;buildGrid();renderTrabajadores();}
-      else if(res.error)showToast('Error al subir la foto');
-    });}
+    if(w._sbId){
+      compressImage(file).then(function(blob){
+        sbUploadFotoTrabajador(w._sbId,blob).then(res=>{
+          if(res.url){w.photo=res.url;buildGrid();renderTrabajadores();}
+          else if(res.error)showToast('Error al subir la foto');
+        });
+      }).catch(function(err){ console.error('[img] compressImage error:',err); });
+    }
   };
   reader.readAsDataURL(file);this.value="";_photoTarget=null;
 });

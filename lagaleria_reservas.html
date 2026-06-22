@@ -414,6 +414,8 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
       <label>Zonas ocupadas</label>
       <div class="zona-pills" id="ev-zona-pills"></div>
     </div>
+    <!-- NOTA -->
+    <div class="field"><label>Nota</label><input class="inp" id="ev-nota" placeholder="Alérgicos, intolerancias, excepciones..."></div>
     <!-- IMAGEN -->
     <div class="field">
       <label>Imagen (cartel / menú)</label>
@@ -511,6 +513,7 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
   <img id="img-full-el" style="max-width:100%;max-height:100%;object-fit:contain">
 </div>
 
+<script src="assets/js/image-utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 /* ── SUPABASE CLIENT ── */
@@ -601,14 +604,16 @@ async function sbLoadEventos(fecha){
     if(error) throw error;
     const evList = data||[];
 
-    /* Cargar asistentes de todos los eventos en una sola query */
-    var allAsi = [];
+    /* Cargar asistentes y zonas de todos los eventos en paralelo */
+    var allAsi = [], allZonas = [];
     if(evList.length){
-      const {data:asiData} = await _sb.from('evento_asistentes')
-        .select('*')
-        .in('evento_id', evList.map(function(e){return e.id;}))
-        .order('created_at');
-      allAsi = asiData||[];
+      const evIds = evList.map(function(e){return e.id;});
+      const [asiRes, zonasRes] = await Promise.all([
+        _sb.from('evento_asistentes').select('*').in('evento_id', evIds).order('created_at'),
+        _sb.from('evento_zonas').select('evento_id, zona_id').in('evento_id', evIds),
+      ]);
+      allAsi   = asiRes.data   || [];
+      allZonas = zonasRes.data || [];
     }
 
     return evList.map(function(e){
@@ -621,8 +626,8 @@ async function sbLoadEventos(fecha){
         precio:     e.precio||'',
         aforo:      e.aforo||null,
         nota:       e.nota||'',
-        foto:       e.img_url||null,
-        zonasIds:   [],
+        img:        e.img_url||null,
+        zonasIds:   allZonas.filter(function(z){return z.evento_id===e.id;}).map(function(z){return z.zona_id;}),
         asistentes: allAsi
           .filter(function(a){return a.evento_id===e.id;})
           .map(function(a){
@@ -642,8 +647,20 @@ async function sbLoadEventos(fecha){
   }catch(e){ console.error('sbLoadEventos',e); return []; }
 }
 
+async function sbUploadEventoImg(eventoId, blob){
+  if(!eventoId||!blob) return {error:'Sin id o imagen'};
+  const path = eventoId+'.jpg';
+  const {error:upErr} = await _sb.storage.from('eventos').upload(path, blob, {upsert:true, contentType:'image/jpeg'});
+  if(upErr){ console.error('[SB] sbUploadEventoImg:',upErr.message); return {error:upErr.message}; }
+  const {data} = _sb.storage.from('eventos').getPublicUrl(path);
+  const url = data?.publicUrl ? data.publicUrl+'?t='+Date.now() : null;
+  if(url) await _sb.from('eventos').update({img_url:url}).eq('id',eventoId);
+  return {url};
+}
+
 async function sbSaveEvento(ev){
   try{
+    // 'aforo' existe en el formulario y en memoria pero NO tiene columna en 'eventos' — se omite del payload deliberadamente
     var payload = {
       local_id:    LOCAL_ID,
       tipo:        ev.tipo||'evento',
@@ -651,15 +668,27 @@ async function sbSaveEvento(ev){
       fecha:       ev.fecha,
       hora:        ev.hora||null,
       precio:      ev.precio||null,
-      img_url:     ev.foto||null,
+      img_url:     ev.img||null,
       nota:        ev.nota||null,
     };
+    var eventoId = ev._sbId;
     if(ev._sbId){
       const {error} = await _sb.from('eventos').update(payload).eq('id',ev._sbId);
       if(error) throw error;
     } else {
-      const {error} = await _sb.from('eventos').insert(payload);
+      const {data,error} = await _sb.from('eventos').insert(payload).select('id').single();
       if(error) throw error;
+      eventoId = data.id;
+      ev._sbId = data.id;
+    }
+    /* Persistir zonas: borrar las anteriores e insertar las actuales */
+    if(eventoId){
+      await _sb.from('evento_zonas').delete().eq('evento_id', eventoId);
+      if(ev.zonasIds && ev.zonasIds.length){
+        const zonaRows = ev.zonasIds.map(function(zid){ return {evento_id: eventoId, zona_id: zid}; });
+        const {error:ze} = await _sb.from('evento_zonas').insert(zonaRows);
+        if(ze) throw ze;
+      }
     }
     return true;
   }catch(e){ console.error('sbSaveEvento',e); return false; }
@@ -1216,30 +1245,20 @@ function fillEvZonaPills(selectedIds){
 function toggleEvZona(id,el){el.classList.toggle('act');}
 function getEvZonas(){return [...document.querySelectorAll('#ev-zona-pills .zona-pill.act')].map(el=>el.dataset.zid);}
 
-let evImgData=null;
+let evImgBlob=null, evImgPreviewUrl=null;
 function loadEvImg(input){
   const file=input.files[0];if(!file)return;
-  // Limit to ~500KB by resizing via canvas
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const img=new Image();
-    img.onload=()=>{
-      const MAX=1200;
-      let w=img.width,h=img.height;
-      if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
-      const canvas=document.createElement('canvas');
-      canvas.width=w;canvas.height=h;
-      canvas.getContext('2d').drawImage(img,0,0,w,h);
-      evImgData=canvas.toDataURL('image/jpeg',0.75);
-      document.getElementById('ev-img-el').src=evImgData;
-      document.getElementById('ev-img-preview').style.display='block';
-    };
-    img.src=e.target.result;
-  };
-  reader.readAsDataURL(file);
+  compressImage(file).then(function(blob){
+    evImgBlob=blob;
+    if(evImgPreviewUrl&&evImgPreviewUrl.startsWith('blob:')) URL.revokeObjectURL(evImgPreviewUrl);
+    evImgPreviewUrl=URL.createObjectURL(blob);
+    document.getElementById('ev-img-el').src=evImgPreviewUrl;
+    document.getElementById('ev-img-preview').style.display='block';
+  }).catch(function(err){ console.error('[img] compressImage error:',err); });
 }
 function clearEvImg(){
-  evImgData=null;
+  if(evImgPreviewUrl&&evImgPreviewUrl.startsWith('blob:')) URL.revokeObjectURL(evImgPreviewUrl);
+  evImgBlob=null; evImgPreviewUrl=null;
   document.getElementById('ev-img-preview').style.display='none';
   document.getElementById('ev-img-input').value='';
 }
@@ -1254,6 +1273,7 @@ function openNewEvento(){
   document.getElementById('ev-hora').value='';
   document.getElementById('ev-precio').value='';
   document.getElementById('ev-aforo').value='';
+  document.getElementById('ev-nota').value='';
   document.getElementById('ev-tipo').value='evento';
   updateEvTipoIcon();
   fillEvZonaPills([]);
@@ -1271,11 +1291,13 @@ function openEditEvento(id){
   document.getElementById('ev-hora').value=ev.hora;
   document.getElementById('ev-precio').value=ev.precio||'';
   document.getElementById('ev-aforo').value=ev.aforo||'';
+  document.getElementById('ev-nota').value=ev.nota||'';
   document.getElementById('ev-tipo').value=ev.tipo||'evento';
   updateEvTipoIcon();
   fillEvZonaPills(ev.zonasIds||[]);
-  evImgData=ev.img||null;
-  if(evImgData){document.getElementById('ev-img-el').src=evImgData;document.getElementById('ev-img-preview').style.display='block';}
+  evImgBlob=null;
+  evImgPreviewUrl=ev.img||null;
+  if(evImgPreviewUrl){document.getElementById('ev-img-el').src=evImgPreviewUrl;document.getElementById('ev-img-preview').style.display='block';}
   else{document.getElementById('ev-img-preview').style.display='none';}
   showModal('ov-evento');
 }
@@ -1283,9 +1305,10 @@ function openEditEventoFromDetail(){
   closeModal('ov-ev-detail');
   openEditEvento(currentEventoId);
 }
-function saveEvento(){
+async function saveEvento(){
   const nombre=document.getElementById('ev-nombre').value.trim();
   if(!nombre){toast('Introduce un nombre');return;}
+  const isEditing = !!editingEventoId;
   const data={
     nombre,
     tipo:getEvTipo(),
@@ -1294,7 +1317,10 @@ function saveEvento(){
     precio:parseFloat(document.getElementById('ev-precio').value)||0,
     aforo:parseInt(document.getElementById('ev-aforo').value)||0,
     zonasIds:getEvZonas(),
-    img:evImgData||null,
+    /* Si hay blob nuevo pendiente de subir, img queda null temporalmente hasta que sbUploadEventoImg lo actualice;
+       si no hay blob nuevo, conservamos la URL existente (o null si se borró) */
+    img:evImgBlob ? null : evImgPreviewUrl,
+    nota:document.getElementById('ev-nota').value.trim(),
     asistentes: editingEventoId ? eventos.find(x=>x.id===editingEventoId)?.asistentes||[] : [],
   };
   if(editingEventoId){
@@ -1303,15 +1329,27 @@ function saveEvento(){
   } else {
     eventos.push({id:++nid,...data});
   }
-  closeModal('ov-evento');
-  renderEventos();
-  rebuildZonaBar(); // zona blocking may have changed
-  toast(editingEventoId?'Evento actualizado ✓':'Evento creado ✓');
-  /* Sync to Supabase */
+  /* Sync a Supabase ANTES de cerrar — necesitamos el UUID retornado para eventos nuevos */
   var savedEv = editingEventoId
     ? eventos.find(function(e){return e.id===editingEventoId;})
     : eventos[eventos.length-1];
-  if(savedEv && typeof sbSaveEvento==='function') sbSaveEvento(savedEv);
+  if(savedEv && typeof sbSaveEvento==='function') await sbSaveEvento(savedEv);
+  /* Subir imagen al bucket 'eventos' si hay blob nuevo */
+  if(evImgBlob && savedEv && savedEv._sbId){
+    var imgResult = await sbUploadEventoImg(savedEv._sbId, evImgBlob);
+    if(imgResult.url){
+      savedEv.img = imgResult.url;
+    } else {
+      toast('El evento se guardó pero la imagen no se pudo subir');
+    }
+    if(evImgPreviewUrl&&evImgPreviewUrl.startsWith('blob:')) URL.revokeObjectURL(evImgPreviewUrl);
+    evImgBlob = null;
+    evImgPreviewUrl = savedEv.img || null;
+  }
+  closeModal('ov-evento');
+  renderEventos();
+  rebuildZonaBar();
+  toast(isEditing?'Evento actualizado ✓':'Evento creado ✓');
 }
 function delEvento(){
   document.getElementById('btn-del-evento').style.display='none';
