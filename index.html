@@ -756,12 +756,8 @@ footer#app-footer{
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/lib/supabase-client.js"></script>
 <script>
-/* ── SUPABASE CLIENT ── */
-const SUPABASE_URL  = 'https://nnmaedehqeeogmhzqzji.supabase.co';
-const SUPABASE_ANON = 'sb_publishable_spxukgcwMf-VFre7l_E68g_tWatBs9X';
-const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-const LOCAL_ID = '3fd1108c-1c7b-4a0e-9141-8527db4e5ccc';
 
 /* ── LOAD LOCAL CONFIG desde Supabase ──
    Lee nombre, colores del local y los aplica al header
@@ -1507,27 +1503,26 @@ function pin_submit(){
   var tel=(document.getElementById('l-tel').value||'').trim().replace(/\s/g,'');
   if(!tel){ ls_show('ls-tel'); return; }
 
-  /* Try Supabase first, fallback to mock */
-  sbVerifyLogin(tel, _pin).then(function(profile){
-    if(!profile){
-      /* Fallback mock */
-      profile = MOCK_PROFILES[tel]||MOCK_PROFILES[tel.replace('+34','')]||null;
-      if(!profile){
-        pin_error();
-        return;
-      }
-      if(_pin!=='1234'){ pin_error(); return; }
-    }
-    var remember = document.getElementById('l-remember').checked;
-    if(remember){ try{ localStorage.setItem('lg_saved_tel',tel); }catch(e){} }
-    applySession(profile, remember);
-  }).catch(function(){
-    /* Network error — usar mock */
-    var profile = MOCK_PROFILES[tel]||MOCK_PROFILES[tel.replace('+34','')]||null;
+  /* Acceso de prueba: solo si el campo tel es exactamente una palabra clave de dev */
+  var DEV_KEYS = ['admin','superadmin','encargado','trabajador'];
+  if(DEV_KEYS.indexOf(tel) !== -1){
+    var profile = MOCK_PROFILES[tel]||null;
     if(!profile||_pin!=='1234'){ pin_error(); return; }
     var remember = document.getElementById('l-remember').checked;
     if(remember){ try{ localStorage.setItem('lg_saved_tel',tel); }catch(e){} }
     applySession(profile, remember);
+    return;
+  }
+
+  /* Número de teléfono real — solo Supabase, sin fallback mock */
+  sbVerifyLogin(tel, _pin).then(function(profile){
+    if(!profile){ pin_error(); return; }
+    var remember = document.getElementById('l-remember').checked;
+    if(remember){ try{ localStorage.setItem('lg_saved_tel',tel); }catch(e){} }
+    applySession(profile, remember);
+  }).catch(function(){
+    pin_error();
+    toast('Sin conexión — inténtalo de nuevo');
   });
 }
 

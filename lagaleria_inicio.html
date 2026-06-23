@@ -952,13 +952,8 @@ input[type=file]{display:none}
 <div id="_toast" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a2f3a;border:1px solid var(--brd2);color:var(--txt);padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/lib/supabase-client.js"></script>
 <script>
-/* ── SUPABASE CLIENT ── */
-const SUPABASE_URL  = 'https://nnmaedehqeeogmhzqzji.supabase.co';
-const SUPABASE_ANON = 'sb_publishable_spxukgcwMf-VFre7l_E68g_tWatBs9X';
-const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-
-const LOCAL_ID = '3fd1108c-1c7b-4a0e-9141-8527db4e5ccc';
 
 // Safety helper to avoid injecting template placeholders or malformed src
 function isSafeImg(u){return typeof u==='string'&&u.trim()!==''&&!u.includes('${');}

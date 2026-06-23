@@ -515,12 +515,8 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
 
 <script src="assets/js/image-utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/lib/supabase-client.js"></script>
 <script>
-/* ── SUPABASE CLIENT ── */
-const SUPABASE_URL  = 'https://nnmaedehqeeogmhzqzji.supabase.co';
-const SUPABASE_ANON = 'sb_publishable_spxukgcwMf-VFre7l_E68g_tWatBs9X';
-const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-const LOCAL_ID = '3fd1108c-1c7b-4a0e-9141-8527db4e5ccc';
 
 /* Mapeo estado Supabase → interno */
 function mapEstado(e){ return e||'pendiente'; }
@@ -741,8 +737,8 @@ async function initSupabase(){
     sbLoadEventos(),
   ]);
   if(sbZonas.length) zonas = sbZonas;
-  if(sbRes.length)   reservas = sbRes;
-  if(sbEv.length)    eventos = sbEv;
+  reservas = sbRes;
+  eventos  = sbEv;
   rebuildZonaBar();
   renderRes();
   renderEventos();
@@ -794,14 +790,7 @@ function localDateStr(d){const y=d.getFullYear();const m=String(d.getMonth()+1).
 function hoyStr(){return localDateStr(new Date());}
 function manaStr(){const d=new Date();d.setDate(d.getDate()+1);return localDateStr(d);}
 
-let reservas = [
-  {id:1, nombre:'Familia Rodríguez', tel:'634 123 456', fecha:hoyStr(), hora:'14:30', pax:6, mesas:2, zonaId:1, estado:'confirmada', nota:''},
-  {id:2, nombre:'Mesa García',       tel:'612 234 567', fecha:hoyStr(), hora:'21:00', pax:4, mesas:1, zonaId:3, estado:'pendiente',  nota:''},
-  {id:3, nombre:'Cumple Laura',      tel:'699 345 678', fecha:hoyStr(), hora:'20:00', pax:10,mesas:3, zonaId:4, estado:'confirmada', nota:'Tarta de cumpleaños'},
-  {id:4, nombre:'Ana Torres',        tel:'677 456 789', fecha:hoyStr(), hora:'21:30', pax:2, mesas:1, zonaId:5, estado:'pendiente',  nota:''},
-  {id:5, nombre:'Reserva Mañana',    tel:'600 000 001', fecha:manaStr(),hora:'13:00', pax:4, mesas:1, zonaId:2, estado:'confirmada', nota:''},
-  {id:6, nombre:'Almuerzo Pérez',    tel:'611 222 333', fecha:hoyStr(), hora:'13:30', pax:3, mesas:1, zonaId:3, estado:'confirmada', nota:''},
-];
+let reservas = [];
 
 /* ── UTILS ── */
 function getZona(id){return zonas.find(z=>z.id===id);}
@@ -1096,7 +1085,7 @@ function checkCapacity(){
 
 /* ── EMOJI GRID TOGGLE ── */
 let emojiExpanded=false;
-function saveRes(){
+async function saveRes(){
   const nombre=document.getElementById('e-nombre').value.trim();
   if(!nombre){toast('Introduce un nombre');return;}
   const data={
@@ -1110,8 +1099,15 @@ function saveRes(){
     estado:getSelectedEstado(),
     nota:  document.getElementById('e-nota').value.trim(),
   };
+  /* Construir payload con _sbId para que sbSaveReserva sepa si es insert o update */
+  var toSave = editingId
+    ? Object.assign({}, reservas.find(function(r){return r.id===editingId;})||{}, data)
+    : data;
+  var ok = await sbSaveReserva(toSave);
+  if(!ok){ toast('Error al guardar — inténtalo de nuevo'); return; }
+  /* Supabase confirmó → actualizar estado local */
   if(editingId){
-    const r=reservas.find(x=>x.id===editingId);
+    var r=reservas.find(function(x){return x.id===editingId;});
     if(r) Object.assign(r,data);
   } else {
     reservas.push({id:++nid,...data});
@@ -1119,11 +1115,6 @@ function saveRes(){
   closeModal('ov-edit');
   renderRes();
   toast(editingId?'Reserva actualizada ✓':'Reserva añadida ✓');
-  /* Sync to Supabase */
-  var saved = editingId
-    ? reservas.find(function(r){return r.id===editingId;})
-    : reservas[reservas.length-1];
-  if(saved && typeof sbSaveReserva==='function') sbSaveReserva(saved);
 }
 function delRes(){
   document.getElementById('btn-del-res').style.display='none';
