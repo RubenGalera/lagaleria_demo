@@ -217,3 +217,9 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .reg-mov-time{font-size:10px;color:var(--faint);min-width:36px;flex-shrink:0;font-variant-numeric:tabular-nums}
 .reg-mov .reg-mov-prod{flex:1}
 .reg-loading{text-align:center;padding:40px 20px;font-size:13px;color:var(--dim)}
+.reg-filter-bar{display:flex;gap:6px;padding:10px 14px 4px}
+.reg-fbtn{background:var(--surf);border:1px solid var(--brd);border-radius:20px;padding:5px 8px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;transition:all .15s;flex:1;text-align:center}
+.reg-fbtn.act{background:var(--acc-bg);border-color:var(--acc-bd);color:var(--acc);font-weight:600}
+.reg-fbtn:active{opacity:.7}
+.reg-type-section{padding:2px 0 4px}
+.reg-type-label{font-size:10px;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.4px;padding:4px 0 3px}

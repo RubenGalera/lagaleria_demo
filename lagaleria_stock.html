@@ -66,6 +66,13 @@
 
   <!-- REGISTRO -->
   <div id="view-reg" style="display:none">
+    <div class="reg-filter-bar">
+      <button class="reg-fbtn" onclick="setRegFilter('hoy', this)">Hoy</button>
+      <button class="reg-fbtn" onclick="setRegFilter('7d', this)">7 días</button>
+      <button class="reg-fbtn" onclick="setRegFilter('30d', this)">30 días</button>
+      <button class="reg-fbtn" onclick="setRegFilter('year', this)">Este año</button>
+      <button class="reg-fbtn act" onclick="setRegFilter('all', this)">Todo</button>
+    </div>
     <div class="reg-toolbar">
       <span id="reg-total-lbl" class="reg-total-lbl"></span>
       <button id="btn-clear-reg" class="tbtn" onclick="clearReg()" style="font-size:11px;padding:6px 10px">🗑 Borrar todo</button>
@@ -185,7 +192,7 @@
         <div class="edit-sheet-title">Añadir al pedido</div>
         <div class="sheet-cls" onclick="closeOneoffModal()">&#215;</div>
       </div>
-      <p style="font-size:12px;color:var(--dim);margin-bottom:14px;line-height:1.5">Producto puntual — no se guarda en el inventario. Se incluye solo en este pedido.</p>
+      <p style="font-size:12px;color:var(--dim);margin-bottom:14px;line-height:1.5">Producto puntual — se añade al pedido y permanece hasta que lo elimines.</p>
       <div class="field" style="margin-bottom:10px">
         <label>Nombre</label>
         <input class="inp" id="oo-n" placeholder="Balletas de colores, escoba...">
@@ -213,6 +220,7 @@
     const LOCAL_ID      = '3fd1108c-1c7b-4a0e-9141-8527db4e5ccc';
     const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
   </script>
+  <script src="assets/js/stock-status.js" defer></script>
   <script src="assets/js/stock.js" defer></script>
 
   <!-- CONFIRM CLEAR REG MODAL -->
@@ -220,8 +228,8 @@
     <div class="modal" style="max-width:320px">
       <div style="text-align:center;padding:8px 0 16px">
         <div style="font-size:32px;margin-bottom:12px">⚠️</div>
-        <div style="font-size:15px;font-weight:700;color:var(--txt);margin-bottom:8px">Borrar todo el registro</div>
-        <div style="font-size:12px;color:var(--dim);line-height:1.5">Se eliminarán todos los movimientos de stock.<br>Esta acción no se puede deshacer.</div>
+        <div style="font-size:15px;font-weight:700;color:var(--txt);margin-bottom:8px">Borrar registro</div>
+        <div id="confirm-reg-msg" style="font-size:12px;color:var(--dim);line-height:1.5">Se eliminarán todos los movimientos de stock. Esta acción no se puede deshacer.</div>
       </div>
       <button class="btn-full" style="background:rgba(180,50,50,.15);border:1px solid var(--red-bd);color:var(--red);margin-bottom:8px" onclick="confirmClearReg()">Sí, borrar todo</button>
       <button class="btn-full" style="background:transparent;border:1px solid var(--brd2);color:var(--muted)" onclick="closeClearRegConfirm()">Cancelar</button>

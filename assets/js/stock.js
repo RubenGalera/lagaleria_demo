@@ -1,5 +1,5 @@
-const STORAGE_KEY = 'lagaleria_stock_data'
-let prods = []
+let prods   = []
+let oneoffs = []
 
 function getStockUser() {
   if (typeof currentUser !== 'undefined') return currentUser
@@ -18,11 +18,12 @@ function normLoc(v) {
   return map[v.toLowerCase()] || v
 }
 
-let pedido = []
-let activeTab = 'inv'
-let activeCat = 'all'
-let editProdId = null
-let invMode = false
+let activeTab      = 'inv'
+let activeCat      = 'all'
+let editProdId     = null
+let invMode        = false
+let regFilter      = 'all'
+let regLoadedCount = 0
 
 const el = {
   prodList:      document.getElementById('prod-list'),
@@ -32,6 +33,7 @@ const el = {
   invDot:        document.getElementById('inv-dot'),
   btnInv:        document.getElementById('btn-inv'),
   pedContent:    document.getElementById('ped-content'),
+  pedDot:        document.getElementById('ped-dot'),
   regTotalLbl:   document.getElementById('reg-total-lbl'),
   regList:       document.getElementById('reg-list'),
   toast:         document.getElementById('toast'),
@@ -42,6 +44,7 @@ const el = {
   confirmDelName:document.getElementById('confirm-del-name'),
   btnClearReg:   document.getElementById('btn-clear-reg'),
   confirmRegBg:  document.getElementById('confirm-reg-bg'),
+  confirmRegMsg: document.getElementById('confirm-reg-msg'),
 }
 
 const inputs = {
@@ -97,14 +100,6 @@ function sbToLocal(r) {
 /* ─── Init ─── */
 async function initStock() {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      if (Array.isArray(parsed.pedido)) pedido = parsed.pedido
-    }
-  } catch(e) {}
-
-  try {
     const { data, error } = await _sb.from('productos')
       .select('*')
       .eq('local_id', LOCAL_ID)
@@ -117,10 +112,12 @@ async function initStock() {
     showToast('Error al cargar productos')
   }
 
+  await sbLoadProductosPuntuales()
   applyRolePermissions()
   renderTab(activeTab)
   setCat(activeCat)
   updateInventoryStatus()
+  updatePedDot()
 }
 
 /* ─── Permisos por rol ─── */
@@ -130,8 +127,8 @@ function applyRolePermissions() {
     const tabReg = document.getElementById('tab-reg')
     if (tabReg) tabReg.style.display = 'none'
   }
-  if (rol !== 'admin' && rol !== 'superadmin') {
-    if (el.btnClearReg) el.btnClearReg.style.display = 'none'
+  if (el.btnClearReg) {
+    el.btnClearReg.style.display = (rol === 'admin' || rol === 'superadmin') ? '' : 'none'
   }
 }
 
@@ -145,7 +142,7 @@ function renderTab(tab) {
   document.getElementById('view-ped').style.display = tab === 'ped' ? 'block' : 'none'
   document.getElementById('view-reg').style.display = tab === 'reg' ? 'block' : 'none'
   if (tab === 'inv') renderInventory()
-  if (tab === 'ped') renderPedido()
+  if (tab === 'ped') initPedido()
   if (tab === 'reg') renderRegistro()
 }
 
@@ -160,18 +157,40 @@ function setCat(cat, button) {
 
 /* ─── Inventory render ─── */
 function renderInventory() {
-  const filtered = activeCat === 'rep'
-    ? prods.filter(p => p.qty <= p.min)
-    : prods.filter(p => activeCat === 'all' || p.cat === activeCat)
-  el.prodList.innerHTML = filtered.map(renderProduct).join('') ||
-    '<div class="ped-empty"><div class="ped-empty-icon">📦</div><div class="ped-empty-title">No hay productos</div><div class="ped-empty-sub">Usa el botón + para agregar un producto.</div></div>'
+  const EMPTY = '<div class="ped-empty"><div class="ped-empty-icon">📦</div><div class="ped-empty-title">No hay productos</div><div class="ped-empty-sub">Usa el botón + para agregar un producto.</div></div>'
+
+  if (activeCat === 'rep') {
+    const items = prods.filter(isPendingForOrderView)
+      .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    el.prodList.innerHTML = items.map(renderProduct).join('') || EMPTY
+    updateReorderCount()
+    return
+  }
+
+  if (activeCat !== 'all') {
+    const items = prods.filter(p => p.cat === activeCat)
+      .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    el.prodList.innerHTML = items.map(renderProduct).join('') || EMPTY
+    updateReorderCount()
+    return
+  }
+
+  let html = ''
+  for (const [cat, catInfo] of Object.entries(prefs.categories)) {
+    const items = prods.filter(p => p.cat === cat)
+      .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    if (!items.length) continue
+    html += `<div class="sec-hdr"><div class="sec-lbl">${catInfo.emoji} ${catInfo.label.toUpperCase()}</div><div class="sec-line"></div></div>`
+    html += items.map(renderProduct).join('')
+  }
+  el.prodList.innerHTML = html || EMPTY
   updateReorderCount()
 }
 
 function renderProduct(prod) {
-  const category   = prefs.categories[prod.cat]
-  const location   = prefs.locations[prod.loc]
-  const statusClass = prod.qty <= prod.min ? 'red' : prod.qty <= prod.min * 2 ? 'amb' : 'grn'
+  const category    = prefs.categories[prod.cat]
+  const location    = prefs.locations[prod.loc]
+  const statusClass = getStockStatus(prod.qty, prod.min)
   return `
     <div class="prod ${statusClass}">
       <div class="prod-sema-col">
@@ -206,8 +225,11 @@ async function adjustQty(id, delta) {
   const newQty = Math.max(0, prod.qty + delta)
   prod.qty = newQty
   prod.updated = Date.now()
-  saveState()
+  markStockActivity(prod.id)
+  updateInventoryStatus()
   renderInventory()
+  updatePedDot()
+  if (activeTab === 'ped') renderPedido()
   const quien = getStockUser()?.nombre || 'Sistema'
   const tipo  = invMode ? 'inventario' : 'ajuste'
   try {
@@ -240,7 +262,7 @@ function saveInv() {
 }
 
 function updateReorderCount() {
-  const count = prods.filter(p => p.qty <= p.min).length
+  const count = prods.filter(isPendingForOrderView).length
   el.repCount.textContent = count || ''
   el.repCount.classList.toggle('show', count > 0)
 }
@@ -287,6 +309,8 @@ async function addProd() {
     if (error) throw error
     prods.unshift(sbToLocal(data))
     renderInventory()
+    updatePedDot()
+    if (activeTab === 'ped') renderPedido()
     hideModal()
     showToast('Producto añadido')
   } catch(e) {
@@ -330,6 +354,8 @@ async function saveEditProd() {
     if (error) throw error
     Object.assign(prod, { name: payload.nombre, cat: payload.categoria, loc: payload.ubicacion, min: payload.minimo, unit: payload.unidad, note: payload.nota, updated: Date.now() })
     renderInventory()
+    updatePedDot()
+    if (activeTab === 'ped') renderPedido()
     closeEditSheet()
     showToast('Producto actualizado')
   } catch(e) {
@@ -361,6 +387,8 @@ async function confirmDelProd() {
     if (error) throw error
     prods = prods.filter(item => item.id !== id)
     renderInventory()
+    updatePedDot()
+    if (activeTab === 'ped') renderPedido()
     showToast('Producto eliminado')
   } catch(e) {
     console.error('[stock] deleteProd:', e)
@@ -368,26 +396,190 @@ async function confirmDelProd() {
   }
 }
 
-/* ─── Pedido — auto-detecta críticos + one-offs manuales ─── */
-function renderPedido() {
-  const critical = prods.filter(p => p.qty <= p.min)
-  const allItems = [...critical, ...pedido]
-  if (!allItems.length) {
-    el.pedContent.innerHTML = '<div class="ped-empty"><div class="ped-empty-icon">🛒</div><div class="ped-empty-title">Todo en orden</div><div class="ped-empty-sub">Los productos por debajo de su mínimo aparecerán aquí automáticamente.</div></div>'
-    return
-  }
-  el.pedContent.innerHTML = allItems.map(item => `
-    <div class="ped-item red">
-      <div class="ped-item-left">
-        <div class="ped-name">${item.name}</div>
-        <div class="ped-detail">${item.qty} ${item.unit} · Mín ${item.min} ${item.unit}</div>
-      </div>
-      <div class="ped-tag red">${item.qty}/${item.min} ${item.unit}</div>
-    </div>
-  `).join('')
+/* ─── Pedido ─── */
+async function initPedido() {
+  await sbLoadProductosPuntuales()
+  renderPedido()
 }
 
-/* ─── Registro — carga desde Supabase, agrupa por quien + día ─── */
+function renderPedido() {
+  const rol              = getStockUser()?.rol
+  const canManageOneoffs = rol === 'encargado' || rol === 'admin' || rol === 'superadmin'
+  const needsOrder       = prods.filter(isPendingForOrderView)
+
+  const topButtons = `
+    <button class="ped-send" onclick="sendPedidoWhatsApp()"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg> Enviar pedido por WhatsApp</button>
+    ${canManageOneoffs ? `<button class="oneoff-btn" onclick="showOneoffModal()">+ Añadir producto puntual</button>` : ''}
+  `
+
+  let oneoffSectionHtml = ''
+  if (oneoffs.length) {
+    const items = oneoffs.map(o => `
+      <div class="oneoff-item">
+        <div>
+          <div class="oneoff-name">${o.nombre}</div>
+          <div class="oneoff-meta">${o.cantidad} ${o.unidad}${o.creado_por ? ` · por ${o.creado_por}` : ''}</div>
+        </div>
+        ${canManageOneoffs ? `<button class="oneoff-del" onclick="deleteOneoff('${o.id}')">✕</button>` : ''}
+      </div>
+    `).join('')
+    oneoffSectionHtml = `
+      <div class="oneoff-section-lbl">Productos puntuales</div>
+      ${items}
+    `
+  }
+
+  if (!needsOrder.length && !oneoffs.length) {
+    el.pedContent.innerHTML = topButtons + `
+      <div class="ped-empty">
+        <div class="ped-empty-icon">🛒</div>
+        <div class="ped-empty-title">¡Todo en orden!</div>
+        <div class="ped-empty-sub">Los productos por reponer aparecerán aquí automáticamente.</div>
+      </div>
+    `
+    return
+  }
+
+  const byCat = {}
+  for (const p of needsOrder) {
+    if (!byCat[p.cat]) byCat[p.cat] = []
+    byCat[p.cat].push(p)
+  }
+
+  const catSections = Object.keys(prefs.categories)
+    .filter(cat => byCat[cat])
+    .map(cat => {
+      const catInfo = prefs.categories[cat]
+      const header = `
+        <div class="sec-hdr">
+          <div class="sec-lbl">${catInfo.emoji} ${catInfo.label.toUpperCase()}</div>
+          <div class="sec-line"></div>
+        </div>
+      `
+      const items = byCat[cat].slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map(p => {
+        const st  = getStockStatus(p.qty, p.min)
+        const loc = prefs.locations[p.loc] || { label: 'Otro' }
+        const n   = Math.max(1, p.min - p.qty)
+        return `
+          <div class="ped-item ${st}">
+            <div class="ped-item-left">
+              <div class="ped-name">${p.name}</div>
+              <div class="ped-detail">Tienes ${p.qty} ${p.unit} · mín. ${p.min} ${p.unit} · ${loc.label}</div>
+            </div>
+            <div class="ped-tag ${st}">+${n} ${p.unit}</div>
+          </div>
+        `
+      }).join('')
+      return header + items
+    }).join('')
+
+  el.pedContent.innerHTML = topButtons + oneoffSectionHtml + catSections
+}
+
+function updatePedDot() {
+  const needsOrder = prods.filter(p => getStockStatus(p.qty, p.min) !== 'grn')
+  const hasRed     = needsOrder.some(p => getStockStatus(p.qty, p.min) === 'red')
+  const dot        = el.pedDot
+  if (!dot) return
+  dot.className = 'tab-dot'
+  if (hasRed) {
+    dot.classList.add('red')
+  } else if (needsOrder.length > 0 || oneoffs.length > 0) {
+    dot.classList.add('amb')
+  }
+}
+
+function sendPedidoWhatsApp() {
+  const needsOrder = prods.filter(p => getStockStatus(p.qty, p.min) !== 'grn')
+  const lines = ['*Pedido La Galería*', '']
+
+  if (oneoffs.length) {
+    lines.push('_Puntuales:_')
+    for (const o of oneoffs) lines.push(`• ${o.nombre}: ${o.cantidad} ${o.unidad}`)
+    lines.push('')
+  }
+
+  const byCat = {}
+  for (const p of needsOrder) {
+    if (!byCat[p.cat]) byCat[p.cat] = []
+    byCat[p.cat].push(p)
+  }
+  for (const cat of Object.keys(prefs.categories)) {
+    if (!byCat[cat]) continue
+    const catInfo = prefs.categories[cat]
+    lines.push(`_${catInfo.emoji} ${catInfo.label}:_`)
+    for (const p of byCat[cat]) {
+      const n = Math.max(1, p.min - p.qty)
+      lines.push(`• ${p.name}: +${n} ${p.unit}`)
+    }
+    lines.push('')
+  }
+
+  window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n').trim())}`, '_blank')
+}
+
+function showOneoffModal()  { el.oneoffModalBg.classList.add('show') }
+function closeOneoffModal() { el.oneoffModalBg.classList.remove('show') }
+
+async function deleteOneoff(id) {
+  try {
+    await sbDeleteProductoPuntual(id)
+    updatePedDot()
+    renderPedido()
+  } catch(e) {
+    console.error('[stock] deleteOneoff:', e)
+    showToast('Error al eliminar')
+  }
+}
+
+/* ─── Supabase — productos_puntuales ─── */
+async function sbLoadProductosPuntuales() {
+  try {
+    const { data, error } = await _sb.from('productos_puntuales')
+      .select('*')
+      .eq('local_id', LOCAL_ID)
+      .order('created_at', { ascending: true })
+    if (error) throw error
+    oneoffs = data || []
+  } catch(e) {
+    console.error('[stock] sbLoadProductosPuntuales:', e)
+    oneoffs = []
+  }
+}
+
+async function sbAddProductoPuntual(nombre, cantidad, unidad) {
+  const quien = getStockUser()?.nombre || null
+  const { data, error } = await _sb.from('productos_puntuales')
+    .insert({ local_id: LOCAL_ID, nombre, cantidad, unidad, creado_por: quien })
+    .select('*')
+    .single()
+  if (error) throw error
+  oneoffs.push(data)
+}
+
+async function sbDeleteProductoPuntual(id) {
+  const { error } = await _sb.from('productos_puntuales').delete().eq('id', id)
+  if (error) throw error
+  oneoffs = oneoffs.filter(o => o.id !== id)
+}
+
+/* ─── Registro — filtro de tiempo, agrupación día→persona→tipo, agregación ─── */
+function setRegFilter(f, btn) {
+  regFilter = f
+  document.querySelectorAll('.reg-fbtn').forEach(b => b.classList.remove('act'))
+  if (btn) btn.classList.add('act')
+  renderRegistro()
+}
+
+function getRegFilterRange() {
+  const now = new Date()
+  if (regFilter === 'hoy')  return { from: now.toISOString().slice(0, 10) + 'T00:00:00Z', to: null }
+  if (regFilter === '7d')   return { from: new Date(now - 7  * 86400000).toISOString().slice(0, 10) + 'T00:00:00Z', to: null }
+  if (regFilter === '30d')  return { from: new Date(now - 30 * 86400000).toISOString().slice(0, 10) + 'T00:00:00Z', to: null }
+  if (regFilter === 'year') return { from: now.getUTCFullYear() + '-01-01T00:00:00Z', to: null }
+  return { from: null, to: null }
+}
+
 async function renderRegistro() {
   const rol       = getStockUser()?.rol
   const canDelete = rol === 'admin' || rol === 'superadmin'
@@ -403,11 +595,15 @@ async function renderRegistro() {
   let rows = []
   try {
     const prodIds = prods.map(p => p.id)
-    const { data, error } = await _sb
+    const range   = getRegFilterRange()
+    let query = _sb
       .from('stock_movimientos')
       .select('id, producto_id, delta, tipo, quien, created_at, productos(nombre, unidad)')
       .in('producto_id', prodIds)
       .order('created_at', { ascending: false })
+    if (range.from) query = query.gte('created_at', range.from)
+    if (range.to)   query = query.lte('created_at', range.to)
+    const { data, error } = await query
     if (error) throw error
     rows = data || []
   } catch(e) {
@@ -416,57 +612,100 @@ async function renderRegistro() {
     return
   }
 
+  regLoadedCount = rows.length
+
   if (!rows.length) {
     el.regList.innerHTML = '<div class="reg-empty"><div class="reg-empty-icon">📝</div><div class="reg-empty-title">Sin movimientos</div><div class="reg-empty-sub">Los ajustes de inventario aparecerán aquí.</div></div>'
     el.regTotalLbl.textContent = '0 movimientos'
     return
   }
 
-  /* Agrupar por fecha + quien */
-  const groups = new Map()
+  /* ── Agrupar: día → persona → tipo → producto (con agregación de delta) ── */
+  const dayMap = new Map()
   for (const row of rows) {
     const date = row.created_at.slice(0, 10)
-    const key  = `${date}|||${row.quien}`
-    if (!groups.has(key)) groups.set(key, { quien: row.quien, date, ids: [], movs: [] })
-    const g = groups.get(key)
-    g.ids.push(row.id)
-    g.movs.push(row)
+    if (!dayMap.has(date)) dayMap.set(date, { date, persons: new Map(), totalCount: 0 })
+    const day = dayMap.get(date)
+    day.totalCount++
+
+    if (!day.persons.has(row.quien)) {
+      day.persons.set(row.quien, {
+        quien: row.quien,
+        ids: [],
+        lastTime: null,
+        types: { ajuste: new Map(), inventario: new Map() },
+      })
+    }
+    const person = day.persons.get(row.quien)
+    person.ids.push(row.id)
+
+    const t = new Date(row.created_at)
+    if (!person.lastTime || t > person.lastTime) person.lastTime = t
+
+    const typeMap = person.types[row.tipo]
+    if (!typeMap) continue
+    const pid = row.producto_id
+    if (!typeMap.has(pid)) typeMap.set(pid, { delta: 0, nombre: row.productos?.nombre || 'Producto', unidad: row.productos?.unidad || '' })
+    typeMap.get(pid).delta += row.delta
   }
 
-  const sortedGroups = [...groups.values()].sort((a, b) => {
-    if (b.date !== a.date) return b.date > a.date ? 1 : -1
-    return a.quien.localeCompare(b.quien, 'es')
-  })
+  const TIPO_ORDER = ['ajuste', 'inventario']
+  const TIPO_LABEL = { ajuste: 'Ajustes', inventario: 'Actualización de inventario' }
+  const sortedDays = [...dayMap.values()].sort((a, b) => b.date.localeCompare(a.date))
 
-  el.regList.innerHTML = sortedGroups.map(g => {
-    const initials  = g.quien.split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
-    const dateLabel = formatDateLabel(g.date)
-    const delBtn    = canDelete
-      ? `<button class="reg-del-card" data-ids="${g.ids.join(',')}" onclick="deleteRegCard(this)" title="Borrar esta card">✕</button>`
-      : ''
-    const movLines  = g.movs.map(m => {
-      const time  = new Date(m.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-      const pname = m.productos?.nombre || 'Producto'
-      const unit  = m.productos?.unidad || ''
-      const sign  = m.delta > 0 ? '+' : ''
-      const cls   = m.delta >= 0 ? 'pos' : 'neg'
-      return `<div class="reg-mov">
-        <span class="reg-mov-time">${time}</span>
-        <span class="reg-mov-prod">${pname}</span>
-        <span class="reg-mov-delta ${cls}">${sign}${m.delta} ${unit}</span>
+  el.regList.innerHTML = sortedDays.map(day => {
+    const dateLabel     = formatDateLabel(day.date)
+    const sortedPersons = [...day.persons.values()].sort((a, b) => a.quien.localeCompare(b.quien, 'es'))
+
+    const personsHtml = sortedPersons.map(person => {
+      const initials    = person.quien.split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
+      const lastTimeStr = person.lastTime
+        ? person.lastTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+        : ''
+      const delBtn = canDelete
+        ? `<button class="reg-del-card" data-ids="${person.ids.join(',')}" onclick="deleteRegCard(this)" title="Borrar movimientos de esta persona">✕</button>`
+        : ''
+
+      const activeTipos  = TIPO_ORDER.filter(t => person.types[t].size > 0)
+      const showLabels   = activeTipos.length > 1
+      const typeSections = activeTipos.map(tipo => {
+        const movLines = [...person.types[tipo].entries()].map(([, agg]) => {
+          const sign = agg.delta > 0 ? '+' : ''
+          const cls  = agg.delta >= 0 ? 'pos' : 'neg'
+          return `<div class="reg-mov">
+              <span class="reg-mov-prod">${agg.nombre}</span>
+              <span class="reg-mov-delta ${cls}">${sign}${agg.delta} ${agg.unidad}</span>
+            </div>`
+        }).join('')
+        return showLabels
+          ? `<div class="reg-type-section"><div class="reg-type-label">${TIPO_LABEL[tipo]}</div>${movLines}</div>`
+          : `<div class="reg-type-section">${movLines}</div>`
+      }).join('')
+
+      return `<div class="reg-person">
+        <div class="reg-person-hdr">
+          <div class="reg-av">${initials}</div>
+          <div class="reg-person-info">
+            <div class="reg-person-name">${person.quien}</div>
+            <div class="reg-person-time">Última actividad: ${lastTimeStr}</div>
+          </div>
+          ${delBtn}
+        </div>
+        ${typeSections}
       </div>`
     }).join('')
 
-    return `<div class="reg-person">
-      <div class="reg-person-hdr">
-        <div class="reg-av">${initials}</div>
-        <div class="reg-person-info">
-          <div class="reg-person-name">${g.quien}</div>
-          <div class="reg-person-time">${dateLabel} · ${g.movs.length} mov.</div>
+    return `<div class="reg-day-card">
+      <div class="reg-day-hdr" onclick="this.closest('.reg-day-card').classList.toggle('open')">
+        <div class="reg-day-date">${dateLabel}</div>
+        <div class="reg-day-meta">
+          <span class="reg-day-count">${day.totalCount} mov.</span>
+          <span class="reg-day-chevron">›</span>
         </div>
-        ${delBtn}
       </div>
-      ${movLines}
+      <div class="reg-day-body">
+        ${personsHtml}
+      </div>
     </div>`
   }).join('')
 
@@ -476,13 +715,15 @@ async function renderRegistro() {
 function formatDateLabel(dateStr) {
   const today     = new Date().toISOString().slice(0, 10)
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-  if (dateStr === today)     return 'Hoy'
-  if (dateStr === yesterday) return 'Ayer'
-  const d = new Date(dateStr + 'T12:00:00')
-  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })
+  const d         = new Date(dateStr + 'T12:00:00')
+  const dayMonth  = d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })
+  if (dateStr === today)     return `Hoy — ${dayMonth}`
+  if (dateStr === yesterday) return `Ayer — ${dayMonth}`
+  const weekday = d.toLocaleDateString('es-ES', { weekday: 'long' })
+  return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)} — ${dayMonth}`
 }
 
-/* ─── Borrar una card (persona + día) ─── */
+/* ─── Borrar una card (persona + día, ambos tipos) ─── */
 async function deleteRegCard(btn) {
   const ids = btn.dataset.ids.split(',').filter(Boolean)
   if (!ids.length) return
@@ -499,9 +740,14 @@ async function deleteRegCard(btn) {
   }
 }
 
-/* ─── Borrar todo el registro ─── */
+/* ─── Borrar todo el registro (respeta el filtro activo) ─── */
 function clearReg() {
-  if (el.confirmRegBg) el.confirmRegBg.classList.add('show')
+  if (!el.confirmRegBg) return
+  const filterSuffix = { all: 'en total', hoy: 'de hoy', '7d': 'de los últimos 7 días', '30d': 'de los últimos 30 días', year: 'de este año' }
+  if (el.confirmRegMsg) {
+    el.confirmRegMsg.textContent = `¿Borrar los ${regLoadedCount} movimientos ${filterSuffix[regFilter] || 'en total'}? Esta acción no se puede deshacer.`
+  }
+  el.confirmRegBg.classList.add('show')
 }
 function closeClearRegConfirm() {
   if (el.confirmRegBg) el.confirmRegBg.classList.remove('show')
@@ -511,7 +757,11 @@ async function confirmClearReg() {
   const prodIds = prods.map(p => p.id)
   if (!prodIds.length) { showToast('No hay movimientos que borrar'); return }
   try {
-    const { error } = await _sb.from('stock_movimientos').delete().in('producto_id', prodIds)
+    const range = getRegFilterRange()
+    let query = _sb.from('stock_movimientos').delete().in('producto_id', prodIds)
+    if (range.from) query = query.gte('created_at', range.from)
+    if (range.to)   query = query.lte('created_at', range.to)
+    const { error } = await query
     if (error) throw error
     showToast('Registro borrado')
     await renderRegistro()
@@ -522,21 +772,25 @@ async function confirmClearReg() {
 }
 
 /* ─── One-off pedido ─── */
-function addOneoff() {
+async function addOneoff() {
   const name = inputs.ooName.value.trim()
   const qty  = Number(inputs.ooQty.value)
   const unit = inputs.ooUnit.value.trim()
   if (!name || !unit || Number.isNaN(qty) || qty <= 0) { showToast('Completa nombre, cantidad y unidad'); return }
-  pedido.push({ id: `o_${Date.now()}`, name, qty, min: 0, unit, cat: 'ali' })
-  el.oneoffModalBg.classList.remove('show')
-  inputs.ooName.value = ''
-  inputs.ooQty.value  = ''
-  inputs.ooUnit.value = ''
-  saveState()
-  renderPedido()
-  showToast('Artículo añadido al pedido')
+  try {
+    await sbAddProductoPuntual(name, qty, unit)
+    el.oneoffModalBg.classList.remove('show')
+    inputs.ooName.value = ''
+    inputs.ooQty.value  = ''
+    inputs.ooUnit.value = ''
+    updatePedDot()
+    renderPedido()
+    showToast('Artículo añadido')
+  } catch(e) {
+    console.error('[stock] addOneoff:', e)
+    showToast('Error al añadir')
+  }
 }
-function closeOneoffModal() { el.oneoffModalBg.classList.remove('show') }
 
 /* ─── Toast ─── */
 function showToast(message) {
@@ -546,10 +800,17 @@ function showToast(message) {
   showToast.timeout = setTimeout(() => el.toast.classList.remove('show'), 1600)
 }
 
-/* ─── saveState — solo persiste pedido (productos y movimientos van a Supabase) ─── */
-function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ pedido })) } catch(e) {}
-  updateInventoryStatus()
-}
-
 window.addEventListener('DOMContentLoaded', initStock)
+
+setInterval(() => {
+  const now = Date.now()
+  const hasExpired = prods.some(p => {
+    const snap = _pendingSnapshot.get(p.id)
+    return snap && now >= snap.until && getStockStatus(p.qty, p.min) === 'grn'
+  })
+  if (!hasExpired) return
+  updateReorderCount()
+  if (activeCat === 'rep') renderInventory()
+  if (activeTab === 'ped') renderPedido()
+  updatePedDot()
+}, 1000)
