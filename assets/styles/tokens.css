@@ -1,0 +1,55 @@
+/* Tokens CSS compartidos — única fuente de verdad para variables de color y layout.
+   Basado en lagaleria_reservas.html (conjunto más completo).
+   Cada página carga este archivo primero; puede sobreescribir solo lo que necesite. */
+:root {
+  /* Fondos y superficies */
+  --bg:    #111417;
+  --surf:  #1a2226;
+  --surf2: #22292D;
+  --nav:   #22292D;
+
+  /* Bordes */
+  --brd:  #2e3a3f;
+  --brd2: #3a4a50;
+
+  /* Texto */
+  --txt:   #f0ece4;
+  --muted: #a8b8bf;
+  --dim:   #7a8f96;
+  --faint: #4a5a60;
+
+  /* Acento */
+  --acc:    #C5A669;
+  --acc-bg: rgba(197,166,105,0.12);
+  --acc-bd: rgba(197,166,105,0.35);
+
+  /* Rojo */
+  --red:    #cc4444;
+  --red-bg: rgba(180,50,50,0.15);
+  --red-bd: rgba(180,50,50,0.4);
+
+  /* Ámbar */
+  --amb:    #c89030;
+  --amb-bg: rgba(180,130,0,0.15);
+  --amb-bd: rgba(180,130,0,0.4);
+
+  /* Verde */
+  --grn:    #4a9a5a;
+  --grn-bg: rgba(60,140,70,0.12);
+  --grn-bd: rgba(60,140,70,0.3);
+
+  /* Tipos de turno — paleta oscura (stock.css y lagaleria_turnos.html) */
+  --sm-text: #5599bb; --sm-bg: #1a2a3a; --sm-bd: rgba(85,153,187,.4);
+  --sn-text: #4a8a4a; --sn-bg: #1a2a1a; --sn-bd: rgba(74,138,74,.4);
+  --cm-text: #cc4444; --cm-bg: #2a0e0e; --cm-bd: rgba(180,50,50,.4);
+  --cn-text: #e07000; --cn-bg: #2a1400; --cn-bd: rgba(200,100,0,.4);
+
+  /* Aliases de compatibilidad — lagaleria_turnos.html usa estos nombres */
+  --surface: var(--surf);
+  --border:  var(--brd);
+  --border2: var(--brd2);
+  --text:    var(--txt);
+
+  /* Layout */
+  --bnav-h: 62px;
+}

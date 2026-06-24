@@ -1,15 +1,5 @@
 /* Stock page styles extracted from lagaleria_stock.html */
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-:root{
-  --bg:#111417;--surf:#1a2226;--nav:#22292D;--brd:#2e3a3f;--brd2:#3a4a50;
-  --txt:#f0ece4;--muted:#a8b8bf;--dim:#7a8f96;--faint:#4a5a60;
-  --acc:#C5A669;--acc-bg:rgba(197,166,105,0.12);--acc-bd:rgba(197,166,105,0.35);
-  --red:#cc4444;--red-bg:rgba(180,50,50,0.15);--red-bd:rgba(180,50,50,0.4);
-  --amb:#c89030;--amb-bg:rgba(180,130,0,0.15);--amb-bd:rgba(180,130,0,0.4);
-  --grn:#4a9a5a;--grn-bg:rgba(60,140,70,0.12);--grn-bd:rgba(60,140,70,0.3);
-
-  --sm-text:#5599bb;--sn-text:#4a8a4a;--cm-text:#cc4444;--cn-text:#e07000;
-}
 body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;padding-bottom:80px}
 
 /* EDIT PRODUCT BOTTOM SHEET */
