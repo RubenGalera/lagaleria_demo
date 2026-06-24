@@ -5,17 +5,22 @@
 
 
 /* ═══════════════════════════════════════════════════════════
-   BARRAS DE FILTRO — contenedores de chips
+   BARRA BASE — contenedor compartido para todas las franjas
+   de herramientas/filtros (cat-bar, zona-bar, turnos-pills…)
    ═══════════════════════════════════════════════════════════ */
 
-/* Barra de chips con color por categoría (patrón Stock) */
-.cat-bar {
+.toolbar-row {
   display: flex;
-  gap: 6px;
+  align-items: center;
   padding: 10px var(--sp-md);
   background: var(--bg);
   border-bottom: 1px solid var(--brd);
   overflow-x: auto;
+}
+
+/* Barra de chips con color por categoría (patrón Stock) */
+.cat-bar {
+  gap: 6px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
@@ -23,15 +28,10 @@
 
 /* Barra de chips neutros con sticky (patrón Reservas) */
 .zona-bar {
-  display: flex;
   gap: 6px;
-  padding: 10px var(--sp-md);
-  background: var(--bg);
   position: sticky;
   top: 46px;
   z-index: 89;
-  border-bottom: 1px solid var(--brd);
-  overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
@@ -125,14 +125,17 @@
 
 .zpill-icon { font-size: 14px; line-height: 1; flex-shrink: 0 }
 
-/* Etiqueta: oculta en pantalla estrecha, visible completa en 480 px+ */
-.zpill-txt {
+/* Etiqueta: oculta en pantalla estrecha, visible completa en 480 px+
+   .zpill-txt → HTML estático; .zpill-lbl → chips generados por JS */
+.zpill-txt,
+.zpill-lbl {
   display: none;
   font-size: 11px;
   white-space: nowrap;
 }
 @media (min-width: 480px) {
-  .zpill-txt { display: inline }
+  .zpill-txt,
+  .zpill-lbl { display: inline }
 }
 
 

@@ -582,9 +582,9 @@ input[type=file]{display:none}
 .tt-sub{font-size:10px;color:var(--dim);line-height:1.2}
 
 /* Fila 2: selector semana (izq) + acciones (dcha) */
-.turnos-pills{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;background:var(--bg);border-bottom:1px solid var(--border)}
+.turnos-pills{justify-content:space-between;gap:8px}
 .tp-week-nav{display:flex;align-items:center;gap:5px;flex-shrink:0}
-.tp-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.turnos-pills .tp-actions{margin-top:0;display:flex;align-items:center;gap:4px;flex-shrink:0}
 .tp-actions .tpill{flex:none;padding:7px 12px}
 .turnos-pills::-webkit-scrollbar{display:none}
 .tpill{display:flex;align-items:center;justify-content:center;gap:4px;padding:7px 4px;border-radius:10px;border:1px solid var(--border2);background:var(--surface);color:var(--dim);font-size:11px;font-weight:600;cursor:pointer;min-width:0;overflow:hidden;transition:all .2s;flex:1}
@@ -622,7 +622,7 @@ input[type=file]{display:none}
   </div>
 
   <!-- FILA 2: selector de semana (izq) + acciones (dcha) -->
-  <div class="turnos-pills">
+  <div class="turnos-pills toolbar-row">
     <div class="tp-week-nav">
       <button class="wbtn tt-arrow" onclick="changeWeek(-1)">&#8249;</button>
       <div>
