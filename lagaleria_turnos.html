@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <link rel="stylesheet" href="assets/styles/tokens.css">
+<link rel="stylesheet" href="assets/styles/components.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=calendar_month" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0">
 <title>Neo Taverna — Gestión</title>
@@ -89,8 +90,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .week-info .wlabel{font-size:14px;font-weight:600;color:var(--text)}
 .week-info .wsub{font-size:11px;color:var(--dim)}
 .view-tabs{display:flex;gap:5px}
-.vtab{flex:1;padding:13px 8px;text-align:center;font-size:13px;font-weight:600;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px;border-radius:0;border:none;background:transparent}
-.vtab.active{color:var(--acc);border-bottom-color:var(--acc)}
+/* .main-tabs, .mtab → assets/styles/components.css */
 
 /* ── GRID ── */
 .grid-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 14px 20px}
@@ -203,11 +203,8 @@ tr.wr td:last-child{border-radius:0 8px 8px 0;border:1px solid var(--border);bor
 .wip-sub{font-size:14px;color:var(--dim);max-width:240px;line-height:1.5}
 .wip-badge{font-size:11px;font-weight:600;padding:5px 12px;border-radius:20px;background:var(--acc-bg);color:var(--acc);border:1px solid var(--acc-bd)}
 
-/* ── OVERLAYS ── */
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:200;display:none;align-items:flex-start;justify-content:center;padding:16px;padding-top:20px;overflow-y:auto}
-.overlay.show{display:flex}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;width:100%;max-width:460px}
-.modal-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:8px}
+/* .overlay, .modal, .modal-hdr → assets/styles/components.css */
+/* Turnos-specific modal overrides: */
 .modal-title{font-size:16px;font-weight:600;color:var(--text)}
 .modal-sub{font-size:12px;color:var(--dim);margin-top:2px}
 .mclose{background:var(--nav);border:1px solid var(--border2);border-radius:7px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:20px;flex-shrink:0;line-height:1}
@@ -369,7 +366,7 @@ body.sala-theme .w-tel-display{color:#1a1a18}
 body.sala-theme tr.wr td{background:#fff}
 body.sala-theme .t-ibox.moon-g::after{box-shadow:-2px -1px 0 2px #d5ead5}
 body.sala-theme .t-ibox.moon-o::after{box-shadow:-2px -1px 0 2px #fde8cc}
-body.sala-theme select,.sala-theme .sort-sel,.sala-theme .psearch,.sala-theme .vtab,.sala-theme .wbtn{background:#fff;color:#1a1a18}
+body.sala-theme select,.sala-theme .sort-sel,.sala-theme .psearch,.sala-theme .mtab,.sala-theme .wbtn{background:#fff;color:#1a1a18}
 body.sala-theme .pnew-input,.sala-theme .pnew-sel,.sala-theme .sg-cell,.sala-theme .hora-inp,.sala-theme .hora-sel,.sala-theme .ev-edit-input,.sala-theme .ev-edit-sel,.sala-theme .ev-input,.sala-theme .ev-sel,.sala-theme .minmax-inp{background:#fff;color:#1a1a18}
 body.sala-theme .bottom-nav{background:#8a1f1f;border-top-color:rgba(255,255,255,.1)}
 body.sala-theme .bnav-item .bnav-icon,.sala-theme .bnav-item .bnav-label{color:rgba(255,255,255,.4)}
@@ -579,12 +576,10 @@ input[type=file]{display:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 
-/* ── TURNOS TABS Y PILLS ── */
-.turnos-tabs{display:flex;background:var(--nav);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:90;width:100%}
+/* ── TURNOS TABS Y PILLS — .main-tabs, .mtab → assets/styles/components.css ── */
 .tt-arrow{padding:4px 7px;font-size:16px;width:28px!important;height:28px!important;flex-shrink:0}
 .tt-date{font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;line-height:1.2}
 .tt-sub{font-size:10px;color:var(--dim);line-height:1.2}
-.tt-vtabs{display:flex;flex:1}
 
 /* Fila 2: selector semana (izq) + acciones (dcha) */
 .turnos-pills{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;background:var(--bg);border-bottom:1px solid var(--border)}
@@ -621,11 +616,9 @@ input[type=file]{display:none}
 <!-- PAGES -->
 <div class="page active" id="page-turnos">
   <!-- FILA 1: tabs sticky — solo semana/persona -->
-  <div class="turnos-tabs">
-    <div class="tt-vtabs">
-      <button class="vtab active" id="vtab-s" onclick="setView('semana')">Semana</button>
-      <button class="vtab" id="vtab-p" onclick="setView('persona')">Persona</button>
-    </div>
+  <div class="main-tabs">
+    <button class="mtab active" id="vtab-s" onclick="setView('semana')">Semana</button>
+    <button class="mtab" id="vtab-p" onclick="setView('persona')">Persona</button>
   </div>
 
   <!-- FILA 2: selector de semana (izq) + acciones (dcha) -->

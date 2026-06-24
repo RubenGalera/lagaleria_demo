@@ -1,0 +1,372 @@
+/* La Galería — Componentes de diseño compartidos.
+   Requiere: assets/styles/tokens.css (cargado antes).
+   Carga después de tokens.css, antes de estilos específicos de página.
+   Cada nueva página (admin, etc.) hereda estos componentes sin redefinirlos. */
+
+
+/* ═══════════════════════════════════════════════════════════
+   BARRAS DE FILTRO — contenedores de chips
+   ═══════════════════════════════════════════════════════════ */
+
+/* Barra de chips con color por categoría (patrón Stock) */
+.cat-bar {
+  display: flex;
+  gap: 6px;
+  padding: 10px var(--sp-md);
+  background: var(--bg);
+  border-bottom: 1px solid var(--brd);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.cat-bar::-webkit-scrollbar { display: none }
+
+/* Barra de chips neutros con sticky (patrón Reservas) */
+.zona-bar {
+  display: flex;
+  gap: 6px;
+  padding: 10px var(--sp-md);
+  background: var(--bg);
+  position: sticky;
+  top: 46px;
+  z-index: 89;
+  border-bottom: 1px solid var(--brd);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.zona-bar::-webkit-scrollbar { display: none }
+
+
+/* ═══════════════════════════════════════════════════════════
+   CHIP — VARIANTE COLOR POR CATEGORÍA
+   Canon: .cpill de assets/css/stock.css (DESIGN.md §2 variante 1)
+   Fix responsive: colapsa a icono solo en < 480 px; texto completo
+   sin truncar a ≥ 480 px. El contenedor barra es scrollable.
+   ═══════════════════════════════════════════════════════════ */
+
+.cpill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: var(--rad-pill);
+  border: 1px solid var(--brd2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--surf);
+  color: var(--dim);
+  transition: all .2s;
+  flex: 1 0 auto;
+  min-width: 44px;
+  overflow: hidden;
+}
+.cpill:active { opacity: .7 }
+
+/* Etiqueta: oculta en pantalla estrecha, visible completa en 480 px+ */
+.cpill-lbl {
+  display: none;
+  font-size: 11px;
+  white-space: nowrap;
+}
+@media (min-width: 480px) {
+  .cpill-lbl { display: inline }
+}
+
+/* ─── "Todo / Todas" — siempre dorado cuando activo ─── */
+.cpill-all           { border-color: var(--acc-bd) }
+.cpill-all.act       { background: var(--acc); border-color: var(--acc); color: #1a1810 }
+
+/* ─── Colores por categoría ─── */
+.cpill-beb           { border-color: rgba(59,130,200,.4); color: #5599cc }
+.cpill-beb.act       { background: #0e1e34; border-color: #3b82c8; color: #7ab8f0 }
+.cpill-ali           { border-color: rgba(74,154,90,.4); color: #5ab870 }
+.cpill-ali.act       { background: #0e2018; border-color: #4a9a4a; color: #7ad090 }
+.cpill-lim           { border-color: rgba(80,180,200,.4); color: #60b8cc }
+.cpill-lim.act       { background: #0a1e24; border-color: #50b4c8; color: #80d4e8 }
+.cpill-mat           { border-color: rgba(180,130,50,.4); color: #c89030 }
+.cpill-mat.act       { background: #1e1408; border-color: #b48232; color: #d4a850 }
+.cpill-rep           { border-color: rgba(180,50,50,.5); color: var(--red) }
+.cpill-rep.act       { background: rgba(180,50,50,.18); border-color: var(--red); color: #e86060 }
+
+.cpill-rep-count      { font-size: 10px; font-weight: 800; background: rgba(180,50,50,.25); border-radius: 10px; padding: 1px 5px; margin-left: 1px; display: none }
+.cpill-rep-count.show { display: inline }
+
+
+/* ═══════════════════════════════════════════════════════════
+   CHIP — VARIANTE NEUTRA SIN COLOR POR OPCIÓN
+   Canon: .zpill de lagaleria_reservas.html (DESIGN.md §2 variante 2)
+   Mismo fix responsive que .cpill. Las dos variantes son
+   distintas y coexisten; no hay que unificarlas.
+   ═══════════════════════════════════════════════════════════ */
+
+.zpill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: var(--rad-pill);
+  border: 1px solid var(--brd2);
+  background: var(--surf);
+  color: var(--dim);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  flex: 1 0 auto;
+  min-width: 44px;
+  overflow: hidden;
+}
+.zpill:active { opacity: .7 }
+.zpill.act    { background: var(--acc); border-color: var(--acc); color: #1a1810 }
+
+.zpill-icon { font-size: 14px; line-height: 1; flex-shrink: 0 }
+
+/* Etiqueta: oculta en pantalla estrecha, visible completa en 480 px+ */
+.zpill-txt {
+  display: none;
+  font-size: 11px;
+  white-space: nowrap;
+}
+@media (min-width: 480px) {
+  .zpill-txt { display: inline }
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   BOTONES (DESIGN.md §3)
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Primario: fondo dorado plano ─── */
+.btn-full,
+.btn-confirm {
+  background: var(--acc);
+  border: none;
+  border-radius: var(--rad-md);
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a1810;
+  cursor: pointer;
+  width: 100%;
+  transition: opacity .2s;
+}
+.btn-full:active,
+.btn-confirm:active { opacity: .85 }
+
+/* ─── Secundario: borde discontinuo dorado ("+ Añadir X") ─── */
+.add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 13px;
+  border: 1.5px dashed var(--acc-bd);
+  border-radius: var(--rad-md);
+  background: transparent;
+  color: var(--acc);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+}
+.add-btn:active { background: var(--acc-bg) }
+
+/* ─── Peligro: borde continuo rojo ─── */
+.btn-del,
+.btn-del-prod {
+  background: transparent;
+  border: 1px solid var(--red-bd);
+  border-radius: var(--rad-md);
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--red);
+  cursor: pointer;
+  width: 100%;
+  transition: all .2s;
+}
+.btn-del:active,
+.btn-del-prod:active { background: var(--red-bg) }
+
+
+/* ═══════════════════════════════════════════════════════════
+   MODAL BASE (DESIGN.md §4)
+   Canon: assets/lib/worker-modal.js, clase .overlay
+   Jerarquía de 3 niveles de superficie:
+     Nivel 1 (contenedor): --surf
+     Nivel 2 (sub-secciones): --nav  o --surf2
+     Nivel 3 (separadores): --brd / --brd2
+   ═══════════════════════════════════════════════════════════ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  z-index: 200;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 20px 16px;
+  overflow-y: auto;
+}
+.overlay.show { display: flex }
+
+/* Nivel 1: contenedor principal del modal */
+.modal {
+  background: var(--surf);
+  border: 1px solid var(--brd);
+  border-radius: var(--rad-lg);
+  padding: 18px;
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-hdr {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 8px;
+}
+.modal-title { font-size: var(--fs-md); font-weight: 700; color: var(--txt) }
+.modal-sub   { font-size: var(--fs-sm); color: var(--dim); margin-top: 3px }
+
+/* Botón de cierre — estilo caja (canon worker-modal) */
+.mclose,
+.modal-cls,
+.sheet-cls {
+  background: var(--nav);
+  border: 1px solid var(--brd2);
+  border-radius: var(--rad-sm);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   TABS PRINCIPALES (DESIGN.md §5)
+   Usadas en Stock y Reservas (.main-tabs + .mtab)
+   ═══════════════════════════════════════════════════════════ */
+
+.main-tabs {
+  display: flex;
+  background: var(--surf);
+  border-bottom: 1px solid var(--brd);
+  position: sticky;
+  top: 0;
+  z-index: 90;
+}
+
+.mtab {
+  /* Neutraliza estilos nativos de <button> — robusto con <div> o <button> */
+  -webkit-appearance: none;
+  appearance: none;
+  border: none;
+  background: transparent;
+  font: inherit;           /* hereda familia, tamaño, peso y line-height del body */
+
+  /* Layout */
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+
+  /* Tipografía — sobreescribe font: inherit donde el diseño difiere */
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--dim);
+  text-align: center;
+
+  /* Dimensiones e interacción */
+  padding: 13px 8px;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all .2s;
+}
+.mtab.act     { color: var(--acc); border-bottom-color: var(--acc) }
+.mtab svg     { opacity: .6; flex-shrink: 0 }
+.mtab.act svg { opacity: 1 }
+.mtab.active  { color: var(--acc); border-bottom-color: var(--acc) }
+
+/* Indicadores en tab */
+.tab-badge      { display: none; border-radius: 20px; font-size: 10px; font-weight: 700; padding: 1px 5px }
+.tab-badge.show { display: inline-block }
+.tab-dot        { width: 7px; height: 7px; border-radius: 50%; display: none; margin-left: 4px; flex-shrink: 0 }
+.tab-dot.red    { background: #cc4444; box-shadow: 0 0 5px rgba(180,50,50,.5); display: inline-block }
+.tab-dot.amb    { background: #c89030; box-shadow: 0 0 5px rgba(180,130,0,.4); display: inline-block }
+
+
+/* ═══════════════════════════════════════════════════════════
+   TARJETA DE LISTA — patrón compartido Stock / Reservas / Turnos
+   Clase base nueva para que admin.html la reutilice.
+   ═══════════════════════════════════════════════════════════ */
+
+.list-card {
+  background: var(--surf);
+  border: 1px solid var(--brd);
+  border-radius: var(--rad-md);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s;
+}
+
+/* Franja de color lateral semafórica */
+.list-card-stripe {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+}
+.list-card-stripe.red  { background: var(--red) }
+.list-card-stripe.amb  { background: var(--amb) }
+.list-card-stripe.grn  { background: var(--grn); opacity: .5 }
+.list-card-stripe.acc  { background: var(--acc) }
+
+/* Borde lateral de estado */
+.list-card.red { border-color: rgba(180,50,50,.25) }
+.list-card.amb { border-color: rgba(180,130,0,.25) }
+
+
+/* ═══════════════════════════════════════════════════════════
+   TOAST NOTIFICATION
+   ═══════════════════════════════════════════════════════════ */
+
+.toast {
+  position: fixed;
+  bottom: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--nav);
+  border: 1px solid var(--acc-bd);
+  color: var(--acc);
+  padding: 8px 18px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  z-index: 999;
+  opacity: 0;
+  transition: opacity .25s;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.toast.show { opacity: 1 }

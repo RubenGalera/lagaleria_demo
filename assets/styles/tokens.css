@@ -52,4 +52,28 @@
 
   /* Layout */
   --bnav-h: 62px;
+
+  /* ── Espaciado (valores más repetidos en el código) ── */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 14px;
+  --sp-lg: 20px;
+  --sp-xl: 32px;
+
+  /* ── Radio de borde ── */
+  --rad-sm:   7px;
+  --rad-md:  10px;
+  --rad-lg:  14px;
+  --rad-pill: 20px;
+
+  /* ── Fondo de overlay ── */
+  --overlay-bg: rgba(0,0,0,.78);
+
+  /* ── Escala tipográfica ── */
+  --fs-xs:   9px;
+  --fs-sm:  11px;
+  --fs-base: 13px;
+  --fs-md:  15px;
+  --fs-lg:  18px;
+  --fs-xl:  22px;
 }
