@@ -22,10 +22,10 @@ async function sbUpdateTrabajador(id, campos) {
 /* ── Detecta rol admin/superadmin en ambos contextos de página ── */
 function _isAdmin() {
   if (typeof rol !== 'undefined') return rol === 'admin' || rol === 'superadmin';
-  try {
-    var u = (window.parent && window.parent !== window) ? window.parent.currentUser : null;
-    return u != null && (u.rol === 'admin' || u.rol === 'superadmin');
-  } catch(e) { return false; }
+  var u = null;
+  try { u = (window.parent && window.parent !== window) ? window.parent.currentUser : null; } catch(e) {}
+  if (!u) try { var s = localStorage.getItem('lg_session'); if (s) u = JSON.parse(s); } catch(e) {}
+  return u != null && (u.rol === 'admin' || u.rol === 'superadmin');
 }
 
 /* ── PERFIL / PREVIEW TRABAJADOR ── */
@@ -378,11 +378,24 @@ function prev_resetPin() {
   }
 }
 
-/* ── Markup canónico del modal: se inyecta en el body si no existe ya ── */
+/* ── CSS canónico del overlay: se inyecta una sola vez en <head> ── */
 document.addEventListener('DOMContentLoaded', function() {
+  if (!document.getElementById('worker-modal-css')) {
+    var st = document.createElement('style');
+    st.id = 'worker-modal-css';
+    st.textContent =
+      '.overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:200;display:none;align-items:flex-start;justify-content:center;padding:16px;padding-top:20px;overflow-y:auto}' +
+      '.overlay.show{display:flex}' +
+      '.overlay .modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;width:100%;max-width:460px;overflow:visible}' +
+      '.overlay .modal-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:8px}' +
+      '.overlay .modal-title{font-size:16px;font-weight:600;color:var(--text)}' +
+      '.overlay .modal-sub{font-size:12px;color:var(--dim);margin-top:2px}' +
+      '.overlay .mclose{background:var(--nav);border:1px solid var(--border2);border-radius:7px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--dim);font-size:20px;flex-shrink:0;line-height:1}';
+    document.head.appendChild(st);
+  }
   if (document.getElementById('ov-preview')) return;
   document.body.insertAdjacentHTML('beforeend',
-`<div class="overlay modal-overlay" id="ov-preview">
+`<div class="overlay" id="ov-preview">
   <div class="modal">
     <div class="modal-hdr">
       <div>
