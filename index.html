@@ -1,30 +1,16 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,viewport-fit=cover">
 <title>La Galería — Gestión</title>
+<link rel="stylesheet" href="assets/styles/tokens.css">
 <style>
 /* ── RESET & TOKENS ── */
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
-  --bg:#111417;
-  --surf:#1a2226;
-  --surf2:#22292D;
-  --nav:#22292D;
   --brd:rgba(255,255,255,0.07);
   --brd2:rgba(255,255,255,0.13);
-  --acc:#C5A669;
-  --acc-bg:rgba(197,166,105,0.12);
-  --acc-bd:rgba(197,166,105,0.35);
-  --txt:#f0ece4;
-  --muted:#a8b8bf;
-  --dim:#7a8f96;
-  --faint:#4a5a60;
-  --red:#cc4444;
-  --red-bg:rgba(180,50,50,0.15);
-  --red-bd:rgba(180,50,50,0.4);
-  --grn:#4a9a5a;
 }
 body{
   background:var(--bg);
@@ -757,6 +743,8 @@ footer#app-footer{
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="assets/lib/supabase-client.js"></script>
+<script src="assets/lib/ui-helpers.js"></script>
+<script src="assets/mock/profiles.js"></script>
 <script>
 
 /* ── LOAD LOCAL CONFIG desde Supabase ──
@@ -825,30 +813,6 @@ async function sbVerifyLogin(tel, pin){
   return null;
 }
 
-
-/* ══════════════════════════════
-   MOCK "BASE DE DATOS" DE USUARIOS
-   TODO: sustituir por consulta a Supabase:
-   const { data: profile } = await supabase
-     .from('profiles')
-     .select('nombre, initials, rol, local_id')
-     .eq('id', user.id)
-     .single()
-══════════════════════════════ */
-/* Roles por nombre de usuario (campo correo en dev):
-   "admin"     → Admin     → ve Inicio (ambas tabs) + resumen
-   "encargado" → Encargado → ve Inicio (solo Resumen) + resumen
-   cualquier otro → Empleado → solo Turnos / Reservas / Stock
-   TODO: sustituir por lookup en tabla profiles de Supabase */
-var MOCK_PROFILES = {
-  /* En dev: escribe el rol como "teléfono" para simular */
-  'superadmin': { nombre:'Rub\u00e9n Garc\u00eda', initials:'RG', rol:'superadmin', localId:1 },
-  'admin':      { nombre:'Ana Mart\u00ednez',        initials:'AM', rol:'admin',      localId:1 },
-  'encargado':  { nombre:'Mar\u00eda L\u00f3pez',   initials:'ML', rol:'encargado',  localId:1 },
-  'trabajador': { nombre:'Carlos Ruiz',               initials:'CR', rol:'empleado',   localId:1 },
-  /* Números reales de prueba */
-  '666000000':  { nombre:'Rub\u00e9n Garc\u00eda', initials:'RG', rol:'superadmin', localId:1 },
-};
 
 var currentUser = null; // se rellena al hacer login
 
@@ -1167,25 +1131,6 @@ function toggleEmojiGrid(){
 }
 
 
-/* ══════════════════════════════
-   UTILS
-══════════════════════════════ */
-function showModal(id){ document.getElementById(id).classList.add('show'); }
-function closeModal(id){ document.getElementById(id).classList.remove('show'); }
-
-function stepField(id, delta, min, max){
-  var el = document.getElementById(id);
-  if(!el) return;
-  el.value = Math.min(max, Math.max(min, (parseInt(el.value)||0) + delta));
-}
-
-function toast(msg){
-  var t = document.getElementById('_toast');
-  t.textContent = msg;
-  t.style.opacity = '1';
-  clearTimeout(t._t);
-  t._t = setTimeout(function(){ t.style.opacity='0'; }, 2500);
-}
 
 /* ══ MI PERFIL ══ */
 function prf_openModal(){
