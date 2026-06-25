@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "PowerShell(git -C \"c:\\\\Users\\\\Ruben\\\\Desktop\\\\PROYECTOS\\\\LaGaleria\\\\lagaleria_demo\" status 2>&1)",
-      "PowerShell(npm --version)",
-      "PowerShell(node --version)"
-    ]
-  }
-}
