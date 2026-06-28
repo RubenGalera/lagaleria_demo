@@ -630,7 +630,6 @@ input[type=file]{display:none}
         <div class="tt-sub" id="wsub">Semana 21</div>
       </div>
       <button class="wbtn tt-arrow" onclick="changeWeek(1)">&#8250;</button>
-      <div id="save-indicator" title="Guardado automático"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
     </div>
     <div class="tp-actions">
       <button class="tpill tpill-accent" onclick="openAutoModal()">
@@ -1162,27 +1161,7 @@ async function loadWeekFromSupabase(semanaInicio) {
 /* ── /SUPABASE Fase 1 ── */
 
 /* ── AUTOSAVE (Fase A2) ── */
-let _saveTimer = null, _saveDimTimer = null;
-
-function _setIndicator(state) {
-  const el = document.getElementById('save-indicator');
-  if (!el) return;
-  el.classList.remove('saving', 'saved', 'save-err');
-  clearTimeout(_saveDimTimer);
-  if (state === 'saving') {
-    el.classList.add('saving');
-    el.title = 'Guardando cambios automáticamente';
-  } else if (state === 'saved') {
-    el.classList.add('saved');
-    el.title = 'Cambios guardados';
-    _saveDimTimer = setTimeout(() => { el.classList.remove('saved'); }, 3000);
-  } else if (state === 'error') {
-    el.classList.add('save-err');
-    el.title = 'Error al guardar — revisa la conexión';
-  } else {
-    el.title = 'Guardado automático';
-  }
-}
+let _saveTimer = null;
 
 async function saveWeekSnapshot() {
   if (!_sb) { console.warn('[autosave] Supabase no disponible'); return; }
@@ -1191,7 +1170,7 @@ async function saveWeekSnapshot() {
     .delete()
     .eq('local_id', LOCAL_ID)
     .eq('semana_inicio', semana);
-  if (delErr) { console.error('[autosave] Error borrando:', delErr.message); _setIndicator('error'); return; }
+  if (delErr) { console.error('[autosave] Error borrando:', delErr.message); return; }
   const rows = [];
   ROWS.forEach(slot => {
     for (let dia = 0; dia < 7; dia++) {
@@ -1205,14 +1184,12 @@ async function saveWeekSnapshot() {
   });
   if (rows.length) {
     const { error: insErr } = await _sb.from('turnos').insert(rows);
-    if (insErr) { console.error('[autosave] Error insertando:', insErr.message); _setIndicator('error'); return; }
+    if (insErr) { console.error('[autosave] Error insertando:', insErr.message); return; }
   }
-  _setIndicator('saved');
   console.log('[autosave] ✅', rows.length, 'filas guardadas, semana', semana);
 }
 
 function scheduleAutosave() {
-  _setIndicator('saving');
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => { _saveTimer = null; await saveWeekSnapshot(); }, 2000);
 }

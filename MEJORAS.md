@@ -130,3 +130,42 @@ Con sus campos: Nombre, Activa (toggle), Color CMYRGB + Golden(corporativo) + De
  
  
  Stock:
+ 
+ 
+ Otros:
+ 
+## Entrada 1 — Incógnita sobre ubicación de "Registro"
+## ❓ INCÓGNITA — Ubicación de "Registro" (Stock)
+Estado: sin decidir, pendiente de reflexión
+
+Duda abierta: ¿Registro (historial de movimientos de stock, hoy en lagaleria_stock.html)
+se mueve a la página principal de Inicio/Resumen (debajo de "Eventos esta semana"), o
+se queda donde está, dentro de Stock?
+
+Contexto de la duda: en su momento se decidió moverlo a Inicio porque Encargado también
+debía poder verlo (coherente con el resto de información operativa del Resumen). Pero
+surgió duda de si tiene más sentido funcional quedarse junto al Stock que registra,
+en vez de separarse de su contexto natural.
+
+Revisar cuando se aborde Categorías editables / reestructuración de Stock-Admin, ya
+que puede influir en la decisión final.
+
+## Entrada 2 — Modo offline / resiliencia ante pérdida de conexión
+## Modo offline / resiliencia ante pérdida de conexión
+Prioridad: baja (tema grande, a planificar con calma en su propia sesión)
+
+Hoy, si se pierde la conexión a internet durante el servicio, cualquier operación que
+dependa de Supabase falla sin más (ver patrón ya corregido en BUG-02: toast de error,
+sin guardar nada). No existe ningún mecanismo de caché local + sincronización posterior
+en ningún punto del proyecto.
+
+Preguntas a resolver cuando se aborde:
+- ¿Qué operaciones son críticas de seguir funcionando sin internet? (¿solo lectura de
+  stock/turnos ya cargados, o también poder anotar cambios para sincronizar después?)
+- Estrategia de almacenamiento local (localStorage ya se usa puntualmente como buffer
+  de crash en Stock — ¿se generaliza, o se pasa a IndexedDB/Service Worker para algo
+  más serio?)
+- Qué pasa con conflictos al reconectar (¿quién gana si se editó lo mismo offline y
+  alguien más lo cambió en el servidor mientras tanto?)
+- Indicador visual claro de "estás trabajando sin conexión" para que el equipo no
+  asuma que algo se guardó cuando no fue así.

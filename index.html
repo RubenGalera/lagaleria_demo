@@ -112,6 +112,11 @@ body{
   flex-shrink:0;transition:box-shadow .2s;
 }
 #header-avatar:active{box-shadow:0 0 0 3px var(--acc-bd)}
+#header-save-ind{display:flex;align-items:center;justify-content:center;width:26px;height:26px;color:#C9A84C;opacity:.35;transition:opacity .3s,color .3s;flex-shrink:0;cursor:default}
+#header-save-ind.saving{opacity:1;animation:hsi-pulse 1.2s ease-in-out infinite}
+#header-save-ind.saved{opacity:1}
+#header-save-ind.save-err{color:#cc6060;opacity:1}
+@keyframes hsi-pulse{0%,100%{opacity:.5}50%{opacity:1}}
 
 
 /* ══════════════════════════════
@@ -529,6 +534,7 @@ footer#app-footer{
       </div>
     </div>
     <div class="header-right">
+      <div id="header-save-ind" title="Guardado automático" style="display:flex"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
       <button id="header-sa" onclick="openSuperadminPanel()" title="Panel de gestión" style="display:none">LG</button>
       <button id="header-avatar" onclick="openProfile()" title="Mi perfil">RG</button>
     </div>
@@ -984,6 +990,27 @@ function goTo(page){
   var bn = document.getElementById('bnav-'+page);
   if(fr) fr.classList.add('active');
   if(bn) bn.classList.add('active');
+}
+
+var _hsiDimTimer = null;
+function setHeaderSaveState(state){
+  var el = document.getElementById('header-save-ind');
+  if(!el) return;
+  el.classList.remove('saving','saved','save-err');
+  clearTimeout(_hsiDimTimer);
+  if(state === 'saving'){
+    el.classList.add('saving');
+    el.title = 'Guardando cambios automáticamente';
+  } else if(state === 'saved'){
+    el.classList.add('saved');
+    el.title = 'Cambios guardados';
+    _hsiDimTimer = setTimeout(function(){ el.classList.remove('saved'); }, 3000);
+  } else if(state === 'error'){
+    el.classList.add('save-err');
+    el.title = 'Error al guardar — revisa la conexión';
+  } else {
+    el.title = 'Guardado automático';
+  }
 }
 
 function goToAndClose(page){

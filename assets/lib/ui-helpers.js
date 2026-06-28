@@ -35,3 +35,14 @@ function stepField(id, delta, min, max, cb) {
   el.value = Math.min(max, Math.max(min, (parseInt(el.value) || 0) + delta));
   if (cb) cb();
 }
+
+function formatDateLabel(dateStr) {
+  var today     = new Date().toISOString().slice(0, 10);
+  var yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  var d         = new Date(dateStr + 'T12:00:00');
+  var dayMonth  = d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
+  if (dateStr === today)     return 'Hoy — ' + dayMonth;
+  if (dateStr === yesterday) return 'Ayer — ' + dayMonth;
+  var weekday = d.toLocaleDateString('es-ES', { weekday: 'long' });
+  return weekday.charAt(0).toUpperCase() + weekday.slice(1) + ' — ' + dayMonth;
+}

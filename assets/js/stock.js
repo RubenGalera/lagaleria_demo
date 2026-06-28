@@ -36,7 +36,7 @@ const el = {
   pedDot:        document.getElementById('ped-dot'),
   regTotalLbl:   document.getElementById('reg-total-lbl'),
   regList:       document.getElementById('reg-list'),
-  toast:         document.getElementById('toast'),
+
   modalBg:       document.getElementById('modal-bg'),
   editSheetBg:   document.getElementById('edit-sheet-bg'),
   oneoffModalBg: document.getElementById('oneoff-modal-bg'),
@@ -109,7 +109,7 @@ async function initStock() {
     prods = (data || []).map(sbToLocal)
   } catch(e) {
     console.error('[stock] initStock:', e)
-    showToast('Error al cargar productos')
+    toast('Error al cargar productos')
   }
 
   await sbLoadProductosPuntuales()
@@ -118,6 +118,7 @@ async function initStock() {
   setCat(activeCat)
   updateInventoryStatus()
   updatePedDot()
+  updateSinCatChip()
 }
 
 /* ─── Permisos por rol ─── */
@@ -147,6 +148,7 @@ function renderTab(tab) {
 }
 
 function setTab(tab) { renderTab(tab) }
+function goToSection(section){ if(typeof setTab==='function') setTab(section); }
 
 function setCat(cat, button) {
   activeCat = cat
@@ -158,9 +160,18 @@ function setCat(cat, button) {
 /* ─── Inventory render ─── */
 function renderInventory() {
   const EMPTY = '<div class="ped-empty"><div class="ped-empty-icon">📦</div><div class="ped-empty-title">No hay productos</div><div class="ped-empty-sub">Usa el botón + para agregar un producto.</div></div>'
+  const knownCats = new Set(Object.keys(prefs.categories))
 
   if (activeCat === 'rep') {
     const items = prods.filter(isPendingForOrderView)
+      .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    el.prodList.innerHTML = items.map(renderProduct).join('') || EMPTY
+    updateReorderCount()
+    return
+  }
+
+  if (activeCat === 'sin-cat') {
+    const items = prods.filter(p => !knownCats.has(p.cat))
       .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
     el.prodList.innerHTML = items.map(renderProduct).join('') || EMPTY
     updateReorderCount()
@@ -183,24 +194,27 @@ function renderInventory() {
     html += `<div class="sec-hdr"><div class="sec-lbl">${catInfo.emoji} ${catInfo.label.toUpperCase()}</div><div class="sec-line"></div></div>`
     html += items.map(renderProduct).join('')
   }
+  const sinCatItems = prods.filter(p => !knownCats.has(p.cat))
+    .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
+  if (sinCatItems.length) {
+    html += `<div class="sec-hdr"><div class="sec-lbl">❓ SIN CATEGORÍA</div><div class="sec-line"></div></div>`
+    html += sinCatItems.map(renderProduct).join('')
+  }
   el.prodList.innerHTML = html || EMPTY
   updateReorderCount()
 }
 
 function renderProduct(prod) {
-  const category    = prefs.categories[prod.cat]
   const location    = prefs.locations[prod.loc]
   const statusClass = getStockStatus(prod.qty, prod.min)
   return `
     <div class="prod ${statusClass}">
       <div class="prod-sema-col">
         <span class="sema ${statusClass}"></span>
-        <span class="cat-emoji">${category?.emoji || '❓'}</span>
       </div>
       <div class="prod-info">
         <div class="prod-name prod-name-link" onclick="openEdit('${prod.id}')">${prod.name}</div>
         <div class="prod-meta">
-          <span class="cat-badge">${category?.label || 'Sin cat.'}</span>
           <span class="loc-badge ${location?.color || 'loc-a'}">${location?.label || 'Otro'}</span>
           <span class="prod-min">Mín ${prod.min} ${prod.unit}</span>
           ${prod.note ? `<span class="prod-note">${prod.note}</span>` : ''}
@@ -239,7 +253,7 @@ async function adjustQty(id, delta) {
     ])
   } catch(e) {
     console.error('[stock] adjustQty:', e)
-    showToast('Error al guardar')
+    toast('Error al guardar')
   }
 }
 
@@ -258,7 +272,32 @@ function saveInv() {
   invMode = false
   el.invBanner.classList.remove('show')
   el.btnInv.classList.remove('active')
-  showToast('Inventario guardado')
+  toast('Inventario guardado')
+}
+
+function updateSinCatChip() {
+  const bar = document.getElementById('cat-bar')
+  if (!bar) return
+  const knownCats = new Set(Object.keys(prefs.categories))
+  const hasSinCat = prods.some(p => !knownCats.has(p.cat))
+  let chip = bar.querySelector('[data-cat="sin-cat"]')
+  if (hasSinCat && !chip) {
+    chip = document.createElement('div')
+    chip.className = 'cpill'
+    chip.dataset.cat = 'sin-cat'
+    chip.innerHTML = '❓ <span class="cpill-lbl">Sin categoría</span>'
+    chip.addEventListener('click', () => setCat('sin-cat', chip))
+    const repChip = bar.querySelector('.cpill-rep')
+    if (repChip) bar.insertBefore(chip, repChip)
+    else bar.appendChild(chip)
+  } else if (!hasSinCat && chip) {
+    chip.remove()
+    if (activeCat === 'sin-cat') {
+      activeCat = 'all'
+      bar.querySelector('.cpill-all')?.classList.add('act')
+      renderInventory()
+    }
+  }
 }
 
 function updateReorderCount() {
@@ -275,8 +314,8 @@ function updateInventoryStatus() {
 }
 
 /* ─── Add product modal ─── */
-function showModal() { el.modalBg.classList.add('show') }
-function hideModal()  { el.modalBg.classList.remove('show'); resetNewProductForm() }
+function showAddProdModal() { el.modalBg.classList.add('show') }
+function hideAddProdModal() { el.modalBg.classList.remove('show'); resetNewProductForm() }
 function resetNewProductForm() {
   inputs.npName.value = ''
   inputs.npCat.value  = 'beb'
@@ -292,7 +331,7 @@ async function addProd() {
   const qty  = Number(inputs.npQty.value)
   const min  = Number(inputs.npMin.value)
   const unit = inputs.npUnit.value.trim()
-  if (!name || !unit || Number.isNaN(qty)) { showToast('Completa nombre, cantidad y unidad'); return }
+  if (!name || !unit || Number.isNaN(qty)) { toast('Completa nombre, cantidad y unidad'); return }
   const payload = {
     local_id:  LOCAL_ID,
     nombre:    name,
@@ -310,12 +349,13 @@ async function addProd() {
     prods.unshift(sbToLocal(data))
     renderInventory()
     updatePedDot()
+    updateSinCatChip()
     if (activeTab === 'ped') renderPedido()
-    hideModal()
-    showToast('Producto añadido')
+    hideAddProdModal()
+    toast('Producto añadido')
   } catch(e) {
     console.error('[stock] addProd:', e)
-    showToast('Error al añadir producto')
+    toast('Error al añadir producto')
   }
 }
 
@@ -340,7 +380,7 @@ async function saveEditProd() {
   const name = inputs.epName.value.trim()
   const min  = Number(inputs.epMin.value)
   const unit = inputs.epUnit.value.trim()
-  if (!name || !unit) { showToast('Completa nombre y unidad'); return }
+  if (!name || !unit) { toast('Completa nombre y unidad'); return }
   const payload = {
     nombre:    name,
     categoria: inputs.epCat.value,
@@ -357,10 +397,10 @@ async function saveEditProd() {
     updatePedDot()
     if (activeTab === 'ped') renderPedido()
     closeEditSheet()
-    showToast('Producto actualizado')
+    toast('Producto actualizado')
   } catch(e) {
     console.error('[stock] saveEditProd:', e)
-    showToast('Error al guardar cambios')
+    toast('Error al guardar cambios')
   }
 }
 
@@ -388,11 +428,12 @@ async function confirmDelProd() {
     prods = prods.filter(item => item.id !== id)
     renderInventory()
     updatePedDot()
+    updateSinCatChip()
     if (activeTab === 'ped') renderPedido()
-    showToast('Producto eliminado')
+    toast('Producto eliminado')
   } catch(e) {
     console.error('[stock] deleteProd:', e)
-    showToast('Error al eliminar producto')
+    toast('Error al eliminar producto')
   }
 }
 
@@ -528,7 +569,7 @@ async function deleteOneoff(id) {
     renderPedido()
   } catch(e) {
     console.error('[stock] deleteOneoff:', e)
-    showToast('Error al eliminar')
+    toast('Error al eliminar')
   }
 }
 
@@ -712,16 +753,6 @@ async function renderRegistro() {
   el.regTotalLbl.textContent = `${rows.length} movimientos`
 }
 
-function formatDateLabel(dateStr) {
-  const today     = new Date().toISOString().slice(0, 10)
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-  const d         = new Date(dateStr + 'T12:00:00')
-  const dayMonth  = d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })
-  if (dateStr === today)     return `Hoy — ${dayMonth}`
-  if (dateStr === yesterday) return `Ayer — ${dayMonth}`
-  const weekday = d.toLocaleDateString('es-ES', { weekday: 'long' })
-  return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)} — ${dayMonth}`
-}
 
 /* ─── Borrar una card (persona + día, ambos tipos) ─── */
 async function deleteRegCard(btn) {
@@ -731,12 +762,12 @@ async function deleteRegCard(btn) {
   try {
     const { error } = await _sb.from('stock_movimientos').delete().in('id', ids)
     if (error) throw error
-    showToast('Movimientos eliminados')
+    toast('Movimientos eliminados')
     await renderRegistro()
   } catch(e) {
     console.error('[stock] deleteRegCard:', e)
     btn.disabled = false
-    showToast('Error al borrar')
+    toast('Error al borrar')
   }
 }
 
@@ -755,7 +786,7 @@ function closeClearRegConfirm() {
 async function confirmClearReg() {
   closeClearRegConfirm()
   const prodIds = prods.map(p => p.id)
-  if (!prodIds.length) { showToast('No hay movimientos que borrar'); return }
+  if (!prodIds.length) { toast('No hay movimientos que borrar'); return }
   try {
     const range = getRegFilterRange()
     let query = _sb.from('stock_movimientos').delete().in('producto_id', prodIds)
@@ -763,11 +794,11 @@ async function confirmClearReg() {
     if (range.to)   query = query.lte('created_at', range.to)
     const { error } = await query
     if (error) throw error
-    showToast('Registro borrado')
+    toast('Registro borrado')
     await renderRegistro()
   } catch(e) {
     console.error('[stock] confirmClearReg:', e)
-    showToast('Error al borrar el registro')
+    toast('Error al borrar el registro')
   }
 }
 
@@ -776,7 +807,7 @@ async function addOneoff() {
   const name = inputs.ooName.value.trim()
   const qty  = Number(inputs.ooQty.value)
   const unit = inputs.ooUnit.value.trim()
-  if (!name || !unit || Number.isNaN(qty) || qty <= 0) { showToast('Completa nombre, cantidad y unidad'); return }
+  if (!name || !unit || Number.isNaN(qty) || qty <= 0) { toast('Completa nombre, cantidad y unidad'); return }
   try {
     await sbAddProductoPuntual(name, qty, unit)
     el.oneoffModalBg.classList.remove('show')
@@ -785,19 +816,11 @@ async function addOneoff() {
     inputs.ooUnit.value = ''
     updatePedDot()
     renderPedido()
-    showToast('Artículo añadido')
+    toast('Artículo añadido')
   } catch(e) {
     console.error('[stock] addOneoff:', e)
-    showToast('Error al añadir')
+    toast('Error al añadir')
   }
-}
-
-/* ─── Toast ─── */
-function showToast(message) {
-  el.toast.textContent = message
-  el.toast.classList.add('show')
-  clearTimeout(showToast.timeout)
-  showToast.timeout = setTimeout(() => el.toast.classList.remove('show'), 1600)
 }
 
 window.addEventListener('DOMContentLoaded', initStock)

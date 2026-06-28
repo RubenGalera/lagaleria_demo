@@ -99,30 +99,19 @@ body{display:flex;flex-direction:column}
   </div>
 
   <div class="dash-card">
-    <div class="dash-row" onclick="toggleDashDispo(this)">
+    <div class="dash-row" onclick="navTo('reservas','res')">
       <div class="dash-ic dash-ic-warn">📋</div>
       <div class="dash-info">
         <div class="dash-title">Reservas hoy</div>
         <div class="dash-sub" id="dash-res-sub">Sin reservas hoy</div>
       </div>
       <div class="dash-badge dash-badge-dim" id="dash-res-badge">—</div>
-      <span class="dash-chev">›</span>
-    </div>
-    <div class="dash-expand" id="dash-dispo">
-      <div class="dash-turno-grp">
-        <div class="dash-turno-hdr">☀️ Mediodía <span class="dash-libres" id="dash-libres-med"></span></div>
-        <div class="dash-zonas" id="dash-zonas-med"></div>
-      </div>
-      <div class="dash-sep"></div>
-      <div class="dash-turno-grp">
-        <div class="dash-turno-hdr">🌙 Noche <span class="dash-libres" id="dash-libres-noch"></span></div>
-        <div class="dash-zonas" id="dash-zonas-noch"></div>
-      </div>
+      <span class="dash-arr">›</span>
     </div>
   </div>
 
   <div class="dash-card">
-    <div class="dash-row" onclick="navTo('reservas','eventos')">
+    <div class="dash-row" onclick="navTo('reservas','ev')">
       <div class="dash-ic dash-ic-dim">🎉</div>
       <div class="dash-info">
         <div class="dash-title">Eventos hoy</div>
@@ -134,7 +123,7 @@ body{display:flex;flex-direction:column}
   </div>
 
   <div class="dash-card">
-    <div class="dash-row" onclick="navTo('stock','pedido')">
+    <div class="dash-row" onclick="navTo('stock','ped')">
       <div class="dash-ic dash-ic-dim" id="dash-stock-ic">📦</div>
       <div class="dash-info">
         <div class="dash-title" id="dash-stock-title">Stock</div>
@@ -162,7 +151,7 @@ body{display:flex;flex-direction:column}
   </div>
 
   <div class="dash-card">
-    <div class="dash-row" onclick="navTo('reservas','eventos')">
+    <div class="dash-row" onclick="navTo('reservas','ev')">
       <div class="dash-ic dash-ic-dim" id="dash-ev-sem-ic">🎭</div>
       <div class="dash-info">
         <div class="dash-title">Eventos esta semana</div>
@@ -282,7 +271,7 @@ function navTo(page, section){
             fr.contentWindow.goToSection(section);
           }
         }catch(e){}
-      }, 80);
+      }, 400);
     }
   }catch(e){}
 }
@@ -326,11 +315,17 @@ async function initDashboard(){
       var _mon=new Date(_td);_mon.setDate(_td.getDate()+_moff);
       var _sun=new Date(_mon);_sun.setDate(_mon.getDate()+6);
       var _monStr=_mon.toISOString().split('T')[0],_sunStr=_sun.toISOString().split('T')[0];
-      var _qEv   = eventos  ? null : _sb.from('eventos').select('id,descripcion,fecha,hora').eq('local_id',LOCAL_ID).gte('fecha',_monStr).lte('fecha',_sunStr).order('fecha').order('hora');
+      var _qEv   = eventos  ? null : _sb.from('eventos').select('id,descripcion,fecha,hora').eq('local_id',LOCAL_ID).gte('fecha',hoyStr).lte('fecha',_sunStr).order('fecha').order('hora');
       var _qRes  = reservas ? null : _sb.from('reservas').select('*').eq('local_id',LOCAL_ID).eq('fecha',hoyStr).order('hora');
       var _qProd = prods    ? null : _sb.from('productos').select('nombre,cantidad,minimo').eq('local_id',LOCAL_ID).eq('activo',true);
       var _qZona = reservas ? null : _sb.from('zonas').select('id,emoji').eq('local_id',LOCAL_ID);
-      var _rs=await Promise.all([_qEv||Promise.resolve({data:null}),_qRes||Promise.resolve({data:null}),_qProd||Promise.resolve({data:null}),_qZona||Promise.resolve({data:null})]);
+      var _noop=Promise.resolve({data:null});
+      var _rs=await Promise.all([
+        Promise.resolve(_qEv  ||_noop).catch(function(){return{data:null};}),
+        Promise.resolve(_qRes ||_noop).catch(function(){return{data:null};}),
+        Promise.resolve(_qProd||_noop).catch(function(){return{data:null};}),
+        Promise.resolve(_qZona||_noop).catch(function(){return{data:null};}),
+      ]);
       var _evData=_rs[0].data,_resData=_rs[1].data,_prodData=_rs[2].data,_zonaData=_rs[3].data;
       if(!eventos&&_evData)eventos=_evData.map(function(e){return{dia:new Date(e.fecha+'T00:00:00').getDay(),desc:e.descripcion||'',hora:e.hora?e.hora.slice(0,5):''};});
       if(!reservas&&_resData){var _zm={};(_zonaData||[]).forEach(function(z){_zm[z.id]=z.emoji;});reservas=_resData.map(function(r){return{nombre:r.nombre,fecha:r.fecha,hora:r.hora?r.hora.slice(0,5):'',pax:r.pax,mesas:r.mesas,estado:r.estado,zonaId:r.zona_id,emoji:_zm[r.zona_id]||'📍',nota:r.nota||''};});}
@@ -348,7 +343,7 @@ function _dashReservas(reservas){
   var pend=deHoy.filter(function(r){return r.estado==='pendiente';}).length;
   var total=deHoy.length;
   var sub=document.getElementById('dash-res-sub'),badge=document.getElementById('dash-res-badge');
-  if(sub)sub.textContent=total?(conf+' confirmadas · '+pend+' pendiente'+(pend!==1?'s':'')):'Sin reservas hoy';
+  if(sub)sub.textContent=total?'Reservas programadas para hoy':'Sin reservas hoy';
   if(badge)badge.textContent=total||'—';
   if(total&&badge)badge.className='dash-badge dash-badge-warn';
   var ahora=new Date().toTimeString().slice(0,5);
@@ -374,8 +369,8 @@ function _dashStock(prods){
   var sub=document.getElementById('dash-stock-sub'),badge=document.getElementById('dash-stock-badge'),ic=document.getElementById('dash-stock-ic'),title=document.getElementById('dash-stock-title');
   if(!prods){try{var raw=localStorage.getItem('lg_stock_v1');if(raw)prods=JSON.parse(raw);}catch(e){}}
   if(!prods||!prods.length){if(sub)sub.textContent='Sin datos de stock';return;}
-  var rojos=prods.filter(function(p){return !p.qty||p.qty<=0||p.qty<p.min*0.5;});
-  var ambars=prods.filter(function(p){return p.qty>=p.min*0.5&&p.qty<p.min;});
+  var rojos=prods.filter(function(p){return p.min>0&&p.qty*2<=p.min;});
+  var ambars=prods.filter(function(p){return p.min>0&&p.qty*2>p.min&&p.qty<=p.min;});
   if(rojos.length){if(title)title.textContent='Stock crítico';if(sub)sub.textContent=rojos.slice(0,2).map(function(p){return p.name;}).join(' · ')+(rojos.length>2?' +más':'');if(badge){badge.textContent=rojos.length;badge.className='dash-badge dash-badge-alert';}if(ic)ic.className='dash-ic dash-ic-alert';}
   else if(ambars.length){if(title)title.textContent='Stock en mínimos';if(sub)sub.textContent=ambars.slice(0,2).map(function(p){return p.name;}).join(' · ')+(ambars.length>2?' +más':'');if(badge){badge.textContent=ambars.length;badge.className='dash-badge dash-badge-warn';}if(ic)ic.className='dash-ic dash-ic-warn';}
   else{if(title)title.textContent='Stock';if(sub)sub.textContent='Todo en orden';if(badge){badge.textContent='✓';badge.className='dash-badge dash-badge-ok';}if(ic)ic.className='dash-ic dash-ic-ok';}
@@ -387,9 +382,10 @@ function _dashEventos(eventos){
   var evSem=eventos||[];
   var sub=document.getElementById('dash-ev-hoy-sub'),badge=document.getElementById('dash-ev-hoy-badge');
   if(evHoy.length){if(sub)sub.textContent=evHoy.map(function(e){return e.desc;}).join(' · ');if(badge){badge.textContent=evHoy.length;badge.className='dash-badge dash-badge-info';}}
-  else{if(sub)sub.textContent='Sin eventos programados';}
+  else{if(sub)sub.textContent='Sin eventos programados para hoy';}
   var subS=document.getElementById('dash-ev-sem-sub'),badgeS=document.getElementById('dash-ev-sem-badge'),icS=document.getElementById('dash-ev-sem-ic');
-  if(evSem.length){var dias=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];var pe=evSem[0];if(subS)subS.textContent=pe.desc+' · '+(dias[pe.dia]||'')+(pe.hora?' '+pe.hora:'');if(badgeS){badgeS.textContent=evSem.length;badgeS.className='dash-badge dash-badge-info';}if(icS)icS.className='dash-ic dash-ic-info';}
+  if(evSem.length){var dias=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];var pe=evSem[0];if(subS)subS.textContent='Próximo evento: '+pe.desc+' · '+(dias[pe.dia]||'')+(pe.hora?' '+pe.hora:'');if(badgeS){badgeS.textContent=evSem.length;badgeS.className='dash-badge dash-badge-info';}if(icS)icS.className='dash-ic dash-ic-info';}
+  else{if(subS)subS.textContent='Sin eventos esta semana';}
 }
 
 function _dashTurnos(loc){

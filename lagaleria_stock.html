@@ -29,7 +29,7 @@
   <!-- INVENTARIO -->
   <div id="view-inv">
     <div class="sticky-header">
-      <div class="cat-bar toolbar-row">
+      <div id="cat-bar" class="cat-bar toolbar-row">
         <div class="cpill cpill-all act" onclick="setCat('all', this)">✦ <span class="cpill-lbl">Todo</span></div>
         <div class="cpill cpill-beb" onclick="setCat('beb', this)">🍺 <span class="cpill-lbl">Bebidas</span></div>
         <div class="cpill cpill-ali" onclick="setCat('ali', this)">🥩 <span class="cpill-lbl">Alimentación</span></div>
@@ -52,7 +52,7 @@
     <div class="content" id="prod-list"></div>
 
     <div class="content" style="padding-bottom:14px">
-      <button class="add-btn" onclick="showModal()">+ Añadir producto</button>
+      <button class="add-btn" onclick="showAddProdModal()">+ Añadir producto</button>
       <button class="inv-update-btn" id="btn-inv" onclick="toggleInv()">☰ Actualizar inventario</button>
       <div class="inv-last-update">
         <div class="inv-dot" id="inv-dot"></div>
@@ -83,11 +83,11 @@
   </div>
 
   <!-- MODAL -->
-  <div class="modal-bg" id="modal-bg" onclick="if(event.target===this)hideModal()">
+  <div class="modal-bg" id="modal-bg" onclick="if(event.target===this)hideAddProdModal()">
     <div class="modal">
       <div class="modal-hdr">
         <div class="modal-title">Nuevo producto</div>
-        <button class="modal-cls" onclick="hideModal()">&#215;</button>
+        <button class="modal-cls" onclick="hideAddProdModal()">&#215;</button>
       </div>
       <div class="field">
         <label>Nombre</label>
@@ -213,10 +213,9 @@
     </div>
   </div>
 
-  <div class="toast" id="toast"></div>
-
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="assets/lib/supabase-client.js"></script>
+  <script src="assets/lib/ui-helpers.js"></script>
   <script src="assets/js/stock-status.js" defer></script>
   <script src="assets/js/stock.js" defer></script>
 
