@@ -793,13 +793,18 @@ input[type=file]{display:none}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="assets/lib/supabase-client.js"></script>
 <script src="assets/lib/ui-helpers.js"></script>
+<script src="assets/lib/adminZones.js"></script>
+<script src="assets/lib/adminSkills.js"></script>
+<script src="assets/lib/adminWeekConfig.js"></script>
+<script src="assets/lib/adminWorkers.js"></script>
+<script src="assets/lib/adminStock.js"></script>
 <script src="assets/lib/worker-modal.js"></script>
 
 <script>
 
 function isSafeImg(u){return typeof u==='string'&&u.trim()!==''&&!u.includes('${');}
 
-/* ── SUPABASE DATA LAYER ── */
+/* SUPABASE DATA LAYER */
 async function sbLoadZonas(){
   try{
     const {data,error} = await _sb.from('zonas').select('*').eq('local_id', LOCAL_ID).eq('activa', true).order('orden');
@@ -903,7 +908,7 @@ async function initSupabase(){
   if(typeof renderZonas==='function') renderZonas();
 }
 
-/* ── CONFIRM MODAL ── */
+/* CONFIRM MODAL */
 function showConfirm(opts){
   var body   = document.getElementById('confirm-body');
   var btnOk  = document.querySelector('#ov-confirm .mbtn-d');
@@ -916,7 +921,7 @@ function showConfirm(opts){
   showOv('ov-confirm');
 }
 
-/* ── CREDENTIALS ── */
+/* CREDENTIALS */
 var SUPA_URL = 'https://nnmaedehqeeogmhzqzji.supabase.co';
 var SUPA_KEY = 'sb_publishable_spxukgcwMf-VFre7l_E68g_tWatBs9X';
 
@@ -934,20 +939,11 @@ function supaFetch(path, opts){
   return fetch(SUPA_URL + path, Object.assign({}, opts, {headers:headers}));
 }
 
-/* ── STATE ── */
+/* STATE */
 var rol = 'admin';
 var localId = null;
-var zonas = [];
-var editingZonaId = null;
-var selectedEmoji = '🪑';
 
-var EMOJIS = [
-  '☀️','🌙','🌿','🌊','🏡','🚪','🍷','🍺','🎭','🎪',
-  '🪑','🛋️','🌺','⛱️','🔥','💫','🎵','🏮','🕯️','🌸',
-  '🍃','🏛️','🎨','🌴','🍾','✨','🎬','🎩',
-];
-
-/* ── INIT ── */
+/* INIT */
 function initFromParent(){
   try{
     var p = window.parent;
@@ -976,210 +972,9 @@ function initFromParent(){
   }catch(e){ console.error('initFromParent', e); }
 }
 
-var MOCK_ZONAS = [
-  {id:'z1', nombre:'Terraza', emoji:'☀️', mesas:8,  pax:24, activa:true,  orden:1},
-  {id:'z2', nombre:'Entrada', emoji:'🚪', mesas:4,  pax:12, activa:true,  orden:2},
-  {id:'z3', nombre:'Barra',   emoji:'🍷', mesas:6,  pax:18, activa:true,  orden:3},
-  {id:'z4', nombre:'Sala',    emoji:'🪑', mesas:10, pax:30, activa:true,  orden:4},
-  {id:'z5', nombre:'Salón',   emoji:'🎭', mesas:6,  pax:20, activa:false, orden:5},
-];
-
 function showMockBadge(){
   var b = document.getElementById('mock-badge');
   if(b) b.style.display = 'block';
-}
-
-function loadZonasFromParent(){
-  var loaded = false;
-  try{
-    var local = window.parent.getActiveLocal();
-    if(local && local.zonas && local.zonas.length){
-      zonas = local.zonas.map(function(z){
-        return {id:String(z.id), nombre:z.nombre, emoji:z.emoji, mesas:z.mesas, pax:z.pax, activa:z.activa!==false, orden:0};
-      });
-      var bt = document.getElementById('badge-trabajadores');
-      if(bt) bt.textContent = local.trabajadores || '—';
-      var sln = document.getElementById('sec-local-name');
-      if(sln) sln.textContent = local.nombre;
-      loaded = true;
-    }
-  }catch(e){}
-  if(!loaded) zonas = MOCK_ZONAS.slice();
-  updateZonasUI();
-}
-
-/* ── ZONAS ── */
-async function fetchZonas(){
-  if(!localId) return;
-  try{
-    var res = await supaFetch('/rest/v1/zonas?select=*&local_id=eq.'+localId+'&order=orden.asc,nombre.asc');
-    if(!res.ok) throw new Error(res.status);
-    zonas = await res.json();
-    updateZonasUI();
-  }catch(e){
-    console.error('fetchZonas', e);
-    renderZonaList('<div class="state-msg error">Error cargando zonas.</div>');
-  }
-}
-
-function updateZonasUI(){
-  var count = zonas.length;
-  var sz = document.getElementById('stat-zonas'); if(sz) sz.textContent = count;
-  var bz = document.getElementById('badge-zonas'); if(bz) bz.textContent = count;
-  renderZonaList(buildZonaListHTML());
-}
-
-function buildZonaListHTML(){
-  if(!zonas.length) return '<div class="zona-empty">Sin zonas todavía.<br>Crea la primera con el botón de abajo.</div>';
-  var html = zonas.map(function(z){
-    var inactiva = z.activa === false;
-    return '<div class="zona-row" style="opacity:'+(inactiva?.55:1)+'" onclick="openEditZona(\''+z.id+'\')">'+
-      '<span class="zona-emoji">'+(z.emoji||'🪑')+'</span>'+
-      '<div class="zona-info"><div class="zona-name">'+escHtml(z.nombre)+(inactiva?'<span class="zona-inactiva">INACTIVA</span>':'')+'</div>'+
-      '<div class="zona-sub">'+z.mesas+' mesas'+(z.pax?' · '+z.pax+' personas':'')+'</div></div>'+
-      '<span class="zona-arrow">›</span></div>';
-  }).join('');
-  html += '<button class="btn-nueva-zona" onclick="openNewZona()">+ Nueva zona</button>';
-  return html;
-}
-
-function renderZonaList(html){
-  document.getElementById('zona-list').innerHTML = html;
-  if(zonas.length && !document.querySelector('.btn-nueva-zona')){
-    document.getElementById('zona-list').insertAdjacentHTML('beforeend','<button class="btn-nueva-zona" onclick="openNewZona()">+ Nueva zona</button>');
-  }
-}
-
-async function createZona(data){
-  setBtnLoading(true);
-  if(!localId){
-    var newZ = Object.assign({id:'z'+Date.now(), orden:zonas.length, activa:true}, data);
-    zonas.push(newZ); updateZonasUI(); closeModalZona(); toast('Zona creada ✓ (mock)'); setBtnLoading(false); return;
-  }
-  try{
-    var body = Object.assign({local_id:localId, orden:zonas.length}, data);
-    var res = await supaFetch('/rest/v1/zonas', {method:'POST', body:JSON.stringify(body)});
-    if(!res.ok){ var e=await res.json(); throw new Error(e.message||res.status); }
-    var created = await res.json();
-    zonas.push(Array.isArray(created)?created[0]:created);
-    updateZonasUI(); closeModalZona(); toast('Zona creada ✓');
-  }catch(e){ toast('Error: '+e.message); }
-  finally{ setBtnLoading(false); }
-}
-
-async function updateZona(id, data){
-  setBtnLoading(true);
-  if(!localId){
-    var idx=zonas.findIndex(function(z){return z.id===id;});
-    if(idx>=0) zonas[idx]=Object.assign(zonas[idx],data);
-    updateZonasUI(); closeModalZona(); toast('Zona guardada ✓ (mock)'); setBtnLoading(false); return;
-  }
-  try{
-    var res = await supaFetch('/rest/v1/zonas?id=eq.'+id, {method:'PATCH', body:JSON.stringify(data)});
-    if(!res.ok){ var e=await res.json(); throw new Error(e.message||res.status); }
-    var idx=zonas.findIndex(function(z){return z.id===id;});
-    if(idx>=0) zonas[idx]=Object.assign(zonas[idx],data);
-    updateZonasUI(); closeModalZona(); toast('Zona guardada ✓');
-  }catch(e){ toast('Error: '+e.message); }
-  finally{ setBtnLoading(false); }
-}
-
-async function deleteZona(id){
-  if(!localId){
-    zonas=zonas.filter(function(z){return z.id!==id;}); updateZonasUI(); closeModalZona(); toast('Zona eliminada (mock)'); return;
-  }
-  try{
-    var res = await supaFetch('/rest/v1/zonas?id=eq.'+id, {method:'DELETE'});
-    if(!res.ok){ var e=await res.json(); throw new Error(e.message||res.status); }
-    zonas=zonas.filter(function(z){return z.id!==id;}); updateZonasUI(); closeModalZona(); toast('Zona eliminada');
-  }catch(e){ toast('Error: '+e.message); }
-}
-
-function openZonas(){
-  document.getElementById('view-editar-list').style.display='none';
-  document.getElementById('view-zonas').classList.add('active');
-  if(!zonas.length && localId) fetchZonas();
-}
-
-function closeZonas(){
-  ['view-zonas','view-skills','view-trabajadores','view-weekconfig','view-stock-admin'].forEach(function(v){var e=document.getElementById(v);if(e)e.classList.remove('active');});
-  document.getElementById('view-editar-list').style.display='';
-}
-
-function openNewZona(){
-  editingZonaId=null;
-  document.getElementById('modal-zona-title').textContent='Nueva zona';
-  document.getElementById('z-nombre').value='';
-  document.getElementById('z-mesas').value='';
-  document.getElementById('z-pax').value='';
-  document.getElementById('z-activa').checked=true;
-  document.getElementById('btn-del-zona').style.display='none';
-  document.getElementById('confirm-del').style.display='none';
-  renderEmojiGrid('🪑');
-  document.getElementById('modal-zona').classList.add('show');
-}
-
-function openEditZona(id){
-  var z=zonas.find(function(x){return x.id===id;});if(!z)return;
-  editingZonaId=id;
-  document.getElementById('modal-zona-title').textContent='Editar zona';
-  document.getElementById('z-nombre').value=z.nombre;
-  document.getElementById('z-mesas').value=z.mesas;
-  document.getElementById('z-pax').value=z.pax||'';
-  document.getElementById('z-activa').checked=z.activa!==false;
-  document.getElementById('btn-del-zona').style.display='block';
-  document.getElementById('confirm-del').style.display='none';
-  renderEmojiGrid(z.emoji||'🪑');
-  document.getElementById('modal-zona').classList.add('show');
-}
-
-function closeModalZona(){
-  document.getElementById('modal-zona').classList.remove('show');
-  var wrap=document.getElementById('emoji-wrap');
-  wrap.classList.remove('expanded'); wrap.classList.add('collapsed');
-  document.getElementById('emoji-chev').style.transform='';
-  document.getElementById('emoji-lbl').textContent='Ver más iconos';
-}
-
-function saveZona(){
-  var nombre=document.getElementById('z-nombre').value.trim();
-  if(!nombre){ toast('Introduce un nombre'); return; }
-  var data={nombre:nombre,emoji:selectedEmoji||'🪑',mesas:parseInt(document.getElementById('z-mesas').value)||4,pax:parseInt(document.getElementById('z-pax').value)||null,activa:document.getElementById('z-activa').checked};
-  if(editingZonaId){ updateZona(editingZonaId,data); } else { createZona(data); }
-}
-
-function promptDelZona(){
-  var z=zonas.find(function(x){return x.id===editingZonaId;});
-  var name=z?z.nombre:'esta zona';
-  closeModalZona();
-  showConfirm({message:'Vas a eliminar la zona "'+name+'". Las reservas asociadas no se eliminarán.',onConfirm:function(){if(editingZonaId)deleteZona(editingZonaId);},onCancel:function(){showOv('modal-zona');}});
-}
-function cancelDelZona(){ document.getElementById('confirm-del').style.display='none'; document.getElementById('btn-del-zona').style.display='block'; }
-function confirmDelZona(){ if(editingZonaId) deleteZona(editingZonaId); }
-
-function setBtnLoading(loading){
-  var btn=document.getElementById('btn-guardar');
-  btn.disabled=loading; btn.textContent=loading?'Guardando...':'Guardar zona';
-}
-
-function renderEmojiGrid(current){
-  selectedEmoji=current||EMOJIS[0];
-  document.getElementById('z-emoji').value=selectedEmoji;
-  document.getElementById('emoji-grid').innerHTML=EMOJIS.map(function(e){
-    return '<div class="emoji-opt'+(e===selectedEmoji?' sel':'')+'" onclick="pickEmoji(\''+e+'\',this)">'+e+'</div>';
-  }).join('');
-}
-function pickEmoji(e,el){
-  selectedEmoji=e;
-  document.querySelectorAll('.emoji-opt').forEach(function(x){x.classList.remove('sel');});
-  el.classList.add('sel');
-}
-function toggleEmoji(){
-  var wrap=document.getElementById('emoji-wrap');
-  var expanded=wrap.classList.toggle('expanded');
-  wrap.classList.toggle('collapsed',!expanded);
-  document.getElementById('emoji-chev').style.transform=expanded?'rotate(180deg)':'';
-  document.getElementById('emoji-lbl').textContent=expanded?'Ver menos':'Ver más iconos';
 }
 
 function navTo(page, section){
@@ -1196,343 +991,20 @@ function escHtml(str){
 window.addEventListener('load', function(){ initFromParent(); });
 window.refreshAdmin = initFromParent;
 
-/* ── TRABAJADORES + HABILIDADES ── */
-const ROWS=["sm","sn","cm","cn"];
-const EV_NAMES={birthday:"Cumpleaños",cata:"Cata",menu:"Menú especial",evento:"Evento"};
-const EV_ICONS={birthday:"🎂",cata:"🍷",menu:"🍽️",evento:"📅"};
-const EV_COLS={birthday:"#e880c0",cata:"#b880e0",menu:"#60c888",evento:"#60aaee"};
-
-var _trabWorkers=[],_editSkillId=null,_skillCat='cocina';
-var _skillEmoji='⭐',_skillEmojiExpanded=false;
-var curWeek=1,wkLbls=[["11-17 mayo","Sem 20"],["18-24 mayo","Sem 21"],["25-31 mayo","Sem 22"]];
-var SKILL_EMOJIS=['🍺','🍳','📋','🥗','🤝','📦','🍞','🪑','🏃','📅','⭐','🔥','🎯','💪','🔑','📊','🧹','🚀','💡','🎨','🎭','🎪','🥂','🍾','🧊','🔧','🌿','🧂','🫙','🎸'];
-var SKILL_EMOJIS_EXTRA=['🏆','🎖️','🥇','🎗️','🏅','🎀','💎','👑','🌟','✨','💫','⚡','🌈','🎆','🎇','🧨'];
-function buildGrid(){} function renderW(){} function updateStats(){}
-function L(){return{staff:_trabWorkers,data:{sm:[[],[],[],[],[],[],[]],sn:[[],[],[],[],[],[],[]],cm:[[],[],[],[],[],[],[]],cn:[[],[],[],[],[],[],[]]},eventos:[]};}
-
-function openTrabajadores(){
-  document.getElementById('view-editar-list').style.display='none';
-  document.getElementById('view-trabajadores').classList.add('active');
-  renderTrabajadores();
-}
-function closeTrabajadores(){
-  document.getElementById('view-trabajadores').classList.remove('active');
-  document.getElementById('view-editar-list').style.display='';
-}
-function renderTrabajadores(){
-  var list=document.getElementById('trab-list');if(!list)return;
-  var staff=_trabWorkers;
-  try{
-    var frames=window.parent.document.querySelectorAll('iframe');
-    frames.forEach(function(f){ try{ var loc=f.contentWindow&&f.contentWindow.L&&f.contentWindow.L(); if(loc&&loc.staff&&loc.staff.length)_trabWorkers=staff=loc.staff; }catch(e){} });
-  }catch(e){}
-  var h='';
-  staff.forEach(function(w){
-    var sec=w.sec==='sala'?'Sala':w.sec==='cocina'?'Cocina':'Ambos';
-    var estado=w.estado||'activo';
-    var estadoBadge={'activo':'<span class="trab-estado activo">&#9679; Activo</span>','invitado':'<span class="trab-estado invitado">&#9679; Invitado</span>','sin_acceso':'<span class="trab-estado sin-acceso">&#9679; Sin acceso</span>','sin_telefono':'<span class="trab-estado sin-tel">&#9679; Sin tel&#233;fono</span>'}[estado]||'';
-    h+='<div class="zona-row trab-item" data-name="'+w.name.replace(/"/g,'&quot;')+'">'+
-      '<div class="trab-avatar">'+w.name.charAt(0).toUpperCase()+'</div>'+
-      '<div class="zona-info"><div class="zona-name">'+w.name+'</div><div class="zona-sub">'+sec+' &middot; '+estadoBadge+'</div></div>'+
-      '<span class="zona-arrow">&#x203a;</span></div>';
-  });
-  h+='<div style="padding:8px 0 4px"><button onclick="openNuevoTrabajador()" style="width:100%;padding:13px;border-radius:11px;border:1.5px dashed var(--acc-bd);background:transparent;color:var(--acc);font-size:13px;font-weight:600;cursor:pointer">+ A&#241;adir trabajador</button></div>';
-  list.innerHTML=h;
-  list.querySelectorAll('.trab-item').forEach(function(el){ el.addEventListener('click',function(){ openPreview(el.getAttribute('data-name')); }); });
-}
-
-function openSkillsPanel(){
-  document.getElementById('view-editar-list').style.display='none';
-  document.getElementById('view-skills').classList.add('active');
-  renderSkillsList();
-}
-function closeSkillsPanel(){
-  document.getElementById('view-skills').classList.remove('active');
-  document.getElementById('view-editar-list').style.display='';
-}
-function renderSkillsList(){
-  var list=document.getElementById('skills-list');if(!list)return;
-  var cocina=(typeof ROLES_COCINA!=='undefined')?ROLES_COCINA:[];
-  var sala=(typeof ROLES_SALA!=='undefined')?ROLES_SALA:[];
-  var h='';
-  if(cocina.length){h+='<div class="skill-cat-header">Cocina</div>';cocina.forEach(function(r){h+='<div class="zona-row skill-row-item" data-id="'+r.id+'" data-cat="cocina"><div style="font-size:20px;width:28px;text-align:center">'+r.icon+'</div><div class="zona-name" style="flex:1">'+r.label+'</div><span class="skill-cat-badge">Cocina</span><span class="zona-arrow">›</span></div>';});}
-  if(sala.length){h+='<div class="skill-cat-header">Sala</div>';sala.forEach(function(r){h+='<div class="zona-row skill-row-item" data-id="'+r.id+'" data-cat="sala"><div style="font-size:20px;width:28px;text-align:center">'+r.icon+'</div><div class="zona-name" style="flex:1">'+r.label+'</div><span class="skill-cat-badge">Sala</span><span class="zona-arrow">›</span></div>';});}
-  if(!h)h='<div class="zona-empty">Sin habilidades.</div>';
-  h+='<div style="padding:12px 0 4px"><button onclick="openNuevaSkill()" style="width:100%;padding:13px;border-radius:10px;border:1.5px dashed var(--acc-bd);background:transparent;color:var(--acc);font-size:13px;font-weight:600;cursor:pointer">+ Añadir habilidad</button></div>';
-  list.innerHTML=h;
-  list.querySelectorAll('.skill-row-item').forEach(function(el){el.addEventListener('click',function(){openEditSkill(el.dataset.id,el.dataset.cat);});});
-}
-function openNuevaSkill(){
-  _editSkillId=null;_skillCat='cocina';_skillEmoji='⭐';_skillEmojiExpanded=false;
-  document.getElementById('modal-skill-title').textContent='Editar / añadir habilidad';
-  document.getElementById('skill-nombre').value='';document.getElementById('skill-activa').checked=true;
-  document.getElementById('btn-del-skill').style.display='none';
-  document.getElementById('btn-save-skill').textContent='+ Añadir habilidad';
-  document.querySelectorAll('.lugar-btn').forEach(function(b){b.classList.toggle('active',b.dataset.cat==='cocina');});
-  var _sw=document.getElementById("skill-emoji-wrap");if(_sw)_sw.classList.add("collapsed");
-  renderSkillEmojiGrid(false);document.getElementById('modal-skill').classList.add('show');
-}
-function openEditSkill(id,cat){
-  var roles=cat==='cocina'?ROLES_COCINA:ROLES_SALA;
-  var skill=roles.find(function(r){return r.id===id;});if(!skill)return;
-  _editSkillId=id;_skillCat=cat;_skillEmoji=skill.icon||'⭐';_skillEmojiExpanded=false;
-  document.getElementById('modal-skill-title').textContent='Editar / añadir habilidad';
-  document.getElementById('skill-nombre').value=skill.label;document.getElementById('skill-activa').checked=true;
-  document.getElementById('btn-del-skill').style.display='block';
-  document.getElementById('btn-save-skill').textContent='Guardar habilidad';
-  document.querySelectorAll('.lugar-btn').forEach(function(b){b.classList.toggle('active',b.dataset.cat===cat);});
-  var _sw=document.getElementById("skill-emoji-wrap");if(_sw)_sw.classList.add("collapsed");
-  renderSkillEmojiGrid(false);document.getElementById('modal-skill').classList.add('show');
-}
-function closeModalSkill(){document.getElementById('modal-skill').classList.remove('show');}
-function selectSkillCat(btn){_skillCat=btn.dataset.cat;document.querySelectorAll('.lugar-btn').forEach(function(b){b.classList.toggle('active',b===btn);});}
-function renderSkillEmojiGrid(expanded){
-  _skillEmojiExpanded=expanded;
-  var emojis=expanded?SKILL_EMOJIS.concat(SKILL_EMOJIS_EXTRA):SKILL_EMOJIS;
-  var grid=document.getElementById('skill-emoji-grid');if(!grid)return;
-  var h='';
-  emojis.forEach(function(e){ var isAct=e===_skillEmoji; h+='<button class="emoji-opt'+(isAct?' act':'')+'" data-emoji="'+e+'" type="button">'+e+'</button>'; });
-  grid.innerHTML=h;
-  grid.querySelectorAll('.emoji-opt').forEach(function(btn){ btn.addEventListener('click',function(){ pickSkillEmoji(btn.getAttribute('data-emoji')); }); });
-  var wrap=document.getElementById('skill-emoji-wrap'),chev=document.getElementById('skill-emoji-chev'),lbl=document.getElementById('skill-emoji-lbl');
-  if(wrap){ if(expanded){wrap.classList.remove('collapsed');wrap.style.maxHeight='';}else{wrap.classList.add('collapsed');wrap.style.maxHeight='';} }
-  if(chev) chev.style.transform=expanded?'rotate(180deg)':'';
-  if(lbl)  lbl.textContent=expanded?'Ver menos':'Ver más iconos';
-}
-function pickSkillEmoji(e){_skillEmoji=e;renderSkillEmojiGrid(_skillEmojiExpanded);}
-function toggleSkillEmojis(){renderSkillEmojiGrid(!_skillEmojiExpanded);}
-function saveSkill(){
-  var nombre=document.getElementById('skill-nombre').value.trim();if(!nombre){alert('Introduce un nombre');return;}
-  var s={id:nombre.toLowerCase().replace(/\s+/g,'_'),label:nombre,icon:_skillEmoji};
-  if(_editSkillId){var arr=_skillCat==='cocina'?ROLES_COCINA:ROLES_SALA;var i=arr.findIndex(function(r){return r.id===_editSkillId;});if(i>=0)arr[i]=s;}
-  else{if(_skillCat==='cocina')ROLES_COCINA.push(s);else ROLES_SALA.push(s);}
-  saveSkillsLocal(); closeModalSkill(); renderSkillsList();
-}
-function promptDelSkill(){
-  if(!_editSkillId)return;
-  var skill=ROLES_COCINA.concat(ROLES_SALA).find(function(r){return r.id===_editSkillId;});
-  var name=skill?skill.label:'esta habilidad';
-  var body=document.getElementById('confirm-body');if(body)body.textContent='Vas a eliminar "'+name+'". Los trabajadores que la tengan asignada la perderán.';
-  var btn=document.querySelector('#ov-confirm .mbtn-d');if(btn){btn.textContent='Sí, eliminar';btn.onclick=doDeleteSkill;}
-  var cancel=document.querySelector('#ov-confirm .mbtn-c');if(cancel){cancel.onclick=function(){closeOv('ov-confirm');showOv('modal-skill');};}
-  closeModalSkill();showOv('ov-confirm');
-}
-function doDeleteSkill(){
-  closeOv('ov-confirm');
-  ROLES_COCINA=ROLES_COCINA.filter(function(r){return r.id!==_editSkillId;});
-  ROLES_SALA=ROLES_SALA.filter(function(r){return r.id!==_editSkillId;});
-  saveSkillsLocal();renderSkillsList();
-  var btn=document.querySelector('#ov-confirm .mbtn-d');if(btn){btn.textContent='Sí, eliminar';btn.onclick=doDeleteWorker;}
-  var cancel=document.querySelector('#ov-confirm .mbtn-c');if(cancel){cancel.onclick=function(){closeOv('ov-confirm');showOv('ov-preview');};}
-  if(typeof showToast==='function')showToast('Habilidad eliminada');
-}
-
-const ROLES_COCINA=[
-  {id:'raciones',icon:'🍽️',label:'Raciones'},
-  {id:'plancha',icon:'🍳',label:'Plancha / Freidora'},
-  {id:'pase',icon:'📋',label:'Pase'},
-  {id:'preparacion',icon:'🥗',label:'Preparación'},
-  {id:'apoyo_cocina',icon:'🤝',label:'Apoyo Cocina'},
-  {id:'stock_cocina',icon:'📦',label:'Stock Cocina'},
-];
-const ROLES_SALA=[
-  {id:'barra',icon:'🍺',label:'Barra'},
-  {id:'tostas',icon:'🍞',label:'Tostas'},
-  {id:'camarero',icon:'🪑',label:'Camarero'},
-  {id:'runner',icon:'🏃',label:'Runner'},
-  {id:'reservas',icon:'📅',label:'Reservas'},
-  {id:'apoyo_sala',icon:'🤝',label:'Apoyo Sala'},
-  {id:'stock_sala',icon:'📦',label:'Stock Sala'},
-];
-
-function ensureWorkerExtras(w){
-  if(!w.prioridad)w.prioridad='eventual';
-  if(!w.skills){
-    w.skills={};
-    const defaults=w.sec==='sala'?{barra:'puede',camarero_salon:'domina',camarero_terraza:'puede',camarero_sala:'puede'}:w.sec==='cocina'?{plancha:'puede',pase:'domina',raciones:'puede'}:{};
-    Object.assign(w.skills,defaults);
-  }
-}
-
-function renderSkills(){
-  const w=getW(_previewName);if(!w)return;
-  ensureWorkerExtras(w);
-  const cont=document.getElementById('skills-body');if(!cont)return;
-  const showC=w.sec==='cocina'||w.sec==='ambos';
-  const showS=w.sec==='sala'||w.sec==='ambos';
-  const mkRow=(r)=>{
-    const cur=(w.skills[r.id]||'none');
-    const mkP=(lv,lbl)=>`<button class="skill-pill${cur===lv?' sp-'+lv:''}" onclick="setSkill('${r.id}','${lv}')">${lbl}</button>`;
-    return`<div class="skill-row"><span class="skill-icon">${r.icon}</span><span class="skill-name">${r.label}</span><div class="skill-pill-group">${mkP('none','—')}${mkP('puede','🟡')}${mkP('domina','🟢')}</div></div>`;
-  };
-  let h='';
-  if(showC){h+=`<div class="skill-dept-lbl">🍳 Cocina</div>`;ROLES_COCINA.forEach(r=>{h+=mkRow(r);});}
-  if(showS){h+=`<div class="skill-dept-lbl">🍺 Sala</div>`;ROLES_SALA.forEach(r=>{h+=mkRow(r);});}
-  cont.innerHTML=h;
-}
-function setSkill(roleId,level){const w=getW(_previewName);if(!w)return;ensureWorkerExtras(w);w.skills[roleId]=level;renderSkills();}
-
-const RO=new URLSearchParams(location.search).has('readonly');
-
-function openSkillsModal(){
-  const w=getW(_previewName);if(!w)return;
-  if(!w.skills)w.skills={};
-  document.getElementById('skills-modal-sub').textContent=w.name+' · '+(w.sec==='sala'?'Sala':w.sec==='cocina'?'Cocina':'Ambos');
-  const mkRow=(r)=>{
-    const cur=w.skills[r.id]||'none';
-    const mkBtn=(lv,lbl)=>`<button class="skill-pill sp-${lv==='none'?'none':lv}${cur===lv?' sp-'+lv:''}" style="${cur===lv&&lv!=='none'?'':'opacity:.5'}" onclick="setSkillLive('${r.id}','${lv}',this)">${lbl}</button>`;
-    return`<div class="skill-row"><span class="skill-icon">${r.icon}</span><span class="skill-name">${r.label}</span><div class="skill-pill-group">${mkBtn('none','—')}${mkBtn('puede','🟡 Puede')}${mkBtn('domina','🟢 Domina')}</div></div>`;
-  };
-  let h='<div class="skill-dept-lbl">Cocina</div>'+ROLES_COCINA.map(mkRow).join('');
-  h+='<div class="skill-dept-lbl">Sala</div>'+ROLES_SALA.map(mkRow).join('');
-  document.getElementById('skills-modal-body').innerHTML=h;
-  showOv('ov-skills');
-}
-function setSkillLive(roleId,level,btn){
-  const w=getW(_previewName);if(!w)return;
-  if(!w.skills)w.skills={};
-  w.skills[roleId]=level;
-  const row=btn.closest('.skill-row');
-  if(row)row.querySelectorAll('.skill-pill').forEach(b=>{b.style.opacity='.5';});
-  btn.style.opacity='1';
-}
-function applySkills(){
-  const w=getW(_previewName);
-  if(w){
-    if(!w.skills)w.skills={};
-    const hasCocina=ROLES_COCINA.some(r=>(w.skills[r.id]||'none')!=='none');
-    const hasSala=ROLES_SALA.some(r=>(w.skills[r.id]||'none')!=='none');
-    if(hasCocina&&hasSala)w.sec='ambos';else if(hasCocina)w.sec='cocina';else if(hasSala)w.sec='sala';
-    var sub=document.getElementById('prev-sub');
-    if(sub)sub.textContent=(w.sec==='sala'?'Sala':w.sec==='cocina'?'Cocina':'Ambos')+' · '+(curLocal==='galeria'?'La Galería':'La Sala');
-    var estado=w.estado||'activo';
-    var estadoEl=document.getElementById('prev-estado');
-    if(estadoEl){var eLabels={'activo':'🟢 Activo','invitado':'🟡 Invitado','sin_acceso':'⚪ Sin acceso','sin_telefono':'⚪ Sin teléfono'};estadoEl.textContent=eLabels[estado]||'';}
-    var invBtn=document.getElementById('prev-invite-btn');
-    if(invBtn){if(estado==='sin_acceso'){invBtn.style.display='';invBtn.textContent='📱 Enviar invitación';invBtn.onclick=function(){prev_sendInvite(w.name);};}else if(estado==='sin_telefono'){invBtn.style.display='';invBtn.textContent='📞 Añade teléfono para dar acceso';invBtn.style.opacity='.5';invBtn.style.pointerEvents='none';}else{invBtn.style.display='none';}}
-  }
-  renderSkillsSummary();closeOv('ov-skills');showToast('Skills actualizados');
-}
-function renderSkillsSummary(){
-  const w=getW(_previewName);if(!w)return;
-  const cont=document.getElementById('skills-body');if(!cont)return;
-  if(!w.skills)w.skills={};
-  const ALL=[...ROLES_COCINA,...ROLES_SALA];
-  const ICON={puede:'🟡',domina:'🟢'};
-  const active=ALL.filter(r=>(w.skills[r.id]||'none')!=='none');
-  if(!active.length){cont.innerHTML='<div style="font-size:11px;color:var(--faint);padding:4px 0;font-style:italic">Sin skills configurados</div>';return;}
-  cont.innerHTML=active.map(r=>`<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 8px;border-radius:5px;background:var(--acc-bg);border:1px solid var(--acc-bd);color:var(--acc);margin:2px">${r.icon} ${r.label} ${ICON[w.skills[r.id]]||''}</span>`).join('');
-}
-
-/* ── SLOT TIMES ── */
-var slotTimes={sm:'12:30',sn:'20:00',cm:'12:00',cn:'20:00'};
-const SLOT_NAMES={sm:'Sala mediodía',sn:'Sala noche',cm:'Cocina mediodía',cn:'Cocina noche'};
-
-const SLOT_ROLES={sm:ROLES_SALA,sn:ROLES_SALA,cm:ROLES_COCINA,cn:ROLES_COCINA};
-const DAYS_SHORT=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-const DAYS_S=DAYS_SHORT;
-
-var weekNeeds={sm:{barra:1,camarero_salon:2,camarero_terraza:1,camarero_sala:0,jefe_sala:0,plancha:0,pase:0,raciones:0,jefe_cocina:0},sn:{barra:1,camarero_salon:2,camarero_terraza:1,camarero_sala:1,jefe_sala:1,plancha:0,pase:0,raciones:0,jefe_cocina:0},cm:{plancha:1,pase:1,raciones:1,jefe_cocina:1,barra:0,camarero_salon:0,camarero_terraza:0,camarero_sala:0,jefe_sala:0},cn:{plancha:1,pase:1,raciones:0,jefe_cocina:1,barra:0,camarero_salon:0,camarero_terraza:0,camarero_sala:0,jefe_sala:0}};
-
-var weekConfig=(function(){
-  const cfg={};
-  for(let d=0;d<7;d++){
-    cfg[d]={};
-    ['sm','sn','cm','cn'].forEach(slot=>{
-      const needs=weekNeeds[slot],roles=SLOT_ROLES[slot];
-      cfg[d][slot]=[];
-      roles.forEach(r=>{const n=needs[r.id]||0;for(let i=0;i<n;i++)cfg[d][slot].push({roleId:r.id,level:'domina'});});
-    });
-  }
-  return cfg;
-})();
-
-function openWeekConfigPanel(){
-  _wcDirty=false;
-  var btn=document.getElementById('wc-save-btn');if(btn){btn.style.opacity='0';btn.style.pointerEvents='none';}
-  document.getElementById('view-editar-list').style.display='none';
-  document.getElementById('view-weekconfig').classList.add('active');
-  renderWeekConfig();
-}
-function closeWeekConfigPanel(){
-  document.getElementById('view-weekconfig').classList.remove('active');
-  document.getElementById('view-editar-list').style.display='';
-  _wcDirty=false;
-}
-function saveWeekConfigPanel(){
-  _wcDirty=false;
-  var btn=document.getElementById('wc-save-btn');if(btn){btn.style.opacity='0';btn.style.pointerEvents='none';}
-  saveWeekConfigLocal();if(typeof showToast==='function')showToast('Guardado');
-}
-var _wcDirty=false;
-function _wcMarkDirty(){
-  _wcDirty=true;
-  var btn=document.getElementById('wc-save-btn');if(btn){btn.style.opacity='1';btn.style.pointerEvents='auto';}
-}
-
-function renderWeekConfig(){
-  const body=document.getElementById('wc-body');if(!body)return;
-  const SLOT_INFO=[
-    {id:'sm',label:'Sala mediodía',icon:'🍺',color:'var(--sm-bd)',text:'var(--sm-text)'},
-    {id:'sn',label:'Sala noche',icon:'🍺',color:'var(--sn-bd)',text:'var(--sn-text)'},
-    {id:'cm',label:'Cocina mediodía',icon:'🍳',color:'var(--cm-bd)',text:'var(--cm-text)'},
-    {id:'cn',label:'Cocina noche',icon:'🍳',color:'var(--cn-bd)',text:'var(--cn-text)'},
-  ];
-  const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
-  let h='';
-  for(let d=0;d<7;d++){
-    h+=`<div class="wc-day-block"><div class="wc-day-title">${DAY_NAMES[d]}</div>`;
-    SLOT_INFO.forEach(sl=>{
-      const entries=(weekConfig[d]||{})[sl.id]||[];
-      const roles=SLOT_ROLES[sl.id];
-      h+=`<div class="wc-slot-block" style="border-left:3px solid ${sl.color}"><div class="wc-slot-title" style="color:${sl.text}"><span style="font-size:13px">${sl.icon}</span>${sl.label}</div>`;
-      if(!entries.length){h+=`<div class="wc-empty-slot">Sin requisitos — pulsa + para añadir</div>`;}
-      else{entries.forEach((entry,idx)=>{const role=roles.find(r=>r.id===entry.roleId)||{icon:'?',label:entry.roleId};h+=`<div class="wc-role-row" id="wcr-${d}-${sl.id}-${idx}"><span class="wc-role-icon">${role.icon}</span><span class="wc-role-name">${role.label}</span><div class="wc-level-btns"><button class="wc-lvl wc-puede${entry.level==='puede'?' active':''}" onclick="setWcLevel(${d},'${sl.id}',${idx},'puede',this)">🟡 Puede</button><button class="wc-lvl wc-domina${entry.level==='domina'?' active':''}" onclick="setWcLevel(${d},'${sl.id}',${idx},'domina',this)">🟢 Domina</button></div><button class="wc-del" onclick="removeWcEntry(${d},'${sl.id}',${idx})">&#215;</button></div>`;});}
-      h+=`<div class="wc-add-role">`;
-      roles.forEach(r=>{h+=`<button class="wc-add-role-btn" onclick="addWcEntry(${d},'${sl.id}','${r.id}')">+ ${r.icon} ${r.label}</button>`;});
-      h+=`</div></div>`;
-    });
-    h+=`</div>`;
-  }
-  body.innerHTML=h;
-}
-function setWcLevel(day,slot,idx,level,btn){
-  if(!weekConfig[day])return;
-  const entries=weekConfig[day][slot];if(!entries||!entries[idx])return;
-  entries[idx].level=level;
-  const row=btn.closest('.wc-role-row');if(row)row.querySelectorAll('.wc-lvl').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');_wcMarkDirty();
-}
-function addWcEntry(day,slot,roleId){
-  if(!weekConfig[day])weekConfig[day]={};if(!weekConfig[day][slot])weekConfig[day][slot]=[];
-  weekConfig[day][slot].push({roleId,level:'domina'});renderWeekConfig();_wcMarkDirty();
-  const dayBlocks=document.querySelectorAll('.wc-day-block');if(dayBlocks[day])dayBlocks[day].scrollIntoView({behavior:'smooth',block:'nearest'});
-}
-function removeWcEntry(day,slot,idx){
-  if(!weekConfig[day]||!weekConfig[day][slot])return;
-  weekConfig[day][slot].splice(idx,1);renderWeekConfig();_wcMarkDirty();
-}
-
-/* ── PREVIEW MODAL (stubs) ── */
-const CONFLICTS={sm:"cm",cm:"sm",sn:"cn",cn:"sn"};
+/* MISC VARS */
 const ROW_LBL={sm:"Sala Med",sn:"Sala Noche",cm:"Cocina Med",cn:"Cocina Noche"};
-const DAYS_L=["Lunes 18","Martes 19","Miércoles 20","Jueves 21","Viernes 22","Sábado 23","Domingo 24"];
-
-var _trabWorkers=[];
+var wkLbls=[["11-17 mayo","Sem 20"],["18-24 mayo","Sem 21"],["25-31 mayo","Sem 22"]];
+const RO=new URLSearchParams(location.search).has('readonly');
 var _tpCtx='',_tpIdx=-1,_tpH=0,_tpM=0,_tpBtn=null;
-var curLocal='galeria';
 
+/* OVERLAY / STUBS */
 function removeHoraRow(btn){var row=btn?btn.closest('.hora-row'):null;if(row)row.remove();}
 function showOv(id){var el=document.getElementById(id);if(el)el.classList.add("show");else console.error("showOv: not found #"+id);}
 function closeOv(id){var el=document.getElementById(id);if(el)el.classList.remove("show");}
 document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{if(e.target===o)o.classList.remove("show");}));
 buildGrid();renderW();updateStats();
 
-function ini(n){return n.split(":")[0].trim().split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();}
-function parse(raw){const p=raw.split(":");return{name:p[0].trim(),hour:p.length>1?p[1]+":"+p[2]:""};}
-function getW(n){return L().staff.find(w=>w.name===n)||null;}
-function cntT(name){let c=0;ROWS.forEach(r=>L().data[r].forEach(d=>{if(d.some(n=>parse(n).name===name))c++;}));return c;}
-
+/* PHOTO HANDLER */
 var _pi=document.getElementById("photo-input");if(_pi)_pi.addEventListener("change",function(){
   const file=this.files[0];if(!file)return;
   const reader=new FileReader();
@@ -1540,6 +1012,7 @@ var _pi=document.getElementById("photo-input");if(_pi)_pi.addEventListener("chan
   reader.readAsDataURL(file);this.value="";_photoTarget=null;
 });
 
+/* WORKER CONFIRM AND DELETE */
 function confirmDelete(){
   document.getElementById("confirm-body").textContent=`Vas a eliminar a ${_previewName} de la plantilla. Esta acción es permanente.`;
   closeOv("ov-preview");showOv("ov-confirm");
@@ -1552,6 +1025,7 @@ function doDeleteWorker(){
 
 let _addRow="",_addCol=0;
 
+/* VACACIONES */
 function formatVacDate(dateStr){
   if(!dateStr)return"—";
   const d=new Date(dateStr+"T00:00:00");
@@ -1601,6 +1075,7 @@ function delVacaciones(idx){
   });
 }
 
+/* HORA ROWS */
 function addHoraRow(){_horaRows.push({d:0,h:""});renderHoraList();}
 
 const TP_MINS=[0,15,30,45];
@@ -1666,254 +1141,14 @@ function countVacDays(vacaciones){
   return total;
 }
 
+/* TOAST — fixed: uses #_toast, opacity-based */
 function showToast(msg){
-  const t=document.getElementById("toast");if(!t)return;
-  t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2200);
+  var t=document.getElementById("_toast");if(!t)return;
+  t.textContent=msg;t.style.opacity='1';
+  clearTimeout(t._t);t._t=setTimeout(function(){t.style.opacity='0';},2200);
 }
 
-/* ── STORES ── */
-function saveWorker(name){var w=getW(name);if(!w)return;sbSaveTrabajador(w).catch(function(e){console.warn('[SB] saveWorker failed:',e);});}
-function deleteWorker(name){var w=getW(name);if(w){sbDeleteTrabajador(w._sbId||w.id).catch(function(e){console.warn('[SB] deleteWorker failed:',e);});}_trabWorkers=_trabWorkers.filter(function(x){return x.name!==name;});}
-
-var LG_ZONAS_KEY='lg_zonas_v1';
-var ZONAS_DEFAULT=[{id:101,nombre:'Terraza',emoji:'☀️',mesas:8,pax:24,activa:true,orden:1},{id:102,nombre:'Entrada',emoji:'🚪',mesas:4,pax:12,activa:true,orden:2},{id:103,nombre:'Barra',emoji:'🍷',mesas:6,pax:18,activa:true,orden:3},{id:104,nombre:'Sala',emoji:'🪑',mesas:10,pax:30,activa:true,orden:4},{id:105,nombre:'Salón',emoji:'🎭',mesas:6,pax:20,activa:true,orden:5}];
-function loadZonasLocal(){try{var raw=localStorage.getItem(LG_ZONAS_KEY);if(raw){zonas=JSON.parse(raw);updateZonasUI();return;}}catch(e){}zonas=JSON.parse(JSON.stringify(ZONAS_DEFAULT));saveZonasLocal();updateZonasUI();}
-function saveZonasLocal(){try{localStorage.setItem(LG_ZONAS_KEY,JSON.stringify(zonas));}catch(e){console.warn('saveZonasLocal failed',e);}}
-
-var LG_SKILLS_KEY='lg_skills_v1';
-function loadSkillsLocal(){try{var raw=localStorage.getItem(LG_SKILLS_KEY);if(!raw)return;var data=JSON.parse(raw);if(data.cocina&&data.cocina.length){ROLES_COCINA.length=0;data.cocina.forEach(function(r){ROLES_COCINA.push(r);});}if(data.sala&&data.sala.length){ROLES_SALA.length=0;data.sala.forEach(function(r){ROLES_SALA.push(r);});}}catch(e){console.warn('loadSkillsLocal failed',e);}}
-function saveSkillsLocal(){try{localStorage.setItem(LG_SKILLS_KEY,JSON.stringify({cocina:ROLES_COCINA,sala:ROLES_SALA}));}catch(e){console.warn('saveSkillsLocal failed',e);}}
-
-var LG_WEEKCONFIG_KEY='lg_weekconfig_v1';
-function loadWeekConfigLocal(){try{var raw=localStorage.getItem(LG_WEEKCONFIG_KEY);if(!raw)return;weekConfig=JSON.parse(raw);}catch(e){console.warn('loadWeekConfigLocal failed',e);}}
-function saveWeekConfigLocal(){try{localStorage.setItem(LG_WEEKCONFIG_KEY,JSON.stringify(weekConfig));}catch(e){console.warn('saveWeekConfigLocal failed',e);}}
-
-window.addEventListener('load',function(){loadSkillsLocal();loadWeekConfigLocal();});
-
-/* ══ STOCK ADMIN PANEL ══ */
-var _stEditId=null,_stCurCat='all',_stCatColor='#5599cc';
-var LG_STOCK_KEY='lg_stock_v1',LG_CATS_KEY='lg_stock_cats_v1',LG_LOCS_KEY='lg_stock_locs_v1';
-
-var ST_CATS_DEFAULT=[{id:'beb',label:'Bebidas',icon:'🍺',color:'#5599cc'},{id:'ali',label:'Alimentación',icon:'🥩',color:'#5ab870'},{id:'lim',label:'Limpieza',icon:'🧴',color:'#60b8cc'},{id:'mat',label:'Material',icon:'📦',color:'#c89030'}];
-var ST_LOCS_DEFAULT=[{id:'d',label:'Almacén'},{id:'g',label:'Garaje'},{id:'a',label:'Ambos'}];
-var ST_PRODS_DEFAULT=[
-  {id:1,name:'Cerveza Estrella',cat:'beb',loc:'a',qty:8,min:24,unit:'bot',note:'Nevera grande barra',active:true},
-  {id:2,name:'Vino tinto Arrocal',cat:'beb',loc:'g',qty:36,min:12,unit:'bot',note:'',active:true},
-  {id:3,name:'Agua mineral 1.5L',cat:'beb',loc:'d',qty:48,min:24,unit:'bot',note:'',active:true},
-  {id:4,name:'Refresco Coca-Cola',cat:'beb',loc:'d',qty:4,min:12,unit:'caja',note:'Quedan 2 abiertas',active:true},
-  {id:5,name:'Cerveza sin alcohol',cat:'beb',loc:'d',qty:6,min:12,unit:'bot',note:'',active:true},
-  {id:6,name:'Pollo entero',cat:'ali',loc:'g',qty:3,min:5,unit:'kg',note:'',active:true},
-  {id:7,name:'Aceite AOVE',cat:'ali',loc:'d',qty:2,min:4,unit:'bot',note:'',active:true},
-  {id:8,name:'Patatas fritas',cat:'ali',loc:'d',qty:8,min:6,unit:'bol',note:'',active:true},
-  {id:9,name:'Jamón ibérico',cat:'ali',loc:'g',qty:1,min:2,unit:'pieza',note:'',active:true},
-  {id:10,name:'Lejía',cat:'lim',loc:'d',qty:1,min:3,unit:'bot',note:'',active:true},
-  {id:11,name:'Lavavajillas',cat:'lim',loc:'d',qty:3,min:2,unit:'bot',note:'',active:true},
-  {id:12,name:'Papel cocina',cat:'lim',loc:'d',qty:4,min:8,unit:'rol',note:'',active:true},
-  {id:13,name:'Servilletas',cat:'mat',loc:'d',qty:12,min:8,unit:'pak',note:'',active:true},
-  {id:14,name:'Vasos desechables',cat:'mat',loc:'g',qty:2,min:4,unit:'pak',note:'',active:true},
-  {id:15,name:'Bolsas basura',cat:'mat',loc:'d',qty:3,min:3,unit:'rol',note:'',active:true}
-];
-
-function _stLoadProds(){try{var r=localStorage.getItem(LG_STOCK_KEY);if(r)return JSON.parse(r);}catch(e){}var d=JSON.parse(JSON.stringify(ST_PRODS_DEFAULT));_stSaveProds(d);return d;}
-function _stSaveProds(data){try{localStorage.setItem(LG_STOCK_KEY,JSON.stringify(data));}catch(e){}}
-function _stLoadCats(){try{var r=localStorage.getItem(LG_CATS_KEY);if(r)return JSON.parse(r);}catch(e){}return JSON.parse(JSON.stringify(ST_CATS_DEFAULT));}
-function _stSaveCats(cats){try{localStorage.setItem(LG_CATS_KEY,JSON.stringify(cats));}catch(e){}}
-function _stLoadLocs(){try{var r=localStorage.getItem(LG_LOCS_KEY);if(r)return JSON.parse(r);}catch(e){}return JSON.parse(JSON.stringify(ST_LOCS_DEFAULT));}
-function _stSaveLocs(locs){try{localStorage.setItem(LG_LOCS_KEY,JSON.stringify(locs));}catch(e){}}
-
-function stSc(p){if(!p.qty||p.qty<=0)return 'red';if(p.qty<p.min*0.5)return 'red';if(p.qty<p.min)return 'amb';return 'grn';}
-
-function openStockPanel(){
-  document.getElementById('view-editar-list').style.display='none';
-  document.getElementById('view-stock-admin').classList.add('active');
-  stBuildCatBar();stFillSelects();stRenderProds();
-}
-function closeStockPanel(){
-  document.getElementById('view-stock-admin').classList.remove('active');
-  document.getElementById('view-editar-list').style.display='';
-}
-
-/* stBuildCatBar — migrado de .st-cpill a .cpill (components.css) */
-function stBuildCatBar(){
-  var bar=document.getElementById('st-cat-bar');if(!bar)return;
-  var cats=_stLoadCats();
-  var h='<div class="cpill cpill-all act" data-cat="all" onclick="stSetCat(this)">✦ <span class="cpill-lbl">Todo</span></div>';
-  cats.forEach(function(c){
-    var col=c.color||'#888';
-    h+='<div class="cpill" data-cat="'+c.id+'" onclick="stSetCat(this)" style="border-color:'+col+'66;color:'+col+'" data-color="'+col+'">'+c.icon+' <span class="cpill-lbl">'+c.label+'</span></div>';
-  });
-  bar.innerHTML=h;
-}
-
-/* stSetCat — migrado a .cpill/.act */
-function stSetCat(el){
-  document.querySelectorAll('#st-cat-bar .cpill').forEach(function(p){p.classList.remove('act');p.classList.remove('active');p.style.background='';});
-  el.classList.add('act');
-  var col=el.getAttribute('data-color');if(col)el.style.background=col+'22';
-  _stCurCat=el.getAttribute('data-cat');stRenderProds();
-}
-
-function stFillSelects(){
-  var cats=_stLoadCats(),locs=_stLoadLocs();
-  var csel=document.getElementById('st-np-c'),lsel=document.getElementById('st-np-l');
-  if(csel)csel.innerHTML=cats.map(function(c){return '<option value="'+c.id+'">'+c.icon+' '+c.label+'</option>';}).join('')+'<option value="__new__">+ Nueva categoría...</option>';
-  if(lsel)lsel.innerHTML=locs.map(function(l){return '<option value="'+l.id+'">'+l.label+'</option>';}).join('')+'<option value="__new__">+ Nueva ubicación...</option>';
-}
-function stCatChange(sel){if(sel.value==='__new__'){sel.value=sel.options[0].value;showOv('st-modal-cat');}}
-function stLocChange(sel){if(sel.value==='__new__'){sel.value=sel.options[0].value;showOv('st-modal-loc');}}
-
-function stSaveLoc(){
-  var name=document.getElementById('st-loc-name').value.trim();if(!name)return;
-  var locs=_stLoadLocs();
-  var id=name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'').substr(0,4);
-  if(locs.find(function(l){return l.id===id;}))id+=locs.length;
-  locs.push({id:id,label:name});_stSaveLocs(locs);closeOv('st-modal-loc');stFillSelects();
-  if(typeof showToast==='function')showToast('Ubicación creada');
-}
-
-function stProdHTML(p,archived){
-  var s=archived?'dim':stSc(p);
-  var dot=archived?'<div style="width:8px;height:8px;border-radius:50%;background:var(--faint);flex-shrink:0"></div>':'<div class="st-prod-sema st-sema-'+s+'"></div>';
-  return '<div class="st-prod-item'+(archived?' st-prod-archived':'')+'" onclick="stOpenEditModal('+p.id+')">'+dot+'<div class="st-prod-info"><div class="st-prod-name"'+(archived?' style="color:var(--dim)"':'')+'>'+p.name+'</div><div class="st-prod-meta">mín. '+p.min+' '+p.unit+(p.note?' · '+p.note:'')+'</div></div><div style="text-align:right;flex-shrink:0"><div class="st-prod-qty"'+(archived?' style="color:var(--dim)"':'')+'>'+p.qty+'</div><div class="st-prod-unit">'+p.unit+'</div></div></div>';
-}
-function stRenderProds(){
-  var list=document.getElementById('st-prod-list');if(!list)return;
-  var allData=_stLoadProds();
-  var active=allData.filter(function(p){return p.active!==false;});
-  var archived=allData.filter(function(p){return p.active===false;});
-  var filtered=_stCurCat==='all'?active:active.filter(function(p){return p.cat===_stCurCat;});
-  var h='';
-  if(!filtered.length){h='<div style="padding:24px 0;text-align:center;font-size:12px;color:var(--dim)">Sin productos</div>';}
-  else if(_stCurCat==='all'){_stLoadCats().forEach(function(c){var cp=filtered.filter(function(p){return p.cat===c.id;});if(!cp.length)return;h+='<div class="st-sec-hdr">'+c.icon+' '+c.label+'</div>';cp.forEach(function(p){h+=stProdHTML(p,false);});});}
-  else{filtered.forEach(function(p){h+=stProdHTML(p,false);});}
-  list.innerHTML=h;
-  var sec=document.getElementById('st-archived-section'),lbl=document.getElementById('st-archived-lbl');
-  if(sec)sec.style.display=archived.length?'':'none';
-  if(lbl)lbl.textContent='▶ '+archived.length+' producto'+(archived.length!==1?'s':'')+' archivado'+(archived.length!==1?'s':'');
-  var al=document.getElementById('st-archived-list');if(al)al.style.display='none';
-}
-function stToggleArchived(el){
-  var list=document.getElementById('st-archived-list'),lbl=document.getElementById('st-archived-lbl');if(!list)return;
-  var open=list.style.display==='none';
-  list.style.display=open?'block':'none';
-  var data=_stLoadProds().filter(function(p){return p.active===false;});
-  if(open){var h='';data.forEach(function(p){h+=stProdHTML(p,true);});list.innerHTML=h||'<div style="padding:8px 0;font-size:12px;color:var(--dim)">Sin archivados</div>';if(lbl)lbl.textContent='▾ '+data.length+' productos archivados';}
-  else{if(lbl)lbl.textContent='▶ '+data.length+' productos archivados';}
-}
-function stShowAddModal(){
-  _stEditId=null;document.getElementById('st-modal-title').textContent='Nuevo producto';document.getElementById('st-modal-btn').textContent='Añadir producto';document.getElementById('st-modal-del').style.display='none';
-  ['st-np-n','st-np-q','st-np-m','st-np-u','st-np-no'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-  var tog=document.getElementById('st-np-active');if(tog)tog.checked=true;
-  stFillSelects();showOv('st-modal-prod');
-}
-function stHideModal(){closeOv('st-modal-prod');}
-function stOpenEditModal(id){
-  var data=_stLoadProds(),p=data.find(function(x){return x.id===id;});if(!p)return;
-  _stEditId=id;document.getElementById('st-modal-title').textContent=p.name;document.getElementById('st-modal-btn').textContent='Guardar cambios';document.getElementById('st-modal-del').style.display='';
-  stFillSelects();
-  document.getElementById('st-np-n').value=p.name;document.getElementById('st-np-c').value=p.cat;document.getElementById('st-np-l').value=p.loc;
-  document.getElementById('st-np-q').value=p.qty;document.getElementById('st-np-u').value=p.unit;document.getElementById('st-np-m').value=p.min;document.getElementById('st-np-no').value=p.note||'';
-  var tog=document.getElementById('st-np-active');if(tog)tog.checked=(p.active!==false);
-  showOv('st-modal-prod');
-}
-function stSaveProd(){
-  var name=document.getElementById('st-np-n').value.trim();if(!name){document.getElementById('st-np-n').focus();return;}
-  var data=_stLoadProds(),tog=document.getElementById('st-np-active'),active=tog?tog.checked:true;
-  if(_stEditId){var p=data.find(function(x){return x.id===_stEditId;});if(!p)return;p.name=name;p.cat=document.getElementById('st-np-c').value;p.loc=document.getElementById('st-np-l').value;p.qty=parseInt(document.getElementById('st-np-q').value)||p.qty;p.unit=document.getElementById('st-np-u').value||p.unit;p.min=parseInt(document.getElementById('st-np-m').value)||0;p.note=document.getElementById('st-np-no').value;p.active=active;}
-  else{var maxId=data.reduce(function(m,x){return Math.max(m,x.id);},0);data.push({id:maxId+1,name:name,cat:document.getElementById('st-np-c').value,loc:document.getElementById('st-np-l').value,qty:parseInt(document.getElementById('st-np-q').value)||0,unit:document.getElementById('st-np-u').value||'ud',min:parseInt(document.getElementById('st-np-m').value)||0,note:document.getElementById('st-np-no').value,active:active});}
-  _stSaveProds(data);stHideModal();stRenderProds();
-  if(typeof showToast==='function')showToast(_stEditId?'Producto actualizado':'Producto añadido');
-}
-function stDeleteProd(){
-  if(!_stEditId)return;
-  var prod=_stLoadProds().find(function(p){return p.id===_stEditId;});if(!prod)return;
-  var body=document.getElementById('confirm-body');if(body)body.textContent='Vas a eliminar "'+prod.name+'" del inventario. Esta acción es permanente.';
-  var btn=document.querySelector('#ov-confirm .mbtn-d');if(btn){btn.textContent='Sí, eliminar';btn.onclick=stConfirmDeleteProd;}
-  var cancel=document.querySelector('#ov-confirm .mbtn-c');if(cancel){cancel.onclick=function(){closeOv('ov-confirm');showOv('st-modal-prod');};}
-  closeOv('st-modal-prod');showOv('ov-confirm');
-}
-function stConfirmDeleteProd(){
-  closeOv('ov-confirm');_stSaveProds(_stLoadProds().filter(function(p){return p.id!==_stEditId;}));stRenderProds();
-  if(typeof showToast==='function')showToast('Producto eliminado');
-  var btn=document.querySelector('#ov-confirm .mbtn-d');if(btn){btn.textContent='Sí, eliminar';btn.onclick=doDeleteWorker;}
-  var cancel=document.querySelector('#ov-confirm .mbtn-c');if(cancel){cancel.onclick=function(){closeOv('ov-confirm');showOv('ov-preview');};}
-}
-
-var _stEditCatId=null,_stCatEmojiSelected='📦',_stCatEmojiExpanded=false;
-var _stCatEmojis=['🍺','🥩','🧴','📦','🍷','☕','🥗','🍕','🥤','🍾','🧃','🥛','🫙','🧂','🫒','🍳','🥘','🍱','🥡','🎂','🍰','🧁','🍫','🍬','🍭','🧹','🪣','🧽','🪥','🧻','🗑️','🪤','🔧','🔨','⚙️','🪛','🔩','📋','🗂️','🏷️','📎','✂️','📌','🖊️','🪑','🛋️','🪞','🪟','🚿','🛁'];
-
-function stOpenCatModal(catId){
-  var cats=_stLoadCats();
-  if(catId){var c=cats.find(function(x){return x.id===catId;});if(!c)return;_stEditCatId=catId;document.getElementById('st-cat-modal-title').textContent=c.label;document.getElementById('st-cat-name').value=c.label;document.getElementById('st-cat-activa').checked=(c.active!==false);document.getElementById('st-cat-modal-btn').textContent='Guardar categoría';document.getElementById('st-cat-modal-del').style.display='';_stCatEmojiSelected=c.icon||'📦';_stCatColor=c.color||'#5599cc';}
-  else{_stEditCatId=null;document.getElementById('st-cat-modal-title').textContent='Nueva categoría';document.getElementById('st-cat-name').value='';document.getElementById('st-cat-activa').checked=true;document.getElementById('st-cat-modal-btn').textContent='+ Añadir categoría';document.getElementById('st-cat-modal-del').style.display='none';_stCatEmojiSelected='📦';_stCatColor='#5599cc';}
-  document.querySelectorAll('.st-color-opt').forEach(function(o){o.classList.toggle('active',o.getAttribute('data-color')===_stCatColor);});
-  stRenderCatEmojiGrid(false);showOv('st-modal-cat');
-}
-function stCloseCatModal(){closeOv('st-modal-cat');}
-function stRenderCatEmojiGrid(expanded){
-  _stCatEmojiExpanded=expanded;
-  var emojis=expanded?_stCatEmojis:_stCatEmojis.slice(0,14);
-  var grid=document.getElementById('st-cat-emoji-grid');if(!grid)return;
-  grid.innerHTML=emojis.map(function(e){return '<button class="emoji-opt'+(e===_stCatEmojiSelected?' act':'')+'" onclick="stPickCatEmoji(\''+e+'\')" type="button">'+e+'</button>';}).join('');
-  var wrap=document.getElementById('st-cat-emoji-wrap'),chev=document.getElementById('st-cat-emoji-chev'),lbl=document.getElementById('st-cat-emoji-lbl');
-  if(wrap)wrap.classList.toggle('collapsed',!expanded);
-  if(chev)chev.style.transform=expanded?'rotate(180deg)':'';
-  if(lbl)lbl.textContent=expanded?'Ver menos':'Ver más iconos';
-}
-function stToggleCatEmojis(){stRenderCatEmojiGrid(!_stCatEmojiExpanded);}
-function stPickCatEmoji(emoji){_stCatEmojiSelected=emoji;stRenderCatEmojiGrid(_stCatEmojiExpanded);}
-function stPickColor(el){document.querySelectorAll('.st-color-opt').forEach(function(o){o.classList.remove('active');});el.classList.add('active');_stCatColor=el.getAttribute('data-color');}
-function stSaveCat(){
-  var name=document.getElementById('st-cat-name').value.trim();if(!name)return;
-  var active=document.getElementById('st-cat-activa').checked,cats=_stLoadCats();
-  if(_stEditCatId){var c=cats.find(function(x){return x.id===_stEditCatId;});if(c){c.label=name;c.icon=_stCatEmojiSelected;c.color=_stCatColor;c.active=active;}}
-  else{var id=name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');if(cats.find(function(c){return c.id===id;}))id+='_'+Date.now();cats.push({id:id,label:name,icon:_stCatEmojiSelected,color:_stCatColor,active:active});}
-  _stSaveCats(cats);stCloseCatModal();stBuildCatBar();stFillSelects();stRenderProds();
-  if(typeof showToast==='function')showToast(_stEditCatId?'Categoría actualizada':'Categoría creada');
-}
-function stDeleteCat(){
-  if(!_stEditCatId)return;
-  var prods=_stLoadProds(),using=prods.filter(function(p){return p.cat===_stEditCatId;}).length;
-  if(using>0){if(typeof showToast==='function')showToast('Hay '+using+' productos en esta categoría');return;}
-  var cats=_stLoadCats().filter(function(c){return c.id!==_stEditCatId;});
-  _stSaveCats(cats);stCloseCatModal();stBuildCatBar();stFillSelects();
-  if(typeof showToast==='function')showToast('Categoría eliminada');
-}
-
-/* ══ NUEVO TRABAJADOR ══ */
-function openNuevoTrabajador(){
-  var fields=['inv-nombre','inv-tel'];
-  fields.forEach(function(id){var el=document.getElementById(id);if(el){el.value='';el.style.borderColor='';}var hint=el&&el.parentNode.querySelector('.inv-error');if(hint)hint.textContent='';});
-  var rolSel=document.getElementById('inv-rol');if(rolSel)rolSel.value='empleado';
-  document.querySelectorAll('.inv-sec-btn').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-sec')==='sala');});
-  showOv('ov-invite-trab');
-}
-function inv_setSec(btn){document.querySelectorAll('.inv-sec-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');}
-function inv_send(){
-  var nombreEl=document.getElementById('inv-nombre'),telEl=document.getElementById('inv-tel');
-  var nombre=(nombreEl.value||'').trim(),tel=(telEl.value||'').trim(),rol=document.getElementById('inv-rol').value;
-  var secBtn=document.querySelector('.inv-sec-btn.active'),sec=secBtn?secBtn.getAttribute('data-sec'):'sala';
-  if(!nombre){inv_fieldError(nombreEl,'Introduce el nombre completo');return;}
-  var workers=typeof _trabWorkers!=='undefined'?_trabWorkers:[];
-  var dupNombre=workers.find(function(w){return w.name.toLowerCase()===nombre.toLowerCase();});
-  if(dupNombre){inv_fieldError(nombreEl,'Ya existe un trabajador llamado '+nombre+' en este local');return;}
-  if(tel){var telRe=/^[+\d\s]{6,}$/;if(!telRe.test(tel)){inv_fieldError(telEl,'El formato del teléfono no es válido');return;}var dupTel=workers.find(function(w){return(w.tel||'').replace(/\s/g,'')===(tel.replace(/\s/g,''));});if(dupTel){inv_fieldError(telEl,'Este teléfono ya pertenece a '+dupTel.name);return;}}
-  var newWorker={name:nombre,sec:sec,tel:tel,email:'',photo:null,minT:3,maxT:6,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:'eventual',skills:{},estado:tel?'sin_acceso':'sin_telefono'};
-  if(typeof _trabWorkers!=='undefined'){_trabWorkers.push(newWorker);sbSaveTrabajador(newWorker).catch(function(e){console.warn('[SB] create worker failed:',e);});if(typeof renderTrabajadores==='function')renderTrabajadores();}
-  closeOv('ov-invite-trab');
-  var msg=nombre+' añadido a la plantilla';if(!tel)msg+=' — recuerda añadir su teléfono para darle acceso';
-  if(typeof showToast==='function')showToast(msg);
-}
-function inv_fieldError(el,msg){
-  if(!el)return;
-  el.focus();el.style.borderColor='var(--red,#fc8181)';
-  var hint=el.parentNode.querySelector('.inv-error');
-  if(!hint){hint=document.createElement('span');hint.className='inv-error';hint.style.cssText='font-size:11px;color:var(--red,#fc8181);margin-top:4px;display:block';el.parentNode.appendChild(hint);}
-  hint.textContent=msg;
-  el.oninput=function(){el.style.borderColor='';if(hint)hint.textContent='';};
-}
-
-/* ══ ROL PERMISSIONS ══ */
+/* ROL PERMISSIONS */
 function applyRolPermissions(r){
   var isAdmin=r==='admin',isEncargado=r==='encargado',isEmpleado=r==='empleado';
   var tabEditar=document.getElementById('tab-editar');if(tabEditar)tabEditar.style.display=isAdmin?'':'none';
@@ -1923,6 +1158,8 @@ function applyRolPermissions(r){
   var greetUser=document.getElementById('greeting-user');
   try{var u=window.parent&&window.parent.currentUser?window.parent.currentUser:JSON.parse(localStorage.getItem('lg_session')||'{}');if(greetUser&&u.nombre)greetUser.textContent=u.nombre.split(' ')[0];}catch(e){}
 }
+
+window.addEventListener('load',function(){loadSkillsLocal();loadWeekConfigLocal();});
 
 </script>
 
