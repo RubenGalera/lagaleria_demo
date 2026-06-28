@@ -1297,7 +1297,6 @@ function ini(n){return n.split(":")[0].trim().split(" ").map(w=>w[0]).join("").s
 function parse(raw){const p=raw.split(":");return{name:p[0].trim(),hour:p.length>1?p[1]+":"+p[2]:""};}
 function getW(n){return L().staff.find(w=>w.name===n)||null;}
 function cntT(name){let c=0;ROWS.forEach(r=>L().data[r].forEach(d=>{if(d.some(n=>parse(n).name===name))c++;}));return c;}
-function getHour(name,d){let h="";ROWS.forEach(r=>{const f=(L().data[r][d]||[]).find(n=>parse(n).name===name);if(f&&parse(f).hour)h=parse(f).hour;});return h;}
 
 /* ── NAVEGACIÓN DE PÁGINA ── */
 function setPage(p){

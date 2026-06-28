@@ -11,6 +11,15 @@ var _previewName = '';
 var _horaRows    = [];
 var _photoTarget = null;
 
+function getHour(name, d) {
+  var h = '';
+  ROWS.forEach(function(r) {
+    var f = (L().data[r][d] || []).find(function(n) { return parse(n).name === name; });
+    if (f && parse(f).hour) h = parse(f).hour;
+  });
+  return h;
+}
+
 /* ── Patch parcial sobre la tabla trabajadores ── */
 async function sbUpdateTrabajador(id, campos) {
   if (!_sb || !id) { console.warn('[SB] sbUpdateTrabajador: sin conexión o sin id'); return; }

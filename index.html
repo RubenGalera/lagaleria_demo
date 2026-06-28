@@ -540,7 +540,6 @@ footer#app-footer{
     <iframe id="fr-turnos"   src="lagaleria_turnos.html"   class="active"></iframe>
     <iframe id="fr-reservas" src="lagaleria_reservas.html" loading="lazy"></iframe>
     <iframe id="fr-stock"    src="lagaleria_stock.html"    loading="lazy"></iframe>
-    <iframe id="fr-admin"    src="lagaleria_admin.html"    loading="lazy"></iframe>
   </div>
 
   <!-- FOOTER NAV — único -->
@@ -903,6 +902,13 @@ function applySession(profile, remember){
 
   var canSeeAdmin = (currentUser.rol === 'admin' || currentUser.rol === 'superadmin');
   document.getElementById('bnav-admin').style.display = canSeeAdmin ? '' : 'none';
+  if (canSeeAdmin && !document.getElementById('fr-admin')) {
+    var frAdmin = document.createElement('iframe');
+    frAdmin.id = 'fr-admin';
+    frAdmin.src = 'lagaleria_admin.html';
+    frAdmin.loading = 'lazy';
+    document.getElementById('pages').appendChild(frAdmin);
+  }
 
   var defaultPage = canSeeInicio ? 'inicio' : 'turnos';
   goTo(defaultPage);
