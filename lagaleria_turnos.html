@@ -94,7 +94,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 
 /* ── GRID ── */
 .grid-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 14px 20px}
-.grid-inner{display:flex;flex-direction:column;gap:4px;min-width:646px}
+.grid-inner{display:flex;flex-direction:column;gap:3px;min-width:786px}
 .grid-labels{width:58px;flex-shrink:0;display:flex;flex-direction:column}
 .turno-label{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 6px;gap:3px;min-height:72px;cursor:pointer;flex-shrink:0;margin-bottom:4px}
 .t-ibox{display:none}
@@ -109,18 +109,27 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .t-time{font-size:12px;color:var(--txt,#f0ece4);font-weight:500;line-height:1;text-align:left;cursor:pointer}
 .t-sect{font-size:8px;color:var(--dim);font-weight:700;letter-spacing:.8px;text-transform:uppercase;line-height:1;text-align:left}
 /* grid-cols removed */
-.day-headers{display:grid;grid-template-columns:58px repeat(7,minmax(80px,1fr));gap:4px;height:50px}
-.day-head{text-align:center;padding:5px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ev-row{display:grid;grid-template-columns:repeat(7,minmax(100px,1fr));gap:4px;margin-bottom:4px}
+.ev-row:empty{display:none;margin:0}
+.ev-day{display:flex;flex-direction:column;flex-wrap:wrap;align-items:center;gap:3px;overflow:hidden;min-width:0}
+.day-headers{display:grid;grid-template-columns:repeat(7,minmax(100px,1fr));gap:4px;height:43px}
+.day-head{text-align:center;padding:0 2px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
 .dname{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.3px;font-weight:500}
 .dnum{font-size:18px;font-weight:700;color:var(--text);line-height:1.2}
 .day-head.today .dname,.day-head.today .dnum{color:var(--acc)}
 .today-dot{width:4px;height:4px;background:var(--acc);border-radius:50%;margin:2px auto 0}
-.ev-row{display:grid;grid-template-columns:58px repeat(7,minmax(80px,1fr));gap:4px;min-height:22px;margin-bottom:2px}
-.ev-day{display:flex;gap:2px;align-items:center;justify-content:flex-end;overflow:hidden;min-width:0;overflow:hidden}
-.ev-badge{font-size:9px;border-radius:4px;padding:2px 4px;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;flex-shrink:0;background:var(--color-event-bg);color:var(--color-event);border:1px solid var(--color-event-bd)}
+.ev-badge{font-size:9px;border-radius:4px;padding:2px 4px;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;flex-shrink:0;overflow:hidden;max-width:100%;background:var(--color-event-bg);color:var(--color-event);border:1px solid var(--color-event-bd)}
+.ev-badge span{overflow:hidden;text-overflow:ellipsis}
 .ev-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;background:var(--color-event)}
-.turno-row{display:grid;grid-template-columns:58px repeat(7,minmax(80px,1fr));gap:4px}
-.gap-spacer{height:6px}
+.turno-hdr{display:grid;grid-template-columns:repeat(7,minmax(100px,1fr));gap:4px;min-height:16px;margin-bottom:0;align-items:center}
+.hdr-cell{display:flex;align-items:center;justify-content:flex-end;gap:2px;overflow:hidden;min-width:0}
+.hdr-cell-mon{justify-content:space-between}
+.band-label{font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0;margin-top:2px;align-self:center}
+.band-label-sm{color:var(--sm-text)}
+.band-label-sn{color:var(--sn-text)}
+.band-label-cm{color:var(--cm-text)}
+.band-label-cn{color:var(--cn-text)}
+.turno-row{display:grid;grid-template-columns:repeat(7,minmax(100px,1fr));gap:4px}
 .cell{border-radius:7px;padding:5px;display:flex;flex-direction:column;gap:3px;min-height:72px}
 .cell-sm{background:var(--sm-bg);border:1px solid #2a4a5a;border-top:2px solid var(--sm-bd)}
 .cell-sn{background:var(--sn-bg);border:1px solid #2a4a2a;border-top:2px solid var(--sn-bd)}
@@ -402,7 +411,7 @@ input[type=file]{display:none}
 .sg-cell.on-vac::before{display:none}
 
 /* ── SOBREESCRITURAS / AJUSTES ── */
-.grid-inner{min-width:460px}
+.grid-inner{min-width:600px}
 .stats-row{display:flex;gap:8px;padding:10px 14px 0}
 .stats-row .stat{flex:1;display:flex;align-items:center;gap:10px;background:var(--surface);border-radius:10px;padding:10px 12px;border:1px solid var(--border);cursor:pointer}
 .stats-row .stat:active{border-color:var(--acc-bd)}
@@ -486,12 +495,7 @@ input[type=file]{display:none}
 .cfg-btn:hover .material-symbols-outlined{color:var(--acc)}
 
 
-/* ── CELDA ETIQUETA DEL GRID ── */
-.row-label{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 6px;gap:3px;cursor:pointer}
-.row-label .t-time{font-size:12px;color:var(--txt,#f0ece4);font-weight:500;line-height:1;cursor:pointer}
-.row-label .t-sect{font-size:8px;color:var(--dim);font-weight:700;letter-spacing:.8px;text-transform:uppercase;line-height:1}
-.row-label-corner{display:flex;align-items:center;justify-content:center}
-.row-label-ev{} /* empty spacer for ev-row */
+/* .row-label, .row-label-corner, .row-label-ev, .ev-row, .ev-day eliminados: la banda ahora usa .turno-hdr/.band-label (ver GRID) */
 
 
 .t-time[contenteditable="true"]{outline:1px solid var(--acc-bd);border-radius:4px;padding:1px 3px;cursor:text}
@@ -645,32 +649,17 @@ input[type=file]{display:none}
   <div id="view-semana">
     <div class="grid-scroll">
       <div class="grid-inner">
-        <div class="day-headers" id="day-headers">
-          <div class="row-label-corner"></div>
-        </div>
-        <div class="ev-row" id="ev-row">
-          <div class="row-label-ev"></div>
-        </div>
-        <div class="turno-row" id="row-sm">
-          <div class="row-label" onclick="editTime('sm')"><div class="t-time" id="t-time-sm">12:30</div><div class="t-sect">Sala</div></div>
-        </div>
-        <div class="turno-row" id="row-sn">
-          <div class="row-label" onclick="editTime('sn')"><div class="t-time" id="t-time-sn">20:00</div><div class="t-sect">Sala</div></div>
-        </div>
-        <div class="gap-spacer"></div>
-        <div class="turno-row" id="row-cm">
-          <div class="row-label" onclick="editTime('cm')"><div class="t-time" id="t-time-cm">12:00</div><div class="t-sect">Cocina</div></div>
-        </div>
-        <div class="turno-row" id="row-cn">
-          <div class="row-label" onclick="editTime('cn')"><div class="t-time" id="t-time-cn">20:00</div><div class="t-sect">Cocina</div></div>
-        </div>
+        <div class="ev-row" id="ev-row"></div>
+        <div class="day-headers" id="day-headers"></div>
+        <div class="turno-hdr" id="hdr-sm"></div>
+        <div class="turno-row" id="row-sm"></div>
+        <div class="turno-hdr" id="hdr-sn"></div>
+        <div class="turno-row" id="row-sn"></div>
+        <div class="turno-hdr" id="hdr-cm"></div>
+        <div class="turno-row" id="row-cm"></div>
+        <div class="turno-hdr" id="hdr-cn"></div>
+        <div class="turno-row" id="row-cn"></div>
       </div>
-    </div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 14px;border-top:1px solid var(--border)">
-      <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--dim)"><span style="width:8px;height:8px;border-radius:2px;background:var(--sm-bg);border:1px solid var(--sm-bd);display:inline-block"></span>Sala mediodía ~12:30</span>
-      <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--dim)"><span style="width:8px;height:8px;border-radius:2px;background:var(--sn-bg);border:1px solid var(--sn-bd);display:inline-block"></span>Sala noche ~20:00</span>
-      <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--dim)"><span style="width:8px;height:8px;border-radius:2px;background:var(--cm-bg);border:1px solid var(--cm-bd);display:inline-block"></span>Cocina mediodía ~12:00</span>
-      <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--dim)"><span style="width:8px;height:8px;border-radius:2px;background:var(--cn-bg);border:1px solid var(--cn-bd);display:inline-block"></span>Cocina noche ~20:00</span>
     </div>
     <div class="export-bar" style="padding:12px 14px;margin-top:0">
 <button class="ebtn" id="btn-save-img" onclick="saveImage()" style="background:rgba(197,166,105,.15);border-color:rgba(197,166,105,.35);color:var(--acc)">
@@ -1354,10 +1343,26 @@ function updateStats(){
 }
 
 /* ── GRID: BUILD Y RENDER ── */
+const BAND_LBL_CLS={sm:'band-label-sm',sn:'band-label-sn',cm:'band-label-cm',cn:'band-label-cn'};
+var slotTimes = {sm:'12:30', sn:'20:00', cm:'12:00', cn:'20:00'};
+const SLOT_NAMES = {sm:'Sala mediodía', sn:'Sala noche', cm:'Cocina mediodía', cn:'Cocina noche'};
 function buildGrid(){
+  const er=document.getElementById("ev-row");
+  er.innerHTML='';
+  if(L().eventos.length){
+    for(let d=0;d<7;d++){
+      const div=document.createElement("div");div.className="ev-day";
+      L().eventos.filter(e=>e.dia===d).forEach(ev=>{
+        const b=document.createElement("div");b.className="ev-badge";
+        b.innerHTML=`<div class="ev-dot"></div><span>${EV_NAMES[ev.tipo]}</span>`;
+        b.onclick=()=>showEvDetail(ev);
+        div.appendChild(b);
+      });
+      er.appendChild(div);
+    }
+  }
   const dh=document.getElementById("day-headers");
-  // Keep label corner cell, rebuild day headers
-  dh.innerHTML=`<div class="row-label-corner"></div>`;
+  dh.innerHTML='';
   const todayStr=new Date().toISOString().split('T')[0];
   for(let d=0;d<7;d++){
     const dayDate=new Date(curMonday+'T00:00:00Z');
@@ -1367,22 +1372,25 @@ function buildGrid(){
     el.innerHTML=`<div class="dname">${DAYS_S[d]}</div><div class="dnum">${dayDate.getUTCDate()}</div>${isToday?"<div class='today-dot'></div>":""}`;
     dh.appendChild(el);
   }
-  const er=document.getElementById("ev-row");
-  er.innerHTML='<div class="row-label-ev"></div>';
-  for(let d=0;d<7;d++){
-    const div=document.createElement("div");div.className="ev-day";
-    L().eventos.filter(e=>e.dia===d).forEach(ev=>{
-      const b=document.createElement("div");b.className="ev-badge";
-      b.innerHTML=`<div class="ev-dot"></div><span style="overflow:hidden;text-overflow:ellipsis">${EV_NAMES[ev.tipo]}</span>`;
-      b.onclick=()=>showEvDetail(ev);div.appendChild(b);
-    });
-    er.appendChild(div);
-  }
   const SLOT_INFO={sm:['t-time-sm','Sala'],sn:['t-time-sn','Sala'],cm:['t-time-cm','Cocina'],cn:['t-time-cn','Cocina']};
   ROWS.forEach(r=>{
-    const rowEl=document.getElementById(`row-${r}`);
+    const hdrEl=document.getElementById(`hdr-${r}`);
     const timeVal=document.getElementById(SLOT_INFO[r][0])?.textContent||slotTimes[r]||'';
-    rowEl.innerHTML=`<div class="row-label" onclick="editTime('${r}')"><div class="t-time" id="${SLOT_INFO[r][0]}">${timeVal}</div><div class="t-sect">${SLOT_INFO[r][1]}</div></div>`;
+    hdrEl.innerHTML='';
+    for(let d=0;d<7;d++){
+      const hc=document.createElement("div");hc.className="hdr-cell"+(d===0?" hdr-cell-mon":"");
+      if(d===0){
+        const lbl=document.createElement("div");
+        lbl.className=`band-label ${BAND_LBL_CLS[r]}`;
+        lbl.onclick=()=>editTime(r);
+        lbl.innerHTML=`<span id="${SLOT_INFO[r][0]}">${timeVal}</span><span class="band-label-sect"> · ${SLOT_INFO[r][1]}</span>`;
+        hc.appendChild(lbl);
+      }
+      hdrEl.appendChild(hc);
+    }
+
+    const rowEl=document.getElementById(`row-${r}`);
+    rowEl.innerHTML='';
     for(let d=0;d<7;d++){
       const cell=document.createElement("div");cell.className=`cell cell-${r}`;
       (L().data[r][d]||[]).forEach(raw=>{
@@ -2301,9 +2309,6 @@ function renderSkillsSummary(){
 
 
 /* ── SLOT TIMES (editable) ── */
-var slotTimes = {sm:'12:30', sn:'20:00', cm:'12:00', cn:'20:00'};
-const SLOT_NAMES = {sm:'Sala mediodía', sn:'Sala noche', cm:'Cocina mediodía', cn:'Cocina noche'};
-
 function editTime(slot){
   const el = document.getElementById('t-time-'+slot);
   if(!el || el.contentEditable==='true') return;
