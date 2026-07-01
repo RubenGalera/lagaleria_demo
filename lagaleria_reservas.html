@@ -216,7 +216,7 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
   <div class="date-nav">
     <div style="display:flex;align-items:center;gap:6px">
       <button class="nav-arrow" onclick="changeDay(-1)">&#8249;</button>
-      <div>
+      <div id="res-date-center" onclick="DatePicker.open()" style="cursor:pointer;user-select:none">
         <div class="date-main" id="res-date-lbl">Hoy — 21 mayo</div>
         <div class="date-sub" id="res-year-lbl">2026</div>
       </div>
@@ -497,6 +497,7 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="assets/lib/supabase-client.js"></script>
 <script src="assets/lib/ui-helpers.js"></script>
+<script src="assets/lib/date-picker.js"></script>
 <script>
 
 /* Mapeo estado Supabase → interno */
@@ -807,6 +808,12 @@ function resetView(){
 function initDay(){
   curDay=hoyStr();
   updateDateLbl();
+  DatePicker.init({
+    mode:'day',
+    anchor:document.getElementById('res-date-center'),
+    initialDate:curDay,
+    onChange:function(d){ curDay=d; DatePicker.setDate(d); updateDateLbl(); renderRes(); renderEventos(); }
+  });
 }
 function changeDay(d){
   const cur=new Date(curDay+'T00:00:00');
@@ -815,6 +822,7 @@ function changeDay(d){
   const m=String(cur.getMonth()+1).padStart(2,'0');
   const day=String(cur.getDate()).padStart(2,'0');
   curDay=`${y}-${m}-${day}`;
+  if(window.DatePicker) DatePicker.setDate(curDay);
   updateDateLbl();
   renderRes();
   renderEventos();

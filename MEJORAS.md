@@ -211,10 +211,17 @@ editable por Admin) = la persona sigue visible en todos lados, pero queda fuera 
 reparto de turnos futuro.
   
   
-  v0.2.6: (fixes hechos) Seguir trabajandolo
+  
+  
+  v0.2.7: (fixes hechos) Seguir trabajandolo
+  - Eliminar el límite duro de navegación
+  - Picker de semana al pulsar el área central
+  
+  
+  v0.2.6:
   
   ### lagaleria_inicio.html 
-  ** Card  Reservas hoy**
+ ** Card  Reservas hoy**
   	| 🟢 | El texto de la card dice Sin reservas hoy, en cuanto tengas una reserva para ese día, que cambie el texto ha Reservas programadas para hoy
 	
 ** Card Eventos hoy**
@@ -230,3 +237,13 @@ reparto de turnos futuro.
 	
 ** Card Eventos esta semana**
 	| 🟢 | Conectar con la base de datos, en el cuadrado de la derecha numero de los eventos que hay esta semana programados. Texto: Sin eventos esta semana o si hay un evento: Próximo evento: "Nombre del evento" "Mié 23:20". Pulsar: te lleva a Reservas/Eventos.
+	
+	Toggle 1 (Disponible) — completo y verificado
+	Toggle 2 (Visible) — completo y verificado
+	Archivar/Restaurar/Borrar definitivo trabajadores — completo
+	Revert de estado al cerrar modal sin guardar — completo
+	Popup de vacaciones (z-index) — completo
+	Alertas unificadas en el grid (rojo, un solo icono)
+	Spinner de carga en ls_init()
+	Logout de superadmin
+	Bug del splash tras logout

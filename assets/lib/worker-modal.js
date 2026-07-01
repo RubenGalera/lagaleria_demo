@@ -2,7 +2,7 @@
    Implementación canónica compartida entre lagaleria_turnos.html y lagaleria_inicio.html.
    Inyecta automáticamente el markup de #ov-preview en el body al cargar el DOM.
    Requiere en el ámbito de página: getW, cntT, L, ROWS, CONFLICTS, parse, ini,
-   isSafeImg, curLocal, curWeek, showOv, closeOv, showToast, buildGrid, renderW,
+   isSafeImg, curLocal, curWeek, curYear, curMonday, showOv, closeOv, showToast, buildGrid, renderW,
    updateStats, renderTrabajadores, renderHoraList, renderVacList, renderSkillsSummary,
    getDayVacacion, ensureWorkerExtras, _sb. Opcionales: scheduleAutosave,
    sbUploadFotoTrabajador, compressImage, saveWorker, showConfirm. */
@@ -222,10 +222,9 @@ function updateAlert() {
   });
 
   if (w.vacaciones && w.vacaciones.length) {
-    const baseDate = new Date('2026-05-18');
     for (let d = 0; d < 7; d++) {
-      const dayDate = new Date(baseDate);
-      dayDate.setDate(baseDate.getDate() + (curWeek - 1) * 7 + d);
+      const dayDate = new Date(curMonday + 'T00:00:00Z');
+      dayDate.setUTCDate(dayDate.getUTCDate() + d);
       const dayStr = dayDate.toISOString().split('T')[0];
       const onVac = w.vacaciones.some(v => dayStr >= v.desde && dayStr <= v.hasta);
       if (!onVac) continue;
