@@ -1,0 +1,65 @@
+/* lagaleria_inicio.html — dashboard de Inicio.
+   Requiere: assets/styles/tokens.css, assets/styles/components.css (cargados antes).
+   :root local sobreescribe --brd/--brd2/--muted y la paleta sm/sn/cm/cn con una versión más saturada, propia de este dashboard — no es un duplicado, es intencional. */
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --brd:rgba(255,255,255,0.07); --brd2:rgba(255,255,255,0.13);
+  --muted:var(--dim);
+  --sm-bg:rgba(42,122,176,.25); --sm-bd:rgba(42,122,176,.6);  --sm-text:#90cdf4;
+  --sn-bg:rgba(42,110,42,.25);  --sn-bd:rgba(42,110,42,.6);   --sn-text:#9ae6b4;
+  --cm-bg:rgba(187,34,34,.25);  --cm-bd:rgba(187,34,34,.6);   --cm-text:#fc8181;
+  --cn-bg:rgba(192,96,0,.25);   --cn-bd:rgba(192,96,0,.6);    --cn-text:#f6ad55;
+}
+html,body{height:100%;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--txt);overflow:hidden}
+body{display:flex;flex-direction:column}
+
+.page{flex:1;overflow-y:auto;display:none;flex-direction:column;min-height:0}
+.page.active{display:flex}
+
+.greeting{padding:16px 16px 4px}
+.greeting-hi{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
+.greeting-name{font-size:22px;color:var(--acc);font-family:Georgia,serif;letter-spacing:2px;margin-top:2px;font-weight:400}
+.dash-fecha-bar{font-size:12px;color:var(--dim);padding:6px 16px 10px}
+.dash-fecha-bar span{color:var(--txt)}
+.dash-sep-top{height:1px;background:var(--brd)}
+.dash-sec-lbl{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.7px;padding:12px 16px 6px}
+.dash-proxima{margin:0 12px 8px;background:var(--surf);border:1px solid var(--brd2);border-radius:12px;padding:12px 14px}
+.dash-prox-lbl{font-size:10px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.dash-prox-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.dash-prox-nombre{font-size:14px;font-weight:700;color:var(--txt)}
+.dash-prox-meta{font-size:11px;color:var(--dim);margin-top:2px}
+.dash-prox-hora{font-size:26px;font-weight:700;color:var(--acc);font-family:Georgia,serif;flex-shrink:0}
+.dash-card{margin:0 12px 8px;background:var(--surf);border:1px solid var(--brd);border-radius:12px;overflow:hidden}
+.dash-row{display:flex;align-items:center;gap:12px;padding:13px 14px;cursor:pointer}
+.dash-ic{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px}
+.dash-ic-ok{background:rgba(72,187,120,.15);color:#68d391}
+.dash-ic-warn{background:rgba(237,137,54,.15);color:#f6ad55}
+.dash-ic-alert{background:rgba(245,101,101,.15);color:#fc8181}
+.dash-ic-info{background:rgba(99,179,237,.15);color:#90cdf4}
+.dash-ic-dim{background:rgba(255,255,255,.06);color:var(--dim)}
+.dash-info{flex:1;min-width:0}
+.dash-title{font-size:13px;font-weight:600;color:var(--txt)}
+.dash-sub{font-size:11px;color:var(--dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;flex-shrink:0}
+.dash-badge-ok{background:rgba(72,187,120,.15);color:#68d391;border:1px solid rgba(72,187,120,.25)}
+.dash-badge-warn{background:rgba(237,137,54,.15);color:#f6ad55;border:1px solid rgba(237,137,54,.25)}
+.dash-badge-alert{background:rgba(245,101,101,.15);color:#fc8181;border:1px solid rgba(245,101,101,.25)}
+.dash-badge-info{background:rgba(99,179,237,.15);color:#90cdf4;border:1px solid rgba(99,179,237,.25)}
+.dash-badge-dim{background:rgba(255,255,255,.06);color:var(--dim);border:1px solid var(--brd)}
+.dash-chev{font-size:18px;color:var(--dim);flex-shrink:0;transition:transform .2s}
+.dash-chev.open{transform:rotate(90deg)}
+.dash-arr{font-size:18px;color:var(--dim);flex-shrink:0}
+.dash-expand{display:none;border-top:1px solid var(--brd);padding:10px 14px}
+.dash-expand.open{display:block}
+.dash-turno-grp{margin-bottom:8px}
+.dash-turno-grp:last-child{margin-bottom:0}
+.dash-turno-hdr{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.dash-libres{color:#68d391;text-transform:none;letter-spacing:0}
+.dash-zonas{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px}
+.dash-zona-item{display:flex;align-items:center;justify-content:space-between;font-size:11px;padding:2px 0}
+.dash-zona-name{color:var(--dim)}
+.dash-zona-count{color:var(--txt);font-weight:600}
+.dash-zona-full{color:var(--faint)}
+.dash-sep{height:1px;background:var(--brd);margin:8px 0}
+.dash-divider{height:1px;background:var(--brd);margin:4px 12px 4px}

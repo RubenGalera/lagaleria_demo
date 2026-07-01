@@ -211,10 +211,19 @@ editable por Admin) = la persona sigue visible en todos lados, pero queda fuera 
 reparto de turnos futuro.
   
   
-  ###Log de mejoras por versión:
+ ###Log de mejoras por versión:
+ 
+ ##v0.2.10: 
+ - 
+ 
+ ##v0.2.9: Refactorización completa
+ - Turnos
+ - Reservas
+ - Index
+ - Admin
   
  ##v0.2.8: Rediseño grid turnos
-  -  Columna izquierda de horas eliminada — grid ocupa ancho completo
+  - Columna izquierda de horas eliminada — grid ocupa ancho completo
   - Etiquetas de hora/zona en la celda de Lunes de cada banda
   - Fila de eventos dedicada encima de las fechas (desaparece si no hay eventos)
   - Badges de evento: color rosa unificado, alineados correctamente
@@ -267,4 +276,15 @@ reparto de turnos futuro.
   - ir separando componentes y js independientes
   - dividir fucniones comunes en js reutilizables
   - Crear estilos unificados (tokens)
+
+## Deuda técnica
+
+Puntos dudosos detectados al separar CSS/JS inline en archivos externos (turnos, reservas, index, inicio, admin) que se conservaron tal cual — no se tocaron para no arriesgar una regresión visual sin poder verificar en navegador. Revisar cuando se retome limpieza de estilos.
+
+- **`.btn-confirm` / `.btn-confirm:active`**: redefinido con valores distintos a `components.css` (border-radius, padding, font-size, `width:100%` ausente) en `turnos.css`, `reservas.css`, `index.css` y `admin.css`. `.btn-confirm:active` con opacity `.85` vs `.8` según el archivo.
+- **`.btn-del`**: mismo patrón que `.btn-confirm` — border-radius/padding/font-size/font-weight distintos a `components.css`, `margin-top` extra, sin `transition`. Presente en `reservas.css` y `admin.css`.
+- **`.modal-hdr` / `.modal-title`**: en `index.css`, `align-items:center` (vs `flex-start` en `components.css`) y `font-size:14px` (vs `var(--fs-md)`=15px).
+- **`.mclose`**: tres variantes visuales distintas bajo el mismo nombre de clase — botón cuadrado con fondo (`components.css`, `admin.css`), "×" plano sin fondo (`reservas.css`, `index.css`). No es un bug, pero es inconsistencia de diseño que vale la pena unificar en algún momento.
+- **`getAuthToken()` / `supaFetch()`**: en `assets/js/inicio.js` y `assets/js/admin.js` (copia casi idéntica en ambos) reimplementan acceso REST a Supabase a mano (fetch + header manual con JWT/anon key) en paralelo al cliente `_sb` de `assets/lib/supabase-client.js`, que ya está cargado en las dos páginas. No se unificó porque cambiaría la lógica de negocio (manejo de errores, headers) — candidato a extraer a un módulo compartido si se retoma.
+- **`admin.css` — duplicación interna preexistente**: `.acc-block`, `.acc-block-title`, `.vac-section` y `.modal-note` están definidos dos veces dentro del mismo archivo (no es duplicado con `components.css`, es un duplicado consigo mismo, ya presente antes de este cambio). Se conservó el orden exacto para no alterar qué regla gana la cascada.
  
