@@ -211,39 +211,28 @@ editable por Admin) = la persona sigue visible en todos lados, pero queda fuera 
 reparto de turnos futuro.
   
   
+  ###Log de mejoras por versión:
   
-  
-  v0.2.7: (fixes hechos) Seguir trabajandolo
+  ##v0.2.7: WeeekCalendar
   - Eliminar el límite duro de navegación
   - Picker de semana al pulsar el área central
+  - Diferenciar picker Week/Day y volverlo componente
+  - Añadir eventos al picker
+  
+  - Revisar diseño en Reservas para que se parezca al de Turnos
+  - El selector de días por separado (no semanal) 
+  - Actualizar números/dia de la semana en el grid de turnos (harcodeado)
+  - Actualizar eventos en el grid de turnos (harcodeado)
   
   
-  v0.2.6:
-  
-  ### lagaleria_inicio.html 
- ** Card  Reservas hoy**
-  	| 🟢 | El texto de la card dice Sin reservas hoy, en cuanto tengas una reserva para ese día, que cambie el texto ha Reservas programadas para hoy
-	
-** Card Eventos hoy**
-	| 🟢 | En la descripcion de la card, debe poner Sin eventos programados para hoy o El nombre delos eventos programado para hoy. Cuando pulse que me lleve directamente al iframe Reservas/Eventos.
-	| 🟢 | Conectar eventos Eventos con la base de datos, el cuadrado de la derecha marca -  si no hay eventos hoy. Un número si hay uno o varios eventos.
-	 
-** Card Stock**
-	| 🟢 | Texto: Debe poner, sin productos bajo mínimos. Si tienes algun producto bajo minimos o agotado: Tienes varios productos apunto de agotarse. A la derecha eñ cuadrado de color te muestra con un numero la cantidad de productos apunto de agotarse,
-	color ambar si estan bajo minimos o rojo si hay alguno agotado o casi agotado (mitad o inferior del minimo establecido (Consultar algoritmo de stock por color). Al pulsar: te lleva a Stock/Pedido
-
-** Card Turnos planificados**
-	| 🟢 |Comprueba si los turnos de la semana siguiente están planificados y si están todos los slots cubiertos. En la caja de color poner un check(como está ahora) o un warning si no está hecho. Todos los lunes se activa y renueva esta card, para la semana siguiente.
-	
-** Card Eventos esta semana**
-	| 🟢 | Conectar con la base de datos, en el cuadrado de la derecha numero de los eventos que hay esta semana programados. Texto: Sin eventos esta semana o si hay un evento: Próximo evento: "Nombre del evento" "Mié 23:20". Pulsar: te lleva a Reservas/Eventos.
-	
-	Toggle 1 (Disponible) — completo y verificado
-	Toggle 2 (Visible) — completo y verificado
-	Archivar/Restaurar/Borrar definitivo trabajadores — completo
-	Revert de estado al cerrar modal sin guardar — completo
-	Popup de vacaciones (z-index) — completo
-	Alertas unificadas en el grid (rojo, un solo icono)
-	Spinner de carga en ls_init()
-	Logout de superadmin
-	Bug del splash tras logout
+  ##v0.2.6: Trabajadores: Toggle, Archivar, popup, otros
+  - Toggle 1 (Disponible) — completo y verificado
+  - Toggle 2 (Visible) — completo y verificado
+  - Archivar/Restaurar/Borrar definitivo trabajadores — completo
+  - Revert de estado al cerrar modal sin guardar — completo
+  -	Popup de vacaciones (z-index) — completo
+  -	Alertas unificadas en el grid (rojo, un solo icono)
+  - Spinner de carga en ls_init()
+  -	Logout de superadmin
+  -	Bug del splash tras logou
+ 

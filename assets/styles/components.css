@@ -351,6 +351,38 @@
 
 
 /* ═══════════════════════════════════════════════════════════
+   ICONOS MATERIAL SYMBOLS
+   Requiere <link> a Material+Symbols+Outlined en <head> de la página.
+   ═══════════════════════════════════════════════════════════ */
+
+.material-symbols-outlined { font-variation-settings: 'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; font-size: 20px; color: var(--dim) }
+
+
+/* ═══════════════════════════════════════════════════════════
+   DATE PILL — selector de fecha/semana segmentado
+   Canon: lagaleria_turnos.html (semana) — reutilizado en
+   lagaleria_reservas.html (día). Estructura:
+     .tp-week-nav > .wbtn.tt-arrow + .tp-week-center + .wbtn.tt-arrow
+     .tp-week-center > .material-symbols-outlined.tp-cal-icon + (.tt-date + .tt-sub)
+   ═══════════════════════════════════════════════════════════ */
+
+.wbtn { background: var(--surface); border: 1px solid var(--border2); border-radius: 7px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--acc); font-size: 20px }
+.tt-arrow { padding: 4px 7px; font-size: 16px; width: 28px !important; height: 28px !important; flex-shrink: 0 }
+.tt-date { font-size: 12px; font-weight: 700; color: var(--text); white-space: nowrap; line-height: 1.2 }
+.tt-sub { font-size: 10px; color: var(--dim); line-height: 1.2 }
+
+.tp-week-nav { display: flex; align-items: stretch; gap: 0; background: var(--surf); border: 1px solid var(--brd2); border-radius: var(--rad-pill); overflow: hidden; flex-shrink: 0 }
+.tp-week-nav .wbtn { background: transparent; border: none; border-radius: 0; width: 32px; height: auto !important; align-self: stretch; flex-shrink: 0 }
+.tp-week-nav .wbtn:first-child { border-right: 1px solid var(--brd2) }
+.tp-week-nav .wbtn:last-child { border-left: 1px solid var(--brd2) }
+.tp-week-nav .wbtn:hover { background: var(--surf2) }
+.tp-week-center { display: flex; align-items: center; gap: 6px; padding: 6px 12px; cursor: pointer; user-select: none; transition: background .15s }
+.tp-week-center:hover { background: var(--surf2) }
+.tp-week-center:active { opacity: .75 }
+.tp-cal-icon { font-size: 14px; color: var(--acc); opacity: .8; font-variation-settings: 'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 20; flex-shrink: 0 }
+
+
+/* ═══════════════════════════════════════════════════════════
    TOAST NOTIFICATION
    ═══════════════════════════════════════════════════════════ */
 

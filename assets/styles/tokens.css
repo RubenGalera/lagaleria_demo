@@ -38,6 +38,11 @@
   --grn-bg: rgba(60,140,70,0.12);
   --grn-bd: rgba(60,140,70,0.3);
 
+  /* Evento */
+  --color-event:    #dc5096;
+  --color-event-bg: rgba(220,80,150,0.15);
+  --color-event-bd: rgba(220,80,150,0.35);
+
   /* Tipos de turno — paleta oscura (stock.css y lagaleria_turnos.html) */
   --sm-text: #5599bb; --sm-bg: #1a2a3a; --sm-bd: rgba(85,153,187,.4);
   --sn-text: #4a8a4a; --sn-bg: #1a2a1a; --sn-bd: rgba(74,138,74,.4);

@@ -4,10 +4,11 @@
    No tiene dependencias externas.
 
    API pública (window.DatePicker):
-     init({ mode, anchor, initialDate, onChange })
+     init({ mode, anchor, initialDate, onChange, events })
      open()      — abre el dropdown (toggle: si está abierto, lo cierra)
      close()     — cierra sin seleccionar
      setDate(str) — actualiza la fecha activa sin disparar onChange
+     setEvents(events) — actualiza los puntos de evento; events: [{date:'YYYY-MM-DD'}]
      destroy()   — elimina el DOM y los listeners globales
 */
 (function (global) {
@@ -46,17 +47,27 @@
     '._dp-arrow:hover{background:var(--surf2)}',
     '._dp-today-btn{background:none;border:1px solid var(--acc-bd);border-radius:5px;color:var(--acc);font-size:10px;font-weight:600;padding:2px 7px;cursor:pointer;line-height:18px;flex-shrink:0}',
     '._dp-today-btn:hover{background:var(--acc-bg)}',
-    '._dp-row{display:flex;align-items:center;border-radius:8px;border:1px solid transparent;padding:2px 4px;cursor:pointer;transition:background .1s,border-color .1s;margin-bottom:1px}',
-    '._dp-row:hover{background:var(--acc-bg);border-color:var(--acc-bd)}',
+    '._dp-row{display:flex;align-items:center;border-radius:8px;border:1px solid transparent;padding:2px 4px;cursor:pointer;transition:background .1s,border-color .1s;margin-bottom:2px}',
+    '._dp-mode-day ._dp-row{cursor:default}',
+    '._dp-mode-week ._dp-row:hover{background:var(--acc-bg);border-color:var(--acc-bd)}',
     '._dp-row._dp-row-active{background:var(--acc-bg);border-color:var(--acc-bd)}',
     '._dp-row._dp-row-active ._dp-d{color:var(--acc);font-weight:700}',
     '._dp-row._dp-thisweek{border-left:2px solid var(--acc-bd);background:var(--surf2)}',
     '._dp-wnum{width:22px;font-size:9px;color:var(--faint);text-align:center;flex-shrink:0}',
-    '._dp-d{flex:1;text-align:center;font-size:11px;color:var(--muted);line-height:24px}',
+    '._dp-d{position:relative;flex:1;text-align:center;font-size:11px;color:var(--muted);line-height:22px}',
     '._dp-d._dp-out{color:var(--faint)}',
+    '._dp-mode-day ._dp-d{cursor:pointer;border-radius:6px}',
+    '._dp-mode-day ._dp-d:hover{background:var(--acc-bg)}',
     '._dp-d._dp-now{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;min-width:22px;min-height:22px;border-radius:50%;background:rgba(255,255,255,0.18);color:var(--txt);font-weight:600;font-size:11px;line-height:1}',
     '._dp-d._dp-day-active{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;min-width:22px;min-height:22px;border-radius:50%;background:var(--acc);color:var(--bg);font-weight:700;font-size:11px;line-height:1}',
-    '._dp-d._dp-now._dp-day-active{background:var(--acc);color:var(--bg)}'
+    '._dp-d._dp-now._dp-day-active{background:var(--acc);color:var(--bg)}',
+    '._dp-evt-dot{position:absolute;left:50%;bottom:0px;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--color-event);pointer-events:none}',
+    '._dp-legend{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;padding-top:7px;border-top:1px solid var(--brd2)}',
+    '._dp-legend-item{display:flex;align-items:center;gap:4px;font-size:9px;color:var(--dim)}',
+    '._dp-legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}',
+    '._dp-legend-dot._dp-legend-today{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.35)}',
+    '._dp-legend-dot._dp-legend-sel{background:var(--acc)}',
+    '._dp-legend-dot._dp-legend-evt{background:var(--color-event)}'
   ].join('');
 
   function _injectCSS() {
@@ -78,7 +89,12 @@
         '<button class="_dp-arrow" id="_dp-next">&#8250;</button>' +
         '<button class="_dp-today-btn" id="_dp-today-btn">Hoy</button>' +
       '</div>' +
-      '<div id="_dp-weeks"></div>';
+      '<div id="_dp-weeks"></div>' +
+      '<div class="_dp-legend">' +
+        '<span class="_dp-legend-item"><span class="_dp-legend-dot _dp-legend-today"></span>Hoy</span>' +
+        '<span class="_dp-legend-item"><span class="_dp-legend-dot _dp-legend-sel"></span>Selección</span>' +
+        '<span class="_dp-legend-item"><span class="_dp-legend-dot _dp-legend-evt"></span>Evento</span>' +
+      '</div>';
     document.body.appendChild(el);
     document.getElementById('_dp-prev').addEventListener('click', function (e) {
       e.stopPropagation(); _prevMonth();
@@ -101,10 +117,20 @@
   var _isOpen = false;
   var _el = null;
   var _mdListener = null, _kbListener = null;
+  var _eventDates = {};
+
+  function _setEvents(events) {
+    _eventDates = {};
+    (events || []).forEach(function (e) {
+      if (e && e.date) _eventDates[e.date] = true;
+    });
+  }
 
   /* ── Render del calendario mensual ── */
   function _render() {
     if (!_el) return;
+    _el.classList.toggle('_dp-mode-day', _mode === 'day');
+    _el.classList.toggle('_dp-mode-week', _mode === 'week');
     var monthName = MESES_ES[_pkM];
     document.getElementById('_dp-mth-lbl').textContent =
       monthName.charAt(0).toUpperCase() + monthName.slice(1) + ' ' + _pkY;
@@ -143,7 +169,8 @@
         if (outMon) cls += ' _dp-out';
         if (isToday && !isDayActive) cls += ' _dp-now';
         if (isDayActive) cls += ' _dp-day-active' + (isToday ? ' _dp-now' : '');
-        rowHtml += '<span class="' + cls + '" data-day="' + dayStr + '">' + day.getUTCDate() + '</span>';
+        var evtDot = _eventDates[dayStr] ? '<span class="_dp-evt-dot"></span>' : '';
+        rowHtml += '<span class="' + cls + '" data-day="' + dayStr + '">' + day.getUTCDate() + evtDot + '</span>';
       }
       rowHtml += '</div>';
       rows.push(rowHtml);
@@ -236,6 +263,7 @@
       _anchor = opts.anchor || null;
       _currentDate = opts.initialDate || _todayStr();
       _onChange = opts.onChange || null;
+      _setEvents(opts.events);
       if (!_el) {
         _el = _buildEl();
         _attachGlobal();
@@ -244,6 +272,7 @@
     open: function () { _open(); },
     close: function () { _close(); },
     setDate: function (dateStr) { _currentDate = dateStr; },
+    setEvents: function (events) { _setEvents(events); if (_isOpen) _render(); },
     destroy: function () {
       _detachGlobal();
       if (_el && _el.parentNode) _el.parentNode.removeChild(_el);

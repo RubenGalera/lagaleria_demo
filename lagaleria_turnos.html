@@ -86,7 +86,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 /* .topbar legacy */
 .topbar-unused{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
 .week-nav{display:flex;align-items:center;gap:8px}
-.wbtn{background:var(--surface);border:1px solid var(--border2);border-radius:7px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--acc);font-size:20px}
+/* .wbtn → assets/styles/components.css (DATE PILL) */
 .week-info .wlabel{font-size:14px;font-weight:600;color:var(--text)}
 .week-info .wsub{font-size:11px;color:var(--dim)}
 .view-tabs{display:flex;gap:5px}
@@ -116,13 +116,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .day-head.today .dname,.day-head.today .dnum{color:var(--acc)}
 .today-dot{width:4px;height:4px;background:var(--acc);border-radius:50%;margin:2px auto 0}
 .ev-row{display:grid;grid-template-columns:58px repeat(7,minmax(80px,1fr));gap:4px;min-height:22px;margin-bottom:2px}
-.ev-day{display:flex;gap:2px;align-items:center;overflow:hidden;min-width:0;overflow:hidden}
-.ev-badge{font-size:9px;border-radius:4px;padding:2px 4px;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;flex-shrink:0}
-.ev-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
-.ev-birthday{background:rgba(220,80,150,.15);color:#e880c0;border:1px solid rgba(220,80,150,.3)}.ev-birthday .ev-dot{background:#e880c0}
-.ev-cata{background:rgba(150,80,200,.15);color:#b880e0;border:1px solid rgba(150,80,200,.3)}.ev-cata .ev-dot{background:#b880e0}
-.ev-menu{background:rgba(80,180,120,.15);color:#60c888;border:1px solid rgba(80,180,120,.3)}.ev-menu .ev-dot{background:#60c888}
-.ev-evento{background:rgba(80,150,220,.15);color:#60aaee;border:1px solid rgba(80,150,220,.3)}.ev-evento .ev-dot{background:#60aaee}
+.ev-day{display:flex;gap:2px;align-items:center;justify-content:flex-end;overflow:hidden;min-width:0;overflow:hidden}
+.ev-badge{font-size:9px;border-radius:4px;padding:2px 4px;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;flex-shrink:0;background:var(--color-event-bg);color:var(--color-event);border:1px solid var(--color-event-bd)}
+.ev-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;background:var(--color-event)}
 .turno-row{display:grid;grid-template-columns:58px repeat(7,minmax(80px,1fr));gap:4px}
 .gap-spacer{height:6px}
 .cell{border-radius:7px;padding:5px;display:flex;flex-direction:column;gap:3px;min-height:72px}
@@ -486,7 +482,7 @@ input[type=file]{display:none}
 .t-sect{font-size:9px;color:var(--faint);text-align:right;line-height:1.2}
 
 
-.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;font-size:20px;color:var(--dim)}
+/* .material-symbols-outlined → assets/styles/components.css */
 .cfg-btn:hover .material-symbols-outlined{color:var(--acc)}
 
 
@@ -578,23 +574,10 @@ input[type=file]{display:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 
-/* ── TURNOS TABS Y PILLS — .main-tabs, .mtab → assets/styles/components.css ── */
-.tt-arrow{padding:4px 7px;font-size:16px;width:28px!important;height:28px!important;flex-shrink:0}
-.tt-date{font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;line-height:1.2}
-.tt-sub{font-size:10px;color:var(--dim);line-height:1.2}
+/* ── TURNOS TABS Y PILLS — .main-tabs, .mtab, .tt-arrow, .tt-date, .tt-sub, .tp-week-nav, .tp-week-center, .tp-cal-icon → assets/styles/components.css ── */
 
 /* Fila 2: selector semana (izq) + acciones (dcha) */
 .turnos-pills{justify-content:space-between;gap:8px}
-/* Pill segmentada: el nav actúa como contenedor único con borde exterior */
-.tp-week-nav{display:flex;align-items:stretch;gap:0;background:var(--surf);border:1px solid var(--brd2);border-radius:var(--rad-pill);overflow:hidden;flex-shrink:0}
-body .tp-week-nav .wbtn{background:transparent;border:none;border-radius:0;width:32px;height:auto!important;align-self:stretch;flex-shrink:0}
-.tp-week-nav .wbtn:first-child{border-right:1px solid var(--brd2)}
-.tp-week-nav .wbtn:last-child{border-left:1px solid var(--brd2)}
-.tp-week-nav .wbtn:hover{background:var(--surf2)}
-.tp-week-center{display:flex;align-items:center;gap:6px;padding:6px 12px;cursor:pointer;user-select:none;transition:background .15s}
-.tp-week-center:hover{background:var(--surf2)}
-.tp-week-center:active{opacity:.75}
-.tp-cal-icon{font-size:14px;color:var(--acc);opacity:.8;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 20;flex-shrink:0}
 /* picker de semana → assets/lib/date-picker.js */
 .turnos-pills .tp-actions{margin-top:0;display:flex;align-items:center;gap:4px;flex-shrink:0}
 .tp-actions .tpill{flex:none;padding:7px 12px}
@@ -992,6 +975,18 @@ async function sbLoadTurnos(semanaInicio) {
   return data || [];
 }
 
+async function sbLoadEventos(desde, hasta) {
+  if (!_sb) { console.warn('sbLoadEventos: Supabase no disponible'); return []; }
+  const {data, error} = await _sb.from('eventos')
+    .select('*')
+    .eq('local_id', LOCAL_ID)
+    .gte('fecha', desde)
+    .lte('fecha', hasta)
+    .order('fecha');
+  if (error) { console.warn('sbLoadEventos:', error.message); return []; }
+  return data || [];
+}
+
 async function sbSaveTurno(turno) {
   if (!_sb) { console.warn('sbSaveTurno: Supabase no disponible'); return false; }
   const payload = {
@@ -1160,7 +1155,15 @@ async function sbBorrarTrabajadorDefinitivo(id) {
 
 /* ── CARGA DE SEMANA DESDE SUPABASE ── */
 async function loadWeekFromSupabase(semanaInicio) {
-  const filas = await sbLoadTurnos(semanaInicio);
+  const finDt = new Date(semanaInicio + 'T00:00:00Z');
+  finDt.setUTCDate(finDt.getUTCDate() + 6);
+  const semanaFin = finDt.toISOString().split('T')[0];
+
+  const [filas, filasEv] = await Promise.all([
+    sbLoadTurnos(semanaInicio),
+    sbLoadEventos(semanaInicio, semanaFin),
+  ]);
+
   const data = {
     sm: [[],[],[],[],[],[],[]],
     sn: [[],[],[],[],[],[],[]],
@@ -1174,7 +1177,31 @@ async function loadWeekFromSupabase(semanaInicio) {
     if (data[f.slot] && f.dia >= 0 && f.dia <= 6) data[f.slot][f.dia].push(str);
   });
   locals.galeria.data = data;
+
+  const inicioDt = new Date(semanaInicio + 'T00:00:00Z');
+  locals.galeria.eventos = filasEv
+    .map(f => ({
+      tipo: f.tipo || 'evento',
+      desc: f.descripcion || '',
+      dia: Math.round((new Date(f.fecha + 'T00:00:00Z') - inicioDt) / 86400000),
+      hora: f.hora || '—',
+      precio: f.precio || '',
+      img: f.img_url || null,
+    }))
+    .filter(e => e.dia >= 0 && e.dia <= 6)
+    .sort((a, b) => a.dia - b.dia);
+
   buildGrid(); renderW(); updateStats();
+  if (window.DatePicker) DatePicker.setEvents(eventosToPickerDates());
+}
+
+/* Convierte locals.galeria.eventos (dia relativo a curMonday) en [{date:'YYYY-MM-DD'}] para el DatePicker */
+function eventosToPickerDates() {
+  return (locals.galeria.eventos || []).map(ev => {
+    const d = new Date(curMonday + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + ev.dia);
+    return { date: d.toISOString().split('T')[0] };
+  });
 }
 
 /* ── /SUPABASE Fase 1 ── */
@@ -1261,10 +1288,7 @@ const locals={
       cm:[["Israel","Noemi","JL","Josep C"],["JL","Ruben","Noemi","Israel"],["Ruben","Noemi","Josep C","Israel"],["Israel","Ruben:8:30","Josep C","Noa C"],["JI","Noemi","Ruben","Israel"],["Josep C","JL","Ruben","Israel"],["Israel","Josep C","Ruben","JL"]],
       cn:[["Israel","Noemi","JL","Noa C"],["JL","Noemi","Ruben","Noa C"],["Ruben","Noa C","Josep C"],["Noa C","Josep C","Israel","JI"],["Ruben","JL","Josep C","Israel"],["Josep C","JL","Ruben","Israel"],["Noemi","JL","Josep C","Israel"]],
     },
-    eventos:[
-      {tipo:"cata",desc:"Cata Vinos Rioja",dia:3,hora:"20:30",precio:"100€ p.p.",img:null},
-      {tipo:"birthday",desc:"Cumpleaños grupo 8 pax",dia:5,hora:"14:00",precio:"",img:null},
-    ]
+    eventos:[] /* se rellena en loadWeekFromSupabase() con datos reales de la tabla eventos */
   },
   sala:{
     staff:[
@@ -1282,7 +1306,7 @@ const locals={
       cm:[["Miguel","Rosa"],["Rosa","Miguel"],["Miguel"],["Rosa","Miguel"],["Miguel","Rosa"],["Rosa","Miguel"],["Miguel","Rosa"]],
       cn:[["Rosa","Miguel"],["Miguel"],["Rosa","Miguel"],["Miguel","Rosa"],["Rosa"],["Miguel","Rosa"],["Rosa","Miguel"]],
     },
-    eventos:[{tipo:"menu",desc:"Menú especial degustación",dia:2,hora:"13:00",precio:"45€ p.p.",img:null}]
+    eventos:[] /* "sala" no tiene fuente Supabase propia todavía; sin eventos mock */
   }
 };
 
@@ -1334,9 +1358,13 @@ function buildGrid(){
   const dh=document.getElementById("day-headers");
   // Keep label corner cell, rebuild day headers
   dh.innerHTML=`<div class="row-label-corner"></div>`;
+  const todayStr=new Date().toISOString().split('T')[0];
   for(let d=0;d<7;d++){
-    const el=document.createElement("div");el.className="day-head"+(d===1?" today":"");
-    el.innerHTML=`<div class="dname">${DAYS_S[d]}</div><div class="dnum">${18+d}</div>${d===1?"<div class='today-dot'></div>":""}`;
+    const dayDate=new Date(curMonday+'T00:00:00Z');
+    dayDate.setUTCDate(dayDate.getUTCDate()+d);
+    const isToday=dayDate.toISOString().split('T')[0]===todayStr;
+    const el=document.createElement("div");el.className="day-head"+(isToday?" today":"");
+    el.innerHTML=`<div class="dname">${DAYS_S[d]}</div><div class="dnum">${dayDate.getUTCDate()}</div>${isToday?"<div class='today-dot'></div>":""}`;
     dh.appendChild(el);
   }
   const er=document.getElementById("ev-row");
@@ -1344,7 +1372,7 @@ function buildGrid(){
   for(let d=0;d<7;d++){
     const div=document.createElement("div");div.className="ev-day";
     L().eventos.filter(e=>e.dia===d).forEach(ev=>{
-      const b=document.createElement("div");b.className=`ev-badge ev-${ev.tipo}`;
+      const b=document.createElement("div");b.className="ev-badge";
       b.innerHTML=`<div class="ev-dot"></div><span style="overflow:hidden;text-overflow:ellipsis">${EV_NAMES[ev.tipo]}</span>`;
       b.onclick=()=>showEvDetail(ev);div.appendChild(b);
     });
@@ -1760,8 +1788,14 @@ function showEvDetail(ev){
 
 /* ── VISTA PERSONA ── */
 function buildPersonaHeader(){
+  const todayStr=new Date().toISOString().split('T')[0];
   let html=`<tr><th class="th-n">Trabajador</th>`;
-  for(let d=0;d<7;d++)html+=`<th class="th-dg${d===1?" tday":""}">${DAYS_S[d]}<br><b style="font-size:13px;color:${d===1?"var(--acc)":"var(--text)"}">${18+d}</b></th>`;
+  for(let d=0;d<7;d++){
+    const dayDate=new Date(curMonday+'T00:00:00Z');
+    dayDate.setUTCDate(dayDate.getUTCDate()+d);
+    const isToday=dayDate.toISOString().split('T')[0]===todayStr;
+    html+=`<th class="th-dg${isToday?" tday":""}">${DAYS_S[d]}<br><b style="font-size:13px;color:${isToday?"var(--acc)":"var(--text)"}">${dayDate.getUTCDate()}</b></th>`;
+  }
   html+=`<th class="th-tot">#</th></tr>`;
   document.getElementById("persona-thead").innerHTML=html;
 }
@@ -2023,6 +2057,7 @@ DatePicker.init({
   mode:'week',
   anchor:document.querySelector('.tp-week-center'),
   initialDate:curMonday,
+  events:eventosToPickerDates(),
   onChange:function(d){ _applyWeek(d); }
 });
 sbInitTrabajadores().then(()=>changeWeek(0)); /* carga diccionario nombre↔UUID, actualiza label y carga semana actual */
