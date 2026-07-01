@@ -1,0 +1,175 @@
+/* lagaleria_reservas.html — estilos específicos de la página.
+   Requiere: assets/styles/tokens.css, assets/styles/components.css (cargados antes). */
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;padding-bottom:80px}
+
+/* .main-tabs, .mtab, .zona-bar, .zpill* → assets/styles/components.css */
+
+/* TURNO sec-hdr labels */
+.sec-turno{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.date-nav{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 6px;gap:8px}
+/* .wbtn, .tt-arrow, .tt-date, .tt-sub, .tp-week-nav, .tp-week-center, .tp-cal-icon → assets/styles/components.css (DATE PILL) */
+.mesas-pill{display:flex;align-items:center;gap:6px;background:var(--acc-bg);border:1px solid var(--acc-bd);border-radius:20px;padding:7px 12px;cursor:pointer}
+.mesas-pill-num{font-size:13px;font-weight:700;color:var(--acc)}
+.mesas-pill-lbl{font-size:11px;color:var(--acc);opacity:.8}
+
+/* MESAS DETAIL — two columns */
+.mesas-detail{margin:0 14px 8px;background:var(--surf);border:1px solid var(--brd);border-radius:10px;overflow:hidden;display:none}
+.mesas-detail.show{display:block}
+.mz-cols{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--brd)}
+.mz-col-hdr{padding:7px 14px;font-size:10px;font-weight:700;color:var(--dim);letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid var(--brd)}
+.mz-col-hdr:first-child{border-right:1px solid var(--brd)}
+.mz-row{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--brd)}
+.mz-row:last-child{border-bottom:none}
+.mz-cell{padding:8px 14px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.mz-cell:first-child{border-right:1px solid var(--brd)}
+.mz-name{font-size:12px;font-weight:600;color:var(--txt);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mz-count{font-size:12px;font-weight:700;flex-shrink:0}
+
+/* SEC HDR — zona (nivel menor) */
+.sec-hdr{display:flex;align-items:center;gap:10px;padding:10px 14px 6px}
+.sec-line{flex:1;height:1px;background:var(--brd)}
+.sec-lbl{font-size:10px;font-weight:700;color:var(--dim);letter-spacing:1px;text-transform:uppercase;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.sec-badge{background:var(--surf);border:1px solid var(--brd2);color:var(--muted);border-radius:10px;font-size:11px;font-weight:700;padding:1px 7px}
+
+/* TURNO HDR — label flotante minimalista */
+.turno-hdr{padding:18px 14px 4px;display:flex;align-items:center;gap:8px}
+.turno-hdr-label{font-size:11px;font-weight:600;color:var(--dim);letter-spacing:.8px;text-transform:uppercase}
+.turno-hdr-badge{font-size:11px;font-weight:600;color:var(--faint)}
+
+/* RES CARD */
+.res-card{background:var(--surf);border:1px solid var(--brd);border-radius:10px;padding:10px 12px 10px 16px;margin:0 14px 8px;cursor:pointer;transition:border-color .2s;position:relative;overflow:hidden}
+.res-card:active{opacity:.85}
+.res-stripe{position:absolute;left:0;top:0;bottom:0;width:4px}
+.res-top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.res-name{font-size:13px;font-weight:700;color:var(--txt);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-badge{border-radius:10px;font-size:10px;font-weight:700;padding:2px 8px;flex-shrink:0}
+.res-meta{display:flex;flex-wrap:wrap;gap:6px 10px}
+.res-meta-item{font-size:11px;color:var(--muted)}
+
+/* ADD BTN */
+/* resto de .add-btn (display/padding/border/color/etc.) ya en components.css, idéntico — solo se necesita el margin */
+.add-btn{margin:4px 0}
+
+/* EMPTY STATE — shared component */
+.empty{text-align:center;padding:40px 20px 24px}
+.empty-icon{font-size:36px;margin-bottom:12px}
+.empty-title{font-size:15px;font-weight:700;color:var(--txt);margin-bottom:6px}
+.empty-sub{font-size:12px;color:var(--dim);line-height:1.5}
+.empty-action{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 22px;border-radius:10px;background:transparent;border:1.5px dashed var(--acc-bd);color:var(--acc);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+.empty-action:active{background:var(--acc-bg)}
+/* TAB FOOTER — shared add button wrapper */
+.tab-footer{padding:16px 14px 14px}
+
+/* TEL inline with call/wa buttons */
+.tel-inline{display:flex;align-items:center;gap:6px}
+.tel-inline .inp{flex:1;min-width:0}
+.tel-action-btn{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;text-decoration:none;flex-shrink:0;border:1px solid var(--brd2);background:var(--nav);cursor:pointer;transition:opacity .2s}
+.tel-action-btn:active{opacity:.7}
+.tel-action-btn.call{background:rgba(85,153,187,.12);border-color:rgba(85,153,187,.35);color:#5599bb}
+.tel-action-btn.wa{background:rgba(37,211,102,.1);border-color:rgba(37,211,102,.3);color:#25D366}
+
+/* OVERLAY / MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
+/* .overlay.show{display:flex} -> ya en components.css, idéntico */
+.modal{background:var(--nav);border:1px solid var(--brd2);border-radius:14px;padding:18px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto}
+/* .modal-hdr, .modal-title, .modal-sub -> ya en components.css, valores idénticos (15px===var(--fs-md), 11px===var(--fs-sm)) */
+.mclose{background:none;border:none;font-size:22px;color:var(--dim);cursor:pointer;line-height:1;padding:0 2px}
+
+/* FORM */
+.field{margin-bottom:10px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.inp{width:100%;background:var(--bg);border:1px solid var(--brd2);border-radius:8px;padding:9px 12px;color:var(--txt);font-size:13px;outline:none;appearance:none;-webkit-appearance:none}
+.inp:focus{border-color:var(--acc-bd)}
+select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237a8f96' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+/* revisar: posible duplicado de .btn-confirm en components.css (border-radius 8px vs var(--rad-md)=10px, margin-top:8px extra, sin transition) */
+.btn-confirm{background:var(--acc);border:none;border-radius:8px;padding:12px;width:100%;font-size:13px;font-weight:700;color:#1a1810;cursor:pointer;margin-top:8px}
+/* .btn-confirm:active{opacity:.85} -> ya en components.css, idéntico */
+/* revisar: posible duplicado de .btn-del en components.css (border-radius/padding/font-size/font-weight distintos, margin-top extra, sin transition) */
+.btn-del{background:transparent;border:1px solid var(--red-bd);border-radius:8px;padding:10px;width:100%;font-size:12px;font-weight:600;color:var(--red);cursor:pointer;margin-top:6px}
+
+/* DETAIL MODAL */
+.est-pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.est-pill{padding:6px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid transparent;transition:all .2s}
+.info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.info-box{background:var(--bg);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60px}
+.info-val{font-size:18px;font-weight:700;color:var(--acc);line-height:1.2}
+.info-lbl{font-size:10px;color:var(--dim);margin-top:3px}
+.tel-row{display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:8px;padding:10px 12px}
+.tel-num{font-size:13px;font-weight:600;color:var(--txt);flex:1}
+.tel-actions{display:flex;gap:8px}
+.tel-btn{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;text-decoration:none}
+.tel-btn:active{opacity:.7}
+.tel-call{background:rgba(85,153,187,.15);color:#5599bb}
+.tel-wa{background:rgba(37,211,102,.15);color:#25D366}
+
+/* STEPPER FIELD */
+.stepper-field{display:flex;align-items:center;gap:4px}
+.step-btn{width:36px;height:36px;flex-shrink:0;border-radius:8px;border:1px solid var(--brd2);background:var(--nav);color:var(--txt);font-size:20px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.step-btn:active{background:var(--brd2)}
+.step-inp{text-align:center;flex:1;min-width:0}
+/* hide number arrows */
+.step-inp::-webkit-inner-spin-button,.step-inp::-webkit-outer-spin-button{-webkit-appearance:none}
+.step-inp{-moz-appearance:textfield}
+
+/* ZONA PILLS in form */
+.zona-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.zona-pill{padding:7px 12px;border-radius:20px;border:1px solid var(--brd2);background:var(--surf);color:var(--dim);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap}
+.zona-pill.act{background:var(--acc-bg);border-color:var(--acc-bd);color:var(--acc)}
+
+/* ESTADO PILLS in detail and form — same component */
+.est-pills{display:flex;flex-wrap:wrap;gap:6px}
+.est-pill{padding:7px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid transparent;transition:all .2s}
+
+
+/* TOGGLE SWITCH */
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.switch-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.switch-lbl{font-size:13px;font-weight:600;color:var(--txt);white-space:nowrap}
+.switch-sub{font-size:10px;color:var(--dim)}
+.switch{position:relative;width:44px;height:24px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0;position:absolute}
+.switch-track{position:absolute;inset:0;background:var(--brd2);border-radius:12px;cursor:pointer;transition:background .2s}
+.switch input:checked+.switch-track{background:var(--acc)}
+.switch-track::after{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:var(--acc);border-radius:50%;transition:transform .2s,background .2s}
+.switch input:checked+.switch-track::after{transform:translateX(20px);background:var(--brd2)}
+
+/* NOMBRE + SWITCH inline row */
+.nombre-switch-row{display:flex;align-items:flex-end;gap:10px;margin-bottom:10px}
+.nombre-switch-row .field{flex:1;margin-bottom:0}
+.nombre-switch-row .switch-row{margin-bottom:0;padding-bottom:8px;flex-shrink:0}
+
+
+.emoji-opt.act{background:var(--acc-bg);border-color:var(--acc-bd);box-shadow:0 0 0 2px var(--acc-bd)}
+.emoji-opt:active{transform:scale(.9)}
+.emoji-expand-btn{display:flex;align-items:center;justify-content:center;gap:4px;width:100%;margin-top:6px;padding:5px;background:none;border:1px solid var(--brd2);border-radius:7px;font-size:11px;font-weight:600;color:var(--dim);cursor:pointer;transition:all .2s}
+.emoji-expand-btn:active{background:var(--surf)}
+.emoji-expand-chevron{display:inline-block;transition:transform .25s;font-style:normal}
+
+/* EVENTO CARD */
+.ev-card{background:var(--surf);border:1px solid var(--brd);border-radius:10px;margin:0 14px 8px;cursor:pointer;transition:opacity .2s;display:flex;align-items:center;gap:12px;padding:12px 14px}
+.ev-list-wrap{padding-top:10px}
+.ev-card:active{opacity:.75}
+.ev-card-icon{font-size:22px;flex-shrink:0;line-height:1}
+.ev-card-body{flex:1;min-width:0}
+.ev-card-name{font-size:13px;font-weight:700;color:var(--txt);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-card-meta{display:flex;flex-wrap:wrap;gap:3px 8px}
+.ev-card-meta span{font-size:11px;color:var(--muted)}
+.ev-card-zonas{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.ev-zona-tag{font-size:10px;font-weight:600;background:var(--red-bg);border:1px solid var(--red-bd);color:var(--red);border-radius:6px;padding:1px 7px}
+
+/* ASISTENTE ROW */
+.asi-row{display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:8px;padding:9px 12px;margin-bottom:6px;cursor:pointer}
+.asi-row:active{opacity:.8}
+.asi-info{flex:1;min-width:0}
+.asi-name{font-size:13px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asi-sub{font-size:11px;color:var(--dim);margin-top:1px}
+.asi-pago{font-size:11px;font-weight:700;flex-shrink:0;padding:3px 9px;border-radius:10px}
+
+/* CAPACITY WARNING */
+
+.cap-warn{display:none;align-items:center;gap:7px;background:rgba(180,130,0,.1);border:1px solid var(--amb-bd);border-radius:8px;padding:8px 11px;margin-top:-4px;margin-bottom:10px;font-size:11px;color:var(--amb);line-height:1.45}
+.cap-warn.show{display:flex}
+

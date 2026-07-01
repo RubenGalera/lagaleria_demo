@@ -213,16 +213,36 @@ reparto de turnos futuro.
   
   ###Log de mejoras por versión:
   
+ ##v0.2.8: Rediseño grid turnos
+  -  Columna izquierda de horas eliminada — grid ocupa ancho completo
+  - Etiquetas de hora/zona en la celda de Lunes de cada banda
+  - Fila de eventos dedicada encima de las fechas (desaparece si no hay eventos)
+  - Badges de evento: color rosa unificado, alineados correctamente
+  - Cabeceras de día: alineación top+center, altura compacta
+  - Gap general reducido, espacio negro entre bandas mínimo
+  - div.gap entre Sala y Cocina eliminado
+  - Leyenda inferior eliminada
+  - min-width 100px por columna con scroll horizontal en móvil
+  - Etiqueta de banda responsiva (SALA/COCINA visible siempre)
+
+
   ##v0.2.7: WeeekCalendar
-  - Eliminar el límite duro de navegación
-  - Picker de semana al pulsar el área central
-  - Diferenciar picker Week/Day y volverlo componente
-  - Añadir eventos al picker
-  
-  - Revisar diseño en Reservas para que se parezca al de Turnos
-  - El selector de días por separado (no semanal) 
-  - Actualizar números/dia de la semana en el grid de turnos (harcodeado)
-  - Actualizar eventos en el grid de turnos (harcodeado)
+  **Selector de semanas y DatePicker:
+  -  Límite duro de sem 26 eliminado — navegación libre por cualquier semana/año
+  -  Picker propio corporativo (fondo oscuro, tokens del proyecto) reemplazando el nativo del navegador
+  - Button group pill segmentado (‹ [centro] ›)
+  - Botón "Hoy", semana actual marcada, día de hoy con círculo
+  - assets/lib/date-picker.js — componente compartido modo week/day
+  - Integrado en lagaleria_turnos.html (modo week) y lagaleria_reservas.html (modo day)
+  - Dots de eventos rosa en el picker + leyenda
+  - Picker se cierra al cambiar de módulo
+
+  **Grid de Turnos:
+  - Cabeceras de día calculadas dinámicamente desde curMonday (ya no hardcodeadas)
+  - Badges de eventos desde Supabase (ya no mock)
+  - Badge muestra etiqueta del tipo (Cata, Cumpleaños, Menú especial, Evento)
+  - Badges alineados a la derecha
+  - Color unificado --color-event: #dc5096 (rosa) en tokens, badges y dots
   
   
   ##v0.2.6: Trabajadores: Toggle, Archivar, popup, otros
@@ -234,5 +254,17 @@ reparto de turnos futuro.
   -	Alertas unificadas en el grid (rojo, un solo icono)
   - Spinner de carga en ls_init()
   -	Logout de superadmin
-  -	Bug del splash tras logou
+  -	Bug del splash tras logout
+
+  ##v0.2.2: Base de datos
+  - Crear base de datos
+  - Conectar bd con proyecto
+  - limpiar archivos mockeados y harcodeados en el proyecto
+
+
+  ##v0.2.0: Modular
+  - Pasar de un sistema html monolitico a uno modular
+  - ir separando componentes y js independientes
+  - dividir fucniones comunes en js reutilizables
+  - Crear estilos unificados (tokens)
  
