@@ -1,5 +1,6 @@
 /* adminWorkers.js — Gestión de Trabajadores
-   Globals required: sbSaveTrabajador, sbDeleteTrabajador, showOv, closeOv,
+   Globals required: sbSaveTrabajador, sbArchivarTrabajador, sbBorrarTrabajadorDefinitivo,
+                     sbLoadTrabajadores, LOCAL_ID, _sb, showOv, closeOv, showConfirm,
                      openPreview (worker-modal), renderSkillsSummary (adminSkills),
                      showToast, toast */
 
@@ -32,6 +33,19 @@ function parse(raw){var p=raw.split(":");return{name:p[0].trim(),hour:p.length>1
 function getW(n){return L().staff.find(function(w){return w.name===n;})||null;}
 function cntT(name){var c=0;ROWS.forEach(function(r){L().data[r].forEach(function(d){if(d.some(function(n){return parse(n).name===name;}))c++;});});return c;}
 
+function _mapTrab(t){
+  return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,disponible:t.disponible!==false,visible:t.visible!==false,skills:{},unavailMed:[],unavailNoch:[],vacaciones:[],_sbId:t.id};
+}
+
+async function _syncTrab(){
+  if(typeof sbLoadTrabajadores==='function'){
+    var ts=await sbLoadTrabajadores();
+    if(ts) _trabWorkers=ts.map(_mapTrab);
+  }
+  renderTrabajadores();
+  loadArchivados();
+}
+
 function openTrabajadores(){
   document.getElementById('view-editar-list').style.display='none';
   document.getElementById('view-trabajadores').classList.add('active');
@@ -43,13 +57,7 @@ function closeTrabajadores(){
 }
 function renderTrabajadores(){
   var list=document.getElementById('trab-list');if(!list)return;
-  var staff=_trabWorkers;
-  try{
-    var frames=window.parent.document.querySelectorAll('iframe');
-    frames.forEach(function(f){
-      try{var loc=f.contentWindow&&f.contentWindow.L&&f.contentWindow.L();if(loc&&loc.staff&&loc.staff.length)_trabWorkers=staff=loc.staff;}catch(e){}
-    });
-  }catch(e){}
+  var staff = _trabWorkers.filter(function(w){ return w.activo !== false && w.visible !== false; });
   var h='';
   staff.forEach(function(w){
     var sec=w.sec==='sala'?'Sala':w.sec==='cocina'?'Cocina':'Ambos';
@@ -117,8 +125,96 @@ function saveWorker(name){
   var w=getW(name);if(!w)return;
   sbSaveTrabajador(w).catch(function(e){console.warn('[SB] saveWorker failed:',e);});
 }
-function deleteWorker(name){
-  var w=getW(name);
-  if(w) sbDeleteTrabajador(w._sbId||w.id).catch(function(e){console.warn('[SB] deleteWorker failed:',e);});
-  _trabWorkers=_trabWorkers.filter(function(x){return x.name!==name;});
+
+/* ── ARCHIVAR (soft delete) ── */
+function archiveWorker(name){
+  if(typeof closeOv==='function') closeOv('ov-preview');
+  showConfirm({
+    title: '¿Archivar trabajador?',
+    message: 'Este trabajador quedará en Trabajadores archivados con todo su historial intacto. Para eliminarlo definitivamente, accede a Trabajadores archivados.',
+    confirmLabel: 'Archivar',
+    onConfirm: async function(){
+      var w=getW(name);
+      if(w&&w._sbId&&typeof sbArchivarTrabajador==='function'){
+        var ok=await sbArchivarTrabajador(w._sbId);
+        if(!ok){if(typeof showToast==='function')showToast('Error al archivar — inténtalo de nuevo');return;}
+      }
+      if(typeof showToast==='function')showToast('Trabajador archivado ✓');
+      await _syncTrab();
+    },
+    onCancel: function(){ if(typeof openPreview==='function') openPreview(name); }
+  });
+}
+
+/* ── SECCIÓN ARCHIVADOS ── */
+function toggleArchivados(){
+  var list=document.getElementById('archived-list');
+  var chevron=document.getElementById('archived-chevron');
+  if(!list)return;
+  var open=list.style.display!=='none';
+  list.style.display=open?'none':'';
+  if(chevron)chevron.style.transform=open?'':'rotate(180deg)';
+  if(!open)loadArchivados();
+}
+
+async function loadArchivados(){
+  var list=document.getElementById('archived-list');
+  var countEl=document.getElementById('archived-count');
+  if(!list)return;
+  list.innerHTML='<div style="padding:16px;text-align:center;font-size:12px;color:var(--dim)">Cargando&#8230;</div>';
+  if(typeof _sb==='undefined'||!_sb){list.innerHTML='<div style="padding:16px;text-align:center;font-size:12px;color:var(--dim)">Sin conexión</div>';return;}
+  try{
+    var r=await _sb.from('trabajadores').select('id,nombre,seccion,tel,foto_url').eq('local_id',LOCAL_ID).eq('activo',false).order('nombre');
+    if(r.error)throw r.error;
+    var data=r.data||[];
+    if(countEl)countEl.textContent=data.length?'('+data.length+')':'';
+    if(!data.length){list.innerHTML='<div style="padding:16px;text-align:center;font-size:12px;color:var(--dim)">No hay trabajadores archivados</div>';return;}
+    var h='';
+    data.forEach(function(w){
+      var ini=w.nombre.split(' ').map(function(p){return p[0];}).join('').toUpperCase().slice(0,2);
+      var sec=(w.seccion||'');sec=sec.charAt(0).toUpperCase()+sec.slice(1);
+      var esc=function(s){return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");};
+      h+='<div class="zona-row" style="opacity:.75">'+
+         '<div class="trab-avatar" style="opacity:.5">'+ini+'</div>'+
+         '<div class="zona-info"><div class="zona-name">'+w.nombre+'</div>'+
+         '<div class="zona-sub">'+sec+'&nbsp;&middot;&nbsp;<span style="color:var(--dim)">Archivado</span></div></div>'+
+         '<div style="display:flex;gap:6px;flex-shrink:0;padding:0 4px">'+
+         '<button onclick="restaurarTrabajador(\''+w.id+'\',\''+esc(w.nombre)+'\')" style="padding:5px 10px;border-radius:7px;border:1px solid var(--acc-bd);background:var(--acc-bg);color:var(--acc);font-size:11px;font-weight:600;cursor:pointer">Restaurar</button>'+
+         '<button onclick="confirmarBorrarDefinitivo(\''+w.id+'\',\''+esc(w.nombre)+'\')" style="padding:5px 10px;border-radius:7px;border:1px solid var(--red-bd);background:var(--red-bg);color:var(--red);font-size:11px;font-weight:600;cursor:pointer">Borrar</button>'+
+         '</div></div>';
+    });
+    list.innerHTML=h;
+  }catch(e){
+    console.error('loadArchivados',e);
+    list.innerHTML='<div style="padding:16px;text-align:center;font-size:12px;color:var(--red)">Error al cargar archivados</div>';
+  }
+}
+
+async function restaurarTrabajador(id, name){
+  if(typeof _sb==='undefined'||!_sb)return;
+  try{
+    var r=await _sb.from('trabajadores').update({activo:true}).eq('id',id);
+    if(r.error)throw r.error;
+    if(typeof showToast==='function')showToast(name+' restaurado ✓');
+    await _syncTrab();
+  }catch(e){
+    if(typeof showToast==='function')showToast('Error al restaurar — '+(e.message||String(e)));
+  }
+}
+
+function confirmarBorrarDefinitivo(id, name){
+  showConfirm({
+    title: '¿Borrar definitivamente?',
+    message: '⚠️ Esto eliminará a '+name+' de forma permanente e irreversible, incluyendo toda su información y participación en turnos pasados.',
+    confirmLabel: 'Borrar definitivamente',
+    onConfirm: async function(){
+      if(typeof sbBorrarTrabajadorDefinitivo==='function'){
+        var ok=await sbBorrarTrabajadorDefinitivo(id);
+        if(!ok){if(typeof showToast==='function')showToast('Error al borrar — inténtalo de nuevo');return;}
+      }
+      if(typeof showToast==='function')showToast(name+' eliminado definitivamente');
+      await _syncTrab();
+    },
+    onCancel: null
+  });
 }

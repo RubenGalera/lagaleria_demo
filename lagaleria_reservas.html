@@ -798,6 +798,10 @@ function setTab(t){
   if(t==='ev')  renderEventos();
 }
 function goToSection(section){ setTab(section); }
+function resetView(){
+  setTab('res');
+  document.querySelectorAll('.overlay.show').forEach(function(m){m.classList.remove('show');});
+}
 
 /* ── DATE NAV ── */
 function initDay(){
@@ -1158,7 +1162,7 @@ let eventos = [
 function renderEventos(){
   const list=document.getElementById('ev-list');
   const empty=document.getElementById('ev-empty');
-  const dayEvs=eventos.filter(ev=>ev.fecha===curDay);
+  const dayEvs=eventos.filter(ev=>ev.fecha>=hoyStr()).sort((a,b)=>a.fecha.localeCompare(b.fecha)||(a.hora||'').localeCompare(b.hora||''));
   if(empty) empty.style.display=dayEvs.length?'none':'block';
   list.innerHTML=dayEvs.map(ev=>{
     const tipo=TIPOS_EVENTO[ev.tipo]||TIPOS_EVENTO.evento;

@@ -11,7 +11,7 @@ Rango de prioridad o urgencia:
 
 ---
 
-## 1. Navegación
+## 1. Navegación	
 
 	| 🟢 | Cuando navego por tabs, x ejemplo de admin/trabajadores a reservas y vuelvo a Admin, resetear el estado, no quiero volver a admin/trabajador, deberia mandarme a Admin/principal.
 	Igual que si estoy en Reservas/Eventos, cambio a Turnos, vuelvo a Reservas, me deja en Reservas/Eventos(la última donde estuve), quiero que la posicion cuando pulse en un tab sea la posicion x defecto.
@@ -30,7 +30,6 @@ Rango de prioridad o urgencia:
 	Justificar porque este campo o quitarlo para dejar espacio
 ** Card  Reservas hoy**
 	| 🟢 | Conectar la card de Reservas hoy, con las base de datos y devuelva zonas + disponibilidad de las mesas que hay para hoy en cada turno en la propia card (Creo que actualmente no está conectado a la base de datos real)
-	| 🟢 | El texto de la card dice Sin reservas hoy, en cuanto tengas una reserva para ese día, que cambie el texto ha Reservas programadas para hoy.
 	| 🟢 | Mantener la card desplegada y que al pulsar sobre ella, en vez ed plegar, desplegar, su funcion sea llevarte a Reservas/Reservas.
 
 ** Card Eventos hoy**
@@ -169,3 +168,65 @@ Preguntas a resolver cuando se aborde:
   alguien más lo cambió en el servidor mientras tanto?)
 - Indicador visual claro de "estás trabajando sin conexión" para que el equipo no
   asuma que algo se guardó cuando no fue así.
+  
+  ## Toggles de Visibilidad (Admin) y Disponibilidad (todos) en Trabajadores
+Prioridad: media — afecta a flujo de turnos y a la gestión diaria del equipo
+
+### Toggle "Visible" — exclusivo de Admin, en su propio perfil
+- Vive en el perfil propio del Admin (no en el modal que ve otro usuario) — cada Admin
+  solo puede ver y manipular SU PROPIO toggle, nadie accede al perfil de otro Admin.
+- Solo Admin lo tiene. Empleado/Encargado no ven esta opción.
+- Superadmin NUNCA tiene este toggle ni aparece en ningún listado/grid — su perfil es
+  de gestión pura, no de datos personales ni de trabajo. Estado fijo, no configurable.
+- Si un Admin desactiva "Visible":
+  - Desaparece del listado de Trabajadores (Admin/Trabajadores).
+  - Deja de poder asignarse a partir de ese momento, manual o automáticamente, al grid
+    de Turnos.
+  - Los turnos YA asignados antes de desactivarse NO se tocan — se quedan como están.
+- Si lo reactiva: vuelve a aparecer y a ser asignable con normalidad.
+
+### Toggle "Disponibilidad" — común a todos los trabajadores, en el modal de detalle
+- Ubicación: en el modal de trabajador (worker-modal.js, ya unificado), a la derecha
+  del badge 🟢 Activo, debajo/junto al botón de cerrar (X).
+- Visible para todos los trabajadores en su propio modal y en el modal que ve un Admin,
+  pero SOLO manipulable por Admin — un Empleado/Encargado no puede tocar su propio
+  toggle de disponibilidad.
+- Al desactivarlo: aparece un modal de confirmación ("Al deshabilitar esta opción, el
+  trabajador no aparecerá en la asignación de turnos" — botones Continuar/Cancelar).
+- Efecto tras confirmar:
+  - El badge cambia de "Activo" a "No disponible".
+  - Deja de ser asignable a partir de ese momento, manual o automáticamente.
+  - Sigue siendo visible en el listado de Trabajadores y en el grid de Turnos — esto
+    NO oculta a la persona, solo el toggle "Visible" (exclusivo de Admin) hace eso.
+  - Los turnos YA asignados antes de desactivarse NO se tocan.
+- Icono de alerta: si un trabajador está marcado como "no disponible" Y tiene turnos
+  asignados en el grid (cualquier semana, sin distinguir pasada/actual/futura — no se
+  guarda en qué momento se desactivó, por simplicidad), debe mostrarse un icono de
+  alerta junto a su nombre en el grid, igual patrón visual que la alerta ya existente
+  de exceso/falta de turnos. Sirve para detectar la incoherencia de un vistazo.
+
+### Diferencia clave entre ambos toggles
+"Visible" (solo Admin) = oculta a la persona de TODO. "Disponibilidad" (todos, solo
+editable por Admin) = la persona sigue visible en todos lados, pero queda fuera del
+reparto de turnos futuro.
+  
+  
+  v0.2.6: (fixes hechos) Seguir trabajandolo
+  
+  ### lagaleria_inicio.html 
+  ** Card  Reservas hoy**
+  	| 🟢 | El texto de la card dice Sin reservas hoy, en cuanto tengas una reserva para ese día, que cambie el texto ha Reservas programadas para hoy
+	
+** Card Eventos hoy**
+	| 🟢 | En la descripcion de la card, debe poner Sin eventos programados para hoy o El nombre delos eventos programado para hoy. Cuando pulse que me lleve directamente al iframe Reservas/Eventos.
+	| 🟢 | Conectar eventos Eventos con la base de datos, el cuadrado de la derecha marca -  si no hay eventos hoy. Un número si hay uno o varios eventos.
+	 
+** Card Stock**
+	| 🟢 | Texto: Debe poner, sin productos bajo mínimos. Si tienes algun producto bajo minimos o agotado: Tienes varios productos apunto de agotarse. A la derecha eñ cuadrado de color te muestra con un numero la cantidad de productos apunto de agotarse,
+	color ambar si estan bajo minimos o rojo si hay alguno agotado o casi agotado (mitad o inferior del minimo establecido (Consultar algoritmo de stock por color). Al pulsar: te lleva a Stock/Pedido
+
+** Card Turnos planificados**
+	| 🟢 |Comprueba si los turnos de la semana siguiente están planificados y si están todos los slots cubiertos. En la caja de color poner un check(como está ahora) o un warning si no está hecho. Todos los lunes se activa y renueva esta card, para la semana siguiente.
+	
+** Card Eventos esta semana**
+	| 🟢 | Conectar con la base de datos, en el cuadrado de la derecha numero de los eventos que hay esta semana programados. Texto: Sin eventos esta semana o si hay un evento: Próximo evento: "Nombre del evento" "Mié 23:20". Pulsar: te lleva a Reservas/Eventos.

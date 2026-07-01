@@ -149,6 +149,7 @@ function renderTab(tab) {
 
 function setTab(tab) { renderTab(tab) }
 function goToSection(section){ if(typeof setTab==='function') setTab(section); }
+function resetView(){ setTab('inv'); }
 
 function setCat(cat, button) {
   activeCat = cat

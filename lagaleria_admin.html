@@ -435,6 +435,13 @@ input[type=file]{display:none}
       <span style="width:52px"></span>
     </div>
     <div class="zona-list" id="trab-list"></div>
+    <div id="archived-section" style="border-top:1px solid var(--brd);margin-top:4px">
+      <div onclick="toggleArchivados()" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;user-select:none">
+        <span style="font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.6px">Archivados <span id="archived-count" style="font-weight:400;color:var(--faint)"></span></span>
+        <svg id="archived-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--faint);transition:transform .2s"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div id="archived-list" style="display:none"></div>
+    </div>
   </div>
 
   <!-- ── SUB-VISTA: WeekConfig ── -->
@@ -557,7 +564,7 @@ input[type=file]{display:none}
 <div id="mock-badge" style="display:none;position:fixed;bottom:72px;right:12px;background:#2a3a2a;border:1px solid rgba(74,154,90,.35);color:#4a9a5a;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;z-index:150;letter-spacing:.4px;pointer-events:none">⬡ MOCK LOCAL</div>
 
 <!-- TOAST -->
-<div id="_toast" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a2f3a;border:1px solid var(--brd2);color:var(--txt);padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap"></div>
+<div id="_toast" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a2f3a;border:1px solid var(--brd2);color:var(--txt);padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;z-index:400;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap"></div>
 
 <!-- MODAL producto -->
 <div class="modal-overlay" id="st-modal-prod" onclick="if(event.target===this)stHideModal()">
@@ -686,15 +693,15 @@ input[type=file]{display:none}
   </div>
 </div>
 
-<!-- OVERLAY: Confirmar eliminación -->
+<!-- OVERLAY: Confirmar acción -->
 <div class="modal-overlay" id="ov-confirm">
   <div class="confirm-modal">
     <div style="font-size:32px;margin-bottom:12px">&#9888;&#65039;</div>
-    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">¿Eliminar?</div>
+    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px" id="confirm-title">¿Confirmar?</div>
     <div style="font-size:13px;color:var(--dim);line-height:1.5;margin-bottom:16px" id="confirm-body"></div>
     <div style="display:flex;gap:12px;justify-content:center">
-      <button class="mbtn-c" onclick="closeOv('ov-confirm');showOv('ov-preview')">Cancelar</button>
-      <button class="mbtn-d" onclick="doDeleteWorker()">Sí, eliminar</button>
+      <button class="mbtn-c" onclick="closeOv('ov-confirm')">Cancelar</button>
+      <button class="mbtn-d">Confirmar</button>
     </div>
   </div>
 </div>
@@ -846,12 +853,22 @@ async function sbSaveTrabajador(t){
   }catch(e){ console.error('sbSaveTrabajador',e); return false; }
 }
 
-async function sbDeleteTrabajador(id){
+async function sbArchivarTrabajador(id){
   try{
     const {error} = await _sb.from('trabajadores').update({activo:false}).eq('id',id);
     if(error) throw error;
     return true;
-  }catch(e){ console.error('sbDeleteTrabajador',e); return false; }
+  }catch(e){ console.error('sbArchivarTrabajador',e); return false; }
+}
+
+async function sbBorrarTrabajadorDefinitivo(id){
+  try{
+    const {error} = await _sb.from('trabajadores').delete().eq('id',id);
+    if(error) throw error;
+    /* Limpieza del avatar en Storage (best-effort) */
+    try{ await Promise.all(['jpg','png'].map(function(ext){ return _sb.storage.from('avatares').remove([id+'.'+ext]); })); }catch(se){}
+    return true;
+  }catch(e){ console.error('sbBorrarTrabajadorDefinitivo',e); return false; }
 }
 
 async function sbLoadSkills(){
@@ -899,7 +916,7 @@ async function initSupabase(){
   if(zonas.length) window._sbZonas = zonas;
   if(trabajadores.length){
     _trabWorkers = trabajadores.map(function(t){
-      return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,skills:{},unavailMed:[],unavailNoch:[],vacaciones:[],_sbId:t.id};
+      return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,visible:t.visible!==false,skills:{},unavailMed:[],unavailNoch:[],vacaciones:[],_sbId:t.id};
     });
   }
   if(skills.length) window._sbSkills = skills;
@@ -910,12 +927,14 @@ async function initSupabase(){
 
 /* CONFIRM MODAL */
 function showConfirm(opts){
-  var body   = document.getElementById('confirm-body');
-  var btnOk  = document.querySelector('#ov-confirm .mbtn-d');
-  var btnCan = document.querySelector('#ov-confirm .mbtn-c');
+  var titleEl = document.getElementById('confirm-title');
+  var body    = document.getElementById('confirm-body');
+  var btnOk   = document.querySelector('#ov-confirm .mbtn-d');
+  var btnCan  = document.querySelector('#ov-confirm .mbtn-c');
   if(!body || !btnOk || !btnCan) return;
+  if(titleEl) titleEl.textContent = opts.title || '¿Confirmar?';
   body.textContent = opts.message || '¿Confirmar acción?';
-  btnOk.textContent = opts.confirmLabel || 'Sí, eliminar';
+  btnOk.textContent = opts.confirmLabel || 'Confirmar';
   btnOk.onclick = function(){ closeOv('ov-confirm'); if(typeof opts.onConfirm === 'function') opts.onConfirm(); };
   btnCan.onclick = function(){ closeOv('ov-confirm'); if(typeof opts.onCancel === 'function') opts.onCancel(); };
   showOv('ov-confirm');
@@ -1002,6 +1021,11 @@ function removeHoraRow(btn){var row=btn?btn.closest('.hora-row'):null;if(row)row
 function showOv(id){var el=document.getElementById(id);if(el)el.classList.add("show");else console.error("showOv: not found #"+id);}
 function closeOv(id){var el=document.getElementById(id);if(el)el.classList.remove("show");}
 document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{if(e.target===o)o.classList.remove("show");}));
+function resetView(){
+  ['view-zonas','view-skills','view-trabajadores','view-weekconfig','view-stock-admin'].forEach(function(v){var e=document.getElementById(v);if(e)e.classList.remove('active');});
+  var el=document.getElementById('view-editar-list');if(el)el.style.display='';
+  document.querySelectorAll('.overlay.show,.modal-overlay.show').forEach(function(m){m.classList.remove('show');});
+}
 buildGrid();renderW();updateStats();
 
 /* PHOTO HANDLER */
@@ -1012,16 +1036,7 @@ var _pi=document.getElementById("photo-input");if(_pi)_pi.addEventListener("chan
   reader.readAsDataURL(file);this.value="";_photoTarget=null;
 });
 
-/* WORKER CONFIRM AND DELETE */
-function confirmDelete(){
-  document.getElementById("confirm-body").textContent=`Vas a eliminar a ${_previewName} de la plantilla. Esta acción es permanente.`;
-  closeOv("ov-preview");showOv("ov-confirm");
-}
-function doDeleteWorker(){
-  const idx=L().staff.findIndex(w=>w.name===_previewName);if(idx>-1)L().staff.splice(idx,1);
-  ROWS.forEach(r=>L().data[r].forEach((d,i)=>{L().data[r][i]=d.filter(n=>parse(n).name!==_previewName);}));
-  closeOv("ov-confirm");buildGrid();renderTrabajadores();renderW();updateStats();
-}
+/* WORKER ARCHIVE — handled by archiveWorker() in adminWorkers.js */
 
 let _addRow="",_addCol=0;
 

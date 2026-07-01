@@ -274,6 +274,7 @@ body{
 .switch-track:before{content:'';position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
 .switch input:checked + .switch-track{background:var(--acc)}
 .switch input:checked + .switch-track:before{transform:translateX(18px)}
+.switch input:disabled + .switch-track{opacity:.4;cursor:not-allowed}
 .nombre-switch-row{display:flex;align-items:flex-end;gap:10px;margin-bottom:10px}
 .nombre-switch-row .field{flex:1;margin-bottom:0}
 .switch-row{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;padding-bottom:2px}
@@ -420,6 +421,8 @@ body{
 .splash-logo{display:flex;flex-direction:column;align-items:center;gap:14px}
 .splash-mark{font-size:80px;font-family:Georgia,serif;color:var(--acc);line-height:1;font-weight:700}
 .splash-sub{font-size:10px;letter-spacing:3px;color:var(--dim);text-transform:uppercase}
+#ls-loading-ring{width:34px;height:34px;border-radius:50%;border:2.5px solid rgba(197,166,105,.18);border-top-color:var(--acc);margin-top:32px;animation:lg-spin .75s linear infinite}
+@keyframes lg-spin{to{transform:rotate(360deg)}}
 .ls-header{width:100%;text-align:center;margin-bottom:28px;position:relative;display:flex;flex-direction:column;align-items:center}
 .ls-logo-small{font-size:36px;font-family:Georgia,serif;color:var(--acc);font-weight:700;margin-bottom:14px}
 .ls-title{font-size:20px;font-weight:700;color:var(--txt);margin-bottom:6px}
@@ -462,6 +465,7 @@ footer#app-footer{
       <div class="splash-mark">G</div>
       <div class="splash-sub">— gesti&#243;n de equipos —</div>
     </div>
+    <div id="ls-loading-ring" style="display:none"></div>
   </div>
   <div id="ls-tel" class="ls-step" style="display:none">
     <div class="ls-header">
@@ -802,7 +806,7 @@ async function sbVerifyLogin(tel, pin){
   try{
     const telClean = tel.replace(/\s/g,'').replace('+34','');
     const {data,error} = await _sb.from('trabajadores')
-      .select('id, nombre, seccion, tel, prioridad')
+      .select('id, nombre, seccion, tel, prioridad, foto_url, visible')
       .eq('local_id', LOCAL_ID)
       .ilike('tel', '%'+telClean+'%')
       .eq('activo', true)
@@ -818,6 +822,9 @@ async function sbVerifyLogin(tel, pin){
         rol:      'empleado', /* TODO: leer de usuario_local cuando haya auth */
         localId:  LOCAL_ID,
         _sbId:    data.id,
+        tel:      data.tel || '',
+        foto_url: data.foto_url || null,
+        visible:  data.visible !== false,
       };
     }
   }catch(e){ console.error('sbVerifyLogin',e); }
@@ -883,6 +890,11 @@ function applySession(profile, remember){
     initials: profile.initials,
     rol:      profile.rol,
     localId:  profile.localId,
+    _sbId:    profile._sbId   || null,
+    tel:      profile.tel     || '',
+    email:    profile.email   || '',
+    foto_url: profile.foto_url || null,
+    visible:  profile.visible !== false,
   };
 
   var avatarBtn = document.getElementById('header-avatar');
@@ -941,7 +953,7 @@ function doLogout(){
   ls.style.display = 'flex';
   ls.style.opacity = '0';
   app.classList.remove('show');
-  setTimeout(function(){ ls.classList.remove('hide'); ls.style.opacity = ''; }, 50);
+  setTimeout(function(){ ls.classList.remove('hide'); ls.style.opacity = ''; ls_show('ls-tel'); }, 50);
 }
 
 /* ══════════════════════════════
@@ -990,6 +1002,7 @@ function goTo(page){
   var bn = document.getElementById('bnav-'+page);
   if(fr) fr.classList.add('active');
   if(bn) bn.classList.add('active');
+  try{ if(fr && fr.contentWindow && fr.contentWindow.resetView) fr.contentWindow.resetView(); }catch(e){}
 }
 
 var _hsiDimTimer = null;
@@ -1175,7 +1188,9 @@ function toggleEmojiGrid(){
 
 
 /* ══ MI PERFIL ══ */
+var _prf_dirtyFields = {};
 function prf_openModal(){
+  _prf_dirtyFields = {};
   var u=currentUser||{};
   var isAdmin=u.rol==='admin';
   var nameEl=document.getElementById('prf-mp-name');
@@ -1185,18 +1200,35 @@ function prf_openModal(){
   var initEl=document.getElementById('prf-mp-initials');
   var nameBtn=document.getElementById('prf-mp-name-btn');
   var nameField=document.getElementById('prf-name-field');
-  if(nameEl){nameEl.value=u.nombre||'';nameEl.readOnly=!isAdmin;}
-  if(emailEl){emailEl.value=u.email||'';emailEl.readOnly=false;emailEl.oninput=function(){prf_markDirty(true);};}
-  if(telEl)telEl.value=u.tel||'';
+  if(nameEl){nameEl.value=u.nombre||'';nameEl.readOnly=!isAdmin;
+    if(isAdmin)nameEl.oninput=function(){_prf_dirtyFields.nombre=true;prf_markDirty(true);};}
+  if(emailEl){emailEl.value=u.email||'';emailEl.readOnly=false;
+    emailEl.oninput=function(){_prf_dirtyFields.email=true;prf_markDirty(true);};}
+  if(telEl){telEl.value=u.tel||'';
+    telEl.oninput=function(){_prf_dirtyFields.tel=true;prf_markDirty(true);};}
   if(rolEl)rolEl.textContent=typeof rolLabel==='function'?rolLabel(u.rol):(u.rol||'');
   if(initEl){var p=(u.nombre||'').split(' ');initEl.textContent=p.length>1?(p[0][0]+p[1][0]).toUpperCase():(u.nombre||'?')[0].toUpperCase();}
   if(nameBtn)nameBtn.style.display=isAdmin?'':'none';
   if(nameField)nameField.classList.toggle('prf-mp-field-ro',!isAdmin);
-  var saved=u.email?localStorage.getItem('prf_photo_'+u.email):null;
+  var visField=document.getElementById('prf-mp-visible-field');
+  var visChk=document.getElementById('prf-mp-visible');
+  var visHint=document.getElementById('prf-mp-visible-hint');
+  if(visField){
+    visField.style.display=isAdmin?'':'none';
+    if(isAdmin&&visChk){
+      visChk.checked=u.visible!==false;
+      if(u._sbId){
+        visChk.disabled=false;
+        if(visHint)visHint.textContent='Aparece en Admin/Trabajadores y puede recibir turnos';
+      }else{
+        visChk.disabled=true;
+        if(visHint)visHint.textContent='No disponible para esta cuenta';
+      }
+    }
+  }
+  var saved=u.foto_url||(u.email?localStorage.getItem('prf_photo_'+u.email):null);
   prf_setPhoto(saved||null);
   prf_markDirty(false);
-  var fields=isAdmin?['prf-mp-name','prf-mp-tel']:['prf-mp-tel'];
-  fields.forEach(function(id){var el=document.getElementById(id);if(el)el.oninput=function(){prf_markDirty(true);};});
   showModal('ov-miperfil');
 }
 function prf_markDirty(dirty){var btn=document.getElementById('prf-mp-save');if(btn)btn.classList.toggle('dirty',dirty);}
@@ -1214,32 +1246,126 @@ function prf_setPhoto(dataUrl){
     if(delBtn) delBtn.style.display='none';
   }
 }
-function prf_deletePhoto(){
+function _prf_dataUrlToBlob(dataUrl){
+  var arr=dataUrl.split(','),mime=arr[0].match(/:(.*?);/)[1];
+  var bstr=atob(arr[1]),n=bstr.length,u8=new Uint8Array(n);
+  while(n--)u8[n]=bstr.charCodeAt(n);
+  return new Blob([u8],{type:mime});
+}
+function _prf_syncSession(){
+  var s=JSON.stringify(currentUser);
+  try{localStorage.setItem('lg_session',s);}catch(ex){}
+  try{if(localStorage.getItem(LS_KEY))localStorage.setItem(LS_KEY,s);}catch(ex){}
+}
+async function prf_deletePhoto(){
   prf_setPhoto(null);
   try{ localStorage.removeItem('prf_photo_'+(currentUser&&currentUser.email||'')); }catch(e){}
-  prf_markDirty(true);
+  if(currentUser&&currentUser._sbId&&_sb){
+    try{
+      var res=await _sb.from('trabajadores').update({foto_url:null}).eq('id',currentUser._sbId);
+      if(res.error)throw res.error;
+      currentUser.foto_url=null;
+      _prf_syncSession();
+    }catch(e){
+      toast('Error al quitar foto: '+(e.message||String(e)));
+    }
+  }
 }
 function prf_triggerPhoto(){
   var input=document.getElementById('prf-photo-input');if(!input)return;
   input.onchange=function(){
     var file=input.files[0];if(!file)return;
     var reader=new FileReader();
-    reader.onload=function(e){prf_setPhoto(e.target.result);prf_markDirty(true);};
+    reader.onload=function(e){prf_setPhoto(e.target.result);_prf_dirtyFields.foto=true;prf_markDirty(true);};
     reader.readAsDataURL(file);input.value='';
   };
   input.click();
 }
-function prf_saveProfile(){
+async function prf_saveProfile(){
   var name=(document.getElementById('prf-mp-name').value||'').trim();
   var tel=(document.getElementById('prf-mp-tel').value||'').trim();
-  if(!name){toast('El nombre no puede estar vacío');return;}
-  currentUser.nombre=name;currentUser.tel=tel;
-  var img=document.getElementById('prf-mp-img');
-  if(img&&img.src&&img.style.display!=='none')localStorage.setItem('prf_photo_'+(currentUser.email||''),img.src);
-  var parts=name.split(' ');
-  var ini=parts.length>1?(parts[0][0]+parts[1][0]).toUpperCase():name[0].toUpperCase();
-  var av=document.getElementById('header-avatar');if(av)av.textContent=ini;
-  prf_markDirty(false);toast('Perfil actualizado');
+  var email=(document.getElementById('prf-mp-email').value||'').trim();
+  if(_prf_dirtyFields.nombre&&!name){toast('El nombre no puede estar vacío');return;}
+  var payload={};
+  if(_prf_dirtyFields.nombre) payload.nombre=name;
+  if(_prf_dirtyFields.tel) payload.tel=tel||null;
+  var hasFoto=!!_prf_dirtyFields.foto;
+  if(!Object.keys(payload).length&&!hasFoto){closeModal('ov-miperfil');return;}
+  var saveBtn=document.getElementById('prf-mp-save');
+  if(saveBtn)saveBtn.disabled=true;
+  if(currentUser._sbId&&_sb){
+    if(Object.keys(payload).length){
+      try{
+        var res=await _sb.from('trabajadores').update(payload).eq('id',currentUser._sbId);
+        if(res.error)throw res.error;
+      }catch(e){
+        toast('Error al guardar: '+(e.message||String(e)));
+        if(saveBtn)saveBtn.disabled=false;
+        return;
+      }
+    }
+    if(hasFoto){
+      var img=document.getElementById('prf-mp-img');
+      if(img&&img.src&&img.style.display!=='none'&&img.src.startsWith('data:')){
+        try{
+          var blob=_prf_dataUrlToBlob(img.src);
+          var ext=blob.type==='image/png'?'png':'jpg';
+          var path=currentUser._sbId+'.'+ext;
+          var upRes=await _sb.storage.from('avatares').upload(path,blob,{upsert:true,contentType:blob.type});
+          if(upRes.error)throw upRes.error;
+          var urlRes=_sb.storage.from('avatares').getPublicUrl(path);
+          var photoUrl=urlRes.data&&urlRes.data.publicUrl?urlRes.data.publicUrl+'?t='+Date.now():null;
+          if(photoUrl){
+            await _sb.from('trabajadores').update({foto_url:photoUrl}).eq('id',currentUser._sbId);
+            currentUser.foto_url=photoUrl;
+          }
+        }catch(photoErr){
+          toast('Foto no guardada: '+(photoErr.message||String(photoErr)));
+        }
+      }
+    }
+  }
+  if(saveBtn)saveBtn.disabled=false;
+  if(_prf_dirtyFields.nombre){
+    currentUser.nombre=name;
+    var parts=name.split(' ');
+    currentUser.initials=parts.length>1?(parts[0][0]+parts[1][0]).toUpperCase():name[0].toUpperCase();
+  }
+  if(_prf_dirtyFields.tel) currentUser.tel=tel;
+  if(_prf_dirtyFields.email) currentUser.email=email;
+  _prf_dirtyFields={};
+  _prf_syncSession();
+  var av=document.getElementById('header-avatar');if(av)av.textContent=currentUser.initials;
+  prf_markDirty(false);
+  closeModal('ov-miperfil');
+  toast('Perfil actualizado ✓');
+}
+
+/* ── Toggle "Visible en panel de trabajadores" — guardado inmediato, igual que disponible ── */
+async function toggleMiVisibilidad(el){
+  if(!currentUser||!currentUser._sbId||!_sb){ el.checked=!el.checked; return; }
+  var val=!!el.checked;
+  var prev=currentUser.visible;
+  currentUser.visible=val;
+  _prf_syncSession();
+  try{
+    var res=await _sb.from('trabajadores').update({visible:val}).eq('id',currentUser._sbId);
+    if(res.error)throw res.error;
+    toast(val?'Ahora eres visible en el panel de trabajadores':'Ya no eres visible en el panel de trabajadores');
+    try{
+      var frAdmin=document.getElementById('fr-admin');
+      if(frAdmin&&frAdmin.contentWindow&&typeof frAdmin.contentWindow._syncTrab==='function') frAdmin.contentWindow._syncTrab();
+    }catch(e){}
+    try{
+      var frTurnos=document.getElementById('fr-turnos');
+      if(frTurnos&&frTurnos.contentWindow&&typeof frTurnos.contentWindow.sbInitTrabajadores==='function') frTurnos.contentWindow.sbInitTrabajadores();
+    }catch(e){}
+  }catch(e){
+    el.checked=prev!==false;
+    currentUser.visible=prev;
+    _prf_syncSession();
+    toast('Error al guardar: '+(e.message||String(e)));
+  }
 }
 
 /* ══ NOTIFICACIONES ══ */
@@ -1455,7 +1581,14 @@ function ls_init(){
   /* Restaurar sesión guardada — DOM ya está listo aquí */
   try{
     var saved = localStorage.getItem(LS_KEY);
-    if(saved){ applySession(JSON.parse(saved)); return; }
+    if(saved){
+      var cached = JSON.parse(saved);
+      /* Mostrar spinner mientras se verifica con Supabase */
+      var ring = document.getElementById('ls-loading-ring');
+      if(ring) ring.style.display = '';
+      ls_refreshAndApply(cached);
+      return;
+    }
   }catch(e){}
   /* Sin sesión — mostrar login normal */
   try{
@@ -1463,6 +1596,46 @@ function ls_init(){
     if(savedTel){ var el=document.getElementById('l-tel'); if(el){ el.value=savedTel; ls_onTelInput(el); } }
   }catch(e){}
   setTimeout(function(){ ls_show('ls-tel'); }, 1500);
+}
+async function ls_refreshAndApply(cached){
+  var ring = document.getElementById('ls-loading-ring');
+  function hideRing(){ if(ring) ring.style.display = 'none'; }
+  var sbId = cached && cached._sbId;
+  if(!sbId || !_sb){ hideRing(); applySession(cached); return; }
+  try{
+    var result = await Promise.race([
+      _sb.from('trabajadores')
+        .select('id, nombre, seccion, tel, prioridad, foto_url, visible')
+        .eq('id', sbId)
+        .maybeSingle(),
+      new Promise(function(resolve){
+        setTimeout(function(){ resolve({data:null,error:{message:'timeout'}}); }, 5000);
+      })
+    ]);
+    hideRing();
+    if(result.error || !result.data){
+      toast('Sin conexión — usando datos de la última sesión');
+      applySession(cached);
+      return;
+    }
+    var d = result.data;
+    var fresh = {
+      nombre:   d.nombre,
+      initials: d.nombre.split(' ').map(function(n){return n[0];}).join('').toUpperCase().slice(0,2),
+      rol:      cached.rol      || 'empleado',
+      localId:  cached.localId  || LOCAL_ID,
+      _sbId:    d.id,
+      tel:      d.tel      || '',
+      email:    cached.email || '',
+      foto_url: d.foto_url || null,
+      visible:  d.visible  !== false,
+    };
+    applySession(fresh);
+  }catch(e){
+    hideRing();
+    toast('Sin conexión — usando datos de la última sesión');
+    applySession(cached);
+  }
 }
 function ls_show(id){
   ['ls-splash','ls-tel','ls-pin'].forEach(function(s){
@@ -1707,6 +1880,13 @@ function inv_sendWhatsApp(workerName, workerTel){
         <label class="prf-mp-lbl">Rol</label>
         <div class="prf-mp-rol-badge" id="prf-mp-rol">&#11088; Admin</div>
       </div>
+      <div class="prf-mp-field" id="prf-mp-visible-field" style="display:none">
+        <label class="prf-mp-lbl">Visible en panel de trabajadores</label>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <span class="prf-mp-hint" id="prf-mp-visible-hint" style="margin:0">Aparece en Admin/Trabajadores y puede recibir turnos</span>
+          <label class="switch"><input type="checkbox" id="prf-mp-visible" checked onchange="toggleMiVisibilidad(this)"><span class="switch-track"></span></label>
+        </div>
+      </div>
     </div>
     <div style="padding:14px 18px 20px;flex-shrink:0">
       <button class="prf-mp-save" id="prf-mp-save" onclick="prf_saveProfile()">Guardar cambios</button>
@@ -1799,7 +1979,13 @@ function inv_sendWhatsApp(workerName, workerTel){
           </div>
           <span class="prf-arrow">›</span>
         </div>
-        
+        <div class="prf-row" onclick="doLogout()" style="padding:12px 0">
+          <div class="prf-icon pi-red" style="width:34px;height:34px;border-radius:9px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </div>
+          <div style="flex:1;margin-left:12px"><div class="prf-label" style="color:var(--red)">Cerrar sesión</div></div>
+        </div>
+
       </div>
 
     </div>

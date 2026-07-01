@@ -87,7 +87,7 @@ body{display:flex;flex-direction:column}
 
   <div class="dash-sec-lbl">Hoy</div>
 
-  <div class="dash-proxima" id="dash-proxima-wrap" onclick="navTo('reservas')" style="cursor:pointer">
+  <div class="dash-proxima" id="dash-proxima-wrap" onclick="navTo('reservas','res')" style="cursor:pointer">
     <div class="dash-prox-lbl">⏰ Próxima reserva</div>
     <div class="dash-prox-row">
       <div>
@@ -189,6 +189,7 @@ body{display:flex;flex-direction:column}
 var SUPA_URL = 'https://nnmaedehqeeogmhzqzji.supabase.co';
 var SUPA_KEY = 'sb_publishable_spxukgcwMf-VFre7l_E68g_tWatBs9X';
 
+/* ── Auth helpers ─────────────────────────────────────────────────────── */
 function getAuthToken(){
   try{
     var p = window.parent;
@@ -211,6 +212,7 @@ function supaFetch(path, opts){
   return fetch(SUPA_URL + path, Object.assign({}, opts, { headers: headers }));
 }
 
+/* ── Init ─────────────────────────────────────────────────────────────── */
 var rol = 'admin';
 var localId = null;
 
@@ -260,6 +262,7 @@ async function fetchReservasHoy(){
   }catch(e){ /* silencioso */ }
 }
 
+/* ── Navegación entre iframes ─────────────────────────────────────────── */
 function navTo(page, section){
   try{
     window.parent.goTo(page);
@@ -279,6 +282,7 @@ function navTo(page, section){
 window.addEventListener('load', function(){ initFromParent(); setTimeout(initDashboard, 300); });
 window.refreshInicio = initFromParent;
 
+/* ── Helpers locales ──────────────────────────────────────────────────── */
 var _trabWorkers = [];
 function L(){return{staff:_trabWorkers,data:{sm:[[],[],[],[],[],[],[]],sn:[[],[],[],[],[],[],[]],cm:[[],[],[],[],[],[],[]],cn:[[],[],[],[],[],[],[]]},eventos:[]};}
 
@@ -295,6 +299,7 @@ function toggleDashDispo(el){
   if(chev)chev.classList.toggle('open');
 }
 
+/* ── Dashboard — orquestador ──────────────────────────────────────────── */
 async function initDashboard(){
   var d=new Date();
   var dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
@@ -306,8 +311,19 @@ async function initDashboard(){
   var reservas=null,eventos=null,prods=null,loc=null;
   try{
     var frames=window.parent?window.parent.document.querySelectorAll('iframe'):[];
-    frames.forEach(function(f){try{var cw=f.contentWindow;if(cw&&cw.reservas&&cw.reservas.length)reservas=cw.reservas;if(cw&&cw.eventos)eventos=cw.eventos;if(cw&&cw.prods)prods=cw.prods;if(cw&&cw.L)loc=cw.L();}catch(e){}});
-  }catch(e){}
+    console.log('[dash] iframes en padre:',frames.length);
+    frames.forEach(function(f){
+      try{
+        var cw=f.contentWindow;
+        console.log('[dash] iframe src:',f.src,'→ cw.eventos:',cw&&cw.eventos,'len:',cw&&cw.eventos&&cw.eventos.length);
+        if(cw&&cw.reservas&&cw.reservas.length)reservas=cw.reservas;
+        if(cw&&cw.eventos&&cw.eventos.length)eventos=cw.eventos;
+        if(cw&&cw.prods)prods=cw.prods;
+        if(cw&&cw.L)loc=cw.L();
+      }catch(e){console.log('[dash] iframe bloqueado:',e.message);}
+    });
+  }catch(e){console.log('[dash] frames error:',e);}
+  console.log('[dash] post-iframe → _sb:',!!_sb,'eventos:',eventos,'reservas:',!!reservas,'prods:',!!prods);
   if(_sb&&(!eventos||!reservas||!prods)){
     try{
       var hoyStr=new Date().toISOString().split('T')[0];
@@ -315,7 +331,8 @@ async function initDashboard(){
       var _mon=new Date(_td);_mon.setDate(_td.getDate()+_moff);
       var _sun=new Date(_mon);_sun.setDate(_mon.getDate()+6);
       var _monStr=_mon.toISOString().split('T')[0],_sunStr=_sun.toISOString().split('T')[0];
-      var _qEv   = eventos  ? null : _sb.from('eventos').select('id,descripcion,fecha,hora').eq('local_id',LOCAL_ID).gte('fecha',hoyStr).lte('fecha',_sunStr).order('fecha').order('hora');
+      console.log('[dash] Supabase query eventos: gte',hoyStr,'lte',_sunStr,'local_id',LOCAL_ID);
+      var _qEv   = (eventos&&eventos.length) ? null : _sb.from('eventos').select('id,nombre,fecha,hora').eq('local_id',LOCAL_ID).gte('fecha',hoyStr).lte('fecha',_sunStr).order('fecha').order('hora');
       var _qRes  = reservas ? null : _sb.from('reservas').select('*').eq('local_id',LOCAL_ID).eq('fecha',hoyStr).order('hora');
       var _qProd = prods    ? null : _sb.from('productos').select('nombre,cantidad,minimo').eq('local_id',LOCAL_ID).eq('activo',true);
       var _qZona = reservas ? null : _sb.from('zonas').select('id,emoji').eq('local_id',LOCAL_ID);
@@ -327,15 +344,18 @@ async function initDashboard(){
         Promise.resolve(_qZona||_noop).catch(function(){return{data:null};}),
       ]);
       var _evData=_rs[0].data,_resData=_rs[1].data,_prodData=_rs[2].data,_zonaData=_rs[3].data;
-      if(!eventos&&_evData)eventos=_evData.map(function(e){return{dia:new Date(e.fecha+'T00:00:00').getDay(),desc:e.descripcion||'',hora:e.hora?e.hora.slice(0,5):''};});
+      console.log('[dash] _evData completo:',JSON.stringify(_rs[0]));
+      if(!(eventos&&eventos.length)&&_evData)eventos=_evData.map(function(e){return{nombre:e.nombre||'',fecha:e.fecha,hora:e.hora?e.hora.slice(0,5):''};});
       if(!reservas&&_resData){var _zm={};(_zonaData||[]).forEach(function(z){_zm[z.id]=z.emoji;});reservas=_resData.map(function(r){return{nombre:r.nombre,fecha:r.fecha,hora:r.hora?r.hora.slice(0,5):'',pax:r.pax,mesas:r.mesas,estado:r.estado,zonaId:r.zona_id,emoji:_zm[r.zona_id]||'📍',nota:r.nota||''};});}
       if(!prods&&_prodData)prods=_prodData.map(function(p){return{name:p.nombre,qty:p.cantidad,min:p.minimo};});
     }catch(e){console.error('[dash] sbFallback:',e);}
-  }
+  }else{console.log('[dash] bloque Supabase OMITIDO — _sb:',!!_sb,'eventos ya cargado:',!!eventos);}
+  console.log('[dash] → _dashEventos con:',eventos);
   if(!loc)loc=L();
   _dashReservas(reservas);_dashStock(prods);_dashEventos(eventos);_dashTurnos(loc);
 }
 
+/* ── Dashboard — card: Reservas hoy ──────────────────────────────────── */
 function _dashReservas(reservas){
   var hoy=new Date().toISOString().split('T')[0];
   var deHoy=reservas?reservas.filter(function(r){return r.fecha===hoy;}):[];
@@ -365,29 +385,36 @@ function _dashReservas(reservas){
   if(zm)zm.innerHTML=hM;if(zn)zn.innerHTML=hN;if(lm)lm.textContent='· '+libM+' libres';if(ln)ln.textContent='· '+libN+' libres';
 }
 
+/* ── Dashboard — card: Stock ──────────────────────────────────────────── */
 function _dashStock(prods){
   var sub=document.getElementById('dash-stock-sub'),badge=document.getElementById('dash-stock-badge'),ic=document.getElementById('dash-stock-ic'),title=document.getElementById('dash-stock-title');
   if(!prods){try{var raw=localStorage.getItem('lg_stock_v1');if(raw)prods=JSON.parse(raw);}catch(e){}}
   if(!prods||!prods.length){if(sub)sub.textContent='Sin datos de stock';return;}
   var rojos=prods.filter(function(p){return p.min>0&&p.qty*2<=p.min;});
   var ambars=prods.filter(function(p){return p.min>0&&p.qty*2>p.min&&p.qty<=p.min;});
-  if(rojos.length){if(title)title.textContent='Stock crítico';if(sub)sub.textContent=rojos.slice(0,2).map(function(p){return p.name;}).join(' · ')+(rojos.length>2?' +más':'');if(badge){badge.textContent=rojos.length;badge.className='dash-badge dash-badge-alert';}if(ic)ic.className='dash-ic dash-ic-alert';}
-  else if(ambars.length){if(title)title.textContent='Stock en mínimos';if(sub)sub.textContent=ambars.slice(0,2).map(function(p){return p.name;}).join(' · ')+(ambars.length>2?' +más':'');if(badge){badge.textContent=ambars.length;badge.className='dash-badge dash-badge-warn';}if(ic)ic.className='dash-ic dash-ic-warn';}
+  var total=rojos.length+ambars.length;
+  if(rojos.length){if(title)title.textContent='Stock crítico';if(sub)sub.textContent=rojos.slice(0,2).map(function(p){return p.name;}).join(' · ')+(rojos.length>2?' +más':'');if(badge){badge.textContent=total;badge.className='dash-badge dash-badge-alert';}if(ic)ic.className='dash-ic dash-ic-alert';}
+  else if(ambars.length){if(title)title.textContent='Stock en mínimos';if(sub)sub.textContent=ambars.slice(0,2).map(function(p){return p.name;}).join(' · ')+(ambars.length>2?' +más':'');if(badge){badge.textContent=total;badge.className='dash-badge dash-badge-warn';}if(ic)ic.className='dash-ic dash-ic-warn';}
   else{if(title)title.textContent='Stock';if(sub)sub.textContent='Todo en orden';if(badge){badge.textContent='✓';badge.className='dash-badge dash-badge-ok';}if(ic)ic.className='dash-ic dash-ic-ok';}
 }
 
+/* ── Dashboard — cards: Eventos hoy / Esta semana ────────────────────── */
 function _dashEventos(eventos){
-  var hoyNum=new Date().getDay();
-  var evHoy=eventos?eventos.filter(function(e){return e.dia===hoyNum;}):[];
-  var evSem=eventos||[];
+  var hoy=new Date().toISOString().split('T')[0];
+  var _dt=new Date(),_dw=_dt.getDay(),_ms=_dw===0?-6:1-_dw;
+  var _sn=new Date(_dt);_sn.setDate(_dt.getDate()+_ms+6);
+  var sunStr=_sn.toISOString().split('T')[0];
+  var evHoy=eventos?eventos.filter(function(e){return e.fecha===hoy;}):[];
+  var evSem=eventos?eventos.filter(function(e){return e.fecha>=hoy&&e.fecha<=sunStr;}):[];
   var sub=document.getElementById('dash-ev-hoy-sub'),badge=document.getElementById('dash-ev-hoy-badge');
-  if(evHoy.length){if(sub)sub.textContent=evHoy.map(function(e){return e.desc;}).join(' · ');if(badge){badge.textContent=evHoy.length;badge.className='dash-badge dash-badge-info';}}
+  if(evHoy.length){if(sub)sub.textContent=evHoy.map(function(e){return e.nombre;}).join(' · ');if(badge){badge.textContent=evHoy.length;badge.className='dash-badge dash-badge-info';}}
   else{if(sub)sub.textContent='Sin eventos programados para hoy';}
   var subS=document.getElementById('dash-ev-sem-sub'),badgeS=document.getElementById('dash-ev-sem-badge'),icS=document.getElementById('dash-ev-sem-ic');
-  if(evSem.length){var dias=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];var pe=evSem[0];if(subS)subS.textContent='Próximo evento: '+pe.desc+' · '+(dias[pe.dia]||'')+(pe.hora?' '+pe.hora:'');if(badgeS){badgeS.textContent=evSem.length;badgeS.className='dash-badge dash-badge-info';}if(icS)icS.className='dash-ic dash-ic-info';}
+  if(evSem.length){var dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];var pe=evSem[0];var dName=dias[new Date(pe.fecha+'T12:00:00').getDay()]||'';if(subS)subS.textContent='Próximo evento: '+pe.nombre+' · '+dName+(pe.hora?' '+pe.hora:'');if(badgeS){badgeS.textContent=evSem.length;badgeS.className='dash-badge dash-badge-info';}if(icS)icS.className='dash-ic dash-ic-info';}
   else{if(subS)subS.textContent='Sin eventos esta semana';}
 }
 
+/* ── Dashboard — card: Turnos esta semana ────────────────────────────── */
 function _dashTurnos(loc){
   var sub=document.getElementById('dash-turnos-sub'),badge=document.getElementById('dash-turnos-badge'),ic=document.getElementById('dash-turnos-ic');
   if(!loc||!loc.data){if(sub)sub.textContent='Abre Turnos para cargar datos';return;}
@@ -397,6 +424,7 @@ function _dashTurnos(loc){
   else{if(sub)sub.textContent='Faltan '+huecos+' slots por cubrir';if(badge){badge.textContent='⚠';badge.className='dash-badge dash-badge-warn';}if(ic)ic.className='dash-ic dash-ic-warn';}
 }
 
+/* ── Permisos por rol ─────────────────────────────────────────────────── */
 function applyRolPermissions(r){
   var isEmpleado=r==='empleado';
   var cardReservas=document.getElementById('card-reservas');if(cardReservas)cardReservas.style.display=isEmpleado?'none':'';

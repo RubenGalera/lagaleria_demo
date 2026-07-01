@@ -9,7 +9,7 @@
 
 var _previewName = '';
 var _horaRows    = [];
-var _photoTarget = null;
+var _previewSnapshot = null;
 
 function getHour(name, d) {
   var h = '';
@@ -42,6 +42,21 @@ function openPreview(name) {
   _previewName = name;
   const w = getW(name) || {name, sec:'?', photo:null, tel:'', minT:0, maxT:0, unavailMed:[], unavailNoch:[], vacaciones:[]};
   const t = cntT(name);
+
+  /* Snapshot del estado editable-sin-guardar, para poder descartarlo si se cierra con X */
+  _previewSnapshot = {
+    unavailMed:  (w.unavailMed  || []).slice(),
+    unavailNoch: (w.unavailNoch || []).slice(),
+    prioridad:   w.prioridad,
+    shifts: ROWS.reduce(function(acc, r) {
+      acc[r] = {};
+      for (let d = 0; d < 7; d++) {
+        const found = (L().data[r][d] || []).find(n => parse(n).name === name);
+        acc[r][d] = found || null;
+      }
+      return acc;
+    }, {})
+  };
   document.getElementById('prev-title').textContent = name;
   document.getElementById('prev-sub').textContent = (w.sec==='sala'?'Sala':w.sec==='cocina'?'Cocina':'Ambos') + ' · ' + (curLocal==='galeria'?'La Galería':'La Sala');
   document.getElementById('prev-avatar').innerHTML = isSafeImg(w.photo) ? `<img src="${w.photo}" alt="${name}">` : `${ini(name)}`;
@@ -50,6 +65,8 @@ function openPreview(name) {
   document.getElementById('prev-min').value = w.minT != null ? String(w.minT) : '';
   document.getElementById('prev-max').value = w.maxT != null ? String(w.maxT) : '';
   document.getElementById('prev-turnos-count').textContent = t + ' turno' + (t !== 1 ? 's' : '');
+  const dispChk = document.getElementById('prev-disponible');
+  if (dispChk) dispChk.checked = w.disponible !== false;
 
   const td = document.getElementById('prev-tel-display');
   const ti = document.getElementById('prev-tel-input');
@@ -97,16 +114,7 @@ function openPreview(name) {
   /* Elementos condicionales por rol */
   const isAdmin = _isAdmin();
 
-  var estadoEl = document.getElementById('prev-estado');
-  if (estadoEl) {
-    var estado = w.estado || 'activo';
-    var eLabels = {activo:'🟢 Activo', invitado:'🟡 Invitado', sin_acceso:'⚪ Sin acceso', sin_telefono:'⚪ Sin teléfono'};
-    estadoEl.textContent = isAdmin ? (eLabels[estado] || '') : '';
-    estadoEl.style.display = isAdmin ? '' : 'none';
-  }
-
-  var camBtn = document.getElementById('prev-cam-btn');
-  if (camBtn) camBtn.style.display = isAdmin ? 'none' : '';
+  _updateEstadoBadge(w);
 
   var resetBtn = document.getElementById('prev-reset-pin-btn');
   if (resetBtn) resetBtn.style.display = isAdmin ? '' : 'none';
@@ -135,6 +143,59 @@ function openPreview(name) {
   }
 
   showOv('ov-preview');
+}
+
+/* ── DISPONIBILIDAD (independiente de activo/archivado) ── */
+function _updateEstadoBadge(w) {
+  var estadoEl = document.getElementById('prev-estado');
+  if (!estadoEl) return;
+  var isAdmin = _isAdmin();
+  var estado = w.estado || 'activo';
+  var eLabels = {activo:'🟢 Activo', invitado:'🟡 Invitado', sin_acceso:'⚪ Sin acceso', sin_telefono:'⚪ Sin teléfono'};
+  var label = eLabels[estado] || '';
+  if (estado === 'activo' && w.disponible === false) label = '🔴   No disponible';
+  estadoEl.textContent = isAdmin ? label : '';
+  estadoEl.style.display = isAdmin ? '' : 'none';
+}
+
+function toggleDisponible(el) {
+  const w = getW(_previewName); if (!w) return;
+  const val = !!el.checked;
+  w.disponible = val;
+  if (w._sbId) sbUpdateTrabajador(w._sbId, { disponible: val });
+  _updateEstadoBadge(w);
+  if (typeof buildGrid === 'function') buildGrid();
+  if (typeof renderW === 'function') renderW();
+  if (typeof updateStats === 'function') updateStats();
+  if (typeof showToast === 'function') showToast(val ? _previewName + ' marcado como disponible' : _previewName + ' marcado como no disponible');
+}
+
+/* ── CERRAR SIN GUARDAR — descarta turnos, días no disponibles y prioridad tocados en esta apertura ── */
+function cancelPreview() {
+  const w = getW(_previewName);
+  if (w && _previewSnapshot) {
+    w.unavailMed  = _previewSnapshot.unavailMed.slice();
+    w.unavailNoch = _previewSnapshot.unavailNoch.slice();
+    w.prioridad   = _previewSnapshot.prioridad;
+    ROWS.forEach(r => {
+      for (let d = 0; d < 7; d++) {
+        if (!L().data[r][d]) L().data[r][d] = [];
+        const orig = _previewSnapshot.shifts[r][d];
+        const idx = L().data[r][d].findIndex(n => parse(n).name === _previewName);
+        if (orig) {
+          if (idx >= 0) L().data[r][d][idx] = orig; else L().data[r][d].push(orig);
+        } else if (idx >= 0) {
+          L().data[r][d].splice(idx, 1);
+        }
+      }
+    });
+  }
+  _previewSnapshot = null;
+  closeOv('ov-preview');
+  if (typeof buildGrid === 'function') buildGrid();
+  if (typeof renderW === 'function') renderW();
+  if (typeof updateStats === 'function') updateStats();
+  if (typeof scheduleAutosave === 'function') scheduleAutosave();
 }
 
 /* ── ALERTAS DE PERFIL ── */
@@ -186,6 +247,14 @@ function updateAlert() {
 /* ── DISPONIBILIDAD EN PERFIL ── */
 function toggleSg(cell) {
   const row = cell.dataset.row, col = parseInt(cell.dataset.col), conf = CONFLICTS[row];
+  const turningOn = !cell.classList.contains('on-'+row);
+  if (turningOn) {
+    const w = getW(_previewName);
+    if (w && (w.disponible === false || w.visible === false)) {
+      if (typeof showToast === 'function') showToast(_previewName + ' no está disponible actualmente');
+      return;
+    }
+  }
   if (!cell.classList.contains('on-'+row)) {
     document.querySelector(`#prof-sg .sg-cell[data-row="${conf}"][data-col="${col}"]`)?.classList.remove('on-'+conf);
     if (L().data[conf][col]) L().data[conf][col] = L().data[conf][col].filter(n => parse(n).name !== _previewName);
@@ -214,15 +283,11 @@ function toggleUnavail(el) {
   if (!w.unavailMed) w.unavailMed = [];
   if (!w.unavailNoch) w.unavailNoch = [];
   const arr = t === 'med' ? w.unavailMed : w.unavailNoch;
-  const dbTurno = t === 'med' ? 'med' : 'noc';
+  /* Solo memoria — se persiste a Supabase en saveProfile() para poder descartarse con cancelPreview() */
   if (el.classList.contains('active')) {
     if (!arr.includes(d)) arr.push(d);
-    if (w._sbId) _sb?.from('disponibilidad').insert({trabajador_id:w._sbId, dia_semana:d, turno:dbTurno})
-      .then(({error}) => { if (error) console.error('[SB] insert dispo:', error.message); });
   } else {
     const i = arr.indexOf(d); if (i >= 0) arr.splice(i, 1);
-    if (w._sbId) _sb?.from('disponibilidad').delete().eq('trabajador_id',w._sbId).eq('dia_semana',d).eq('turno',dbTurno)
-      .then(({error}) => { if (error) console.error('[SB] delete dispo:', error.message); });
   }
 }
 
@@ -273,12 +338,31 @@ function saveProfile() {
   const gs = document.querySelector('.grid-scroll');
   const scrollLeft = gs ? gs.scrollLeft : 0;
   const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  _syncUnavailToSupabase(w, _previewSnapshot);
+  _previewSnapshot = null;
   closeOv('ov-preview'); buildGrid(); renderW(); updateStats();
   if (gs) gs.scrollLeft = scrollLeft;
   window.scrollTo(0, scrollTop);
   if (w._sbId) sbUpdateTrabajador(w._sbId, { min_turnos: w.minT, max_turnos: w.maxT, prioridad: w.prioridad || 'eventual' });
   if (typeof showToast === 'function') showToast('Perfil guardado ✓');
   if (typeof scheduleAutosave === 'function') scheduleAutosave();
+}
+
+/* ── Persiste a Supabase solo los días que realmente cambiaron desde la apertura del modal ── */
+function _syncUnavailToSupabase(w, snapshot) {
+  if (!w._sbId || !snapshot) return;
+  [['unavailMed','med'], ['unavailNoch','noc']].forEach(([key, turno]) => {
+    const before = snapshot[key] || [];
+    const after = w[key] || [];
+    after.filter(d => !before.includes(d)).forEach(d => {
+      _sb?.from('disponibilidad').insert({trabajador_id:w._sbId, dia_semana:d, turno})
+        .then(({error}) => { if (error) console.error('[SB] insert dispo:', error.message); });
+    });
+    before.filter(d => !after.includes(d)).forEach(d => {
+      _sb?.from('disponibilidad').delete().eq('trabajador_id',w._sbId).eq('dia_semana',d).eq('turno',turno)
+        .then(({error}) => { if (error) console.error('[SB] delete dispo:', error.message); });
+    });
+  });
 }
 
 /* ── CONTACTO ── */
@@ -314,49 +398,23 @@ function waWorker() {
   if (w && w.tel) window.open(`https://wa.me/34${w.tel.replace(/\D/g, '')}`);
 }
 
-/* ── FOTO DE TRABAJADOR ── */
-function triggerPhoto() {
+/* ── FOTO DE TRABAJADOR — solo visor, sin subida ── */
+function viewWorkerPhoto() {
   const w = getW(_previewName);
-  if (w && isSafeImg(w.photo)) {
-    const win = window.open('', '_blank');
-    win.document.write(`<!DOCTYPE html><html><body style="margin:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px"><img src="${w.photo}" style="max-width:100%;max-height:80vh;object-fit:contain"><div style="display:flex;gap:10px"><button onclick="document.getElementById('fi').click()" style="background:#C5A669;color:#222;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">Cambiar</button><button onclick="window.opener.removeWorkerPhoto();window.close()" style="background:rgba(200,60,60,.8);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer">Quitar</button></div><input type="file" id="fi" accept="image/*" style="display:none" onchange="const f=this.files[0];if(!f)return;if(f.size>2097152){alert('La imagen supera el límite de 2 MB');return;}const r=new FileReader();r.onload=e=>{window.opener.setWorkerPhoto(e.target.result,f);window.close();};r.readAsDataURL(f)"><\/body><\/html>`);
-  } else {
-    _photoTarget = _previewName;
-    document.getElementById('photo-input').click();
+  if (!w || !isSafeImg(w.photo)) return;
+  var ovId = 'ov-worker-photo';
+  if (!document.getElementById(ovId)) {
+    document.body.insertAdjacentHTML('beforeend',
+      '<div class="overlay" id="' + ovId + '" onclick="if(event.target===this)closeOv(\'' + ovId + '\')" style="z-index:300;padding:16px;align-items:center">' +
+      '<div style="display:flex;flex-direction:column;align-items:center;gap:10px">' +
+      '<button onclick="closeOv(\'' + ovId + '\')" style="align-self:flex-end;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);border-radius:7px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:20px;line-height:1">&#215;</button>' +
+      '<img id="wph-img" src="" alt="" style="max-width:90vw;max-height:80vh;object-fit:contain;border-radius:10px">' +
+      '</div></div>'
+    );
   }
+  document.getElementById('wph-img').src = w.photo;
+  showOv(ovId);
 }
-
-window.removeWorkerPhoto = () => {
-  const w = getW(_previewName); if (!w) return;
-  const sbId = w._sbId, prev = w.photo;
-  w.photo = null;
-  openPreview(_previewName); buildGrid(); renderTrabajadores();
-  if (sbId) {
-    sbUpdateTrabajador(sbId, {foto_url: null});
-    if (prev && typeof prev === 'string' && prev.includes('/storage/v1/object/public/avatares/')) {
-      const path = prev.split('/storage/v1/object/public/avatares/')[1]?.split('?')[0];
-      if (path) _sb?.storage.from('avatares').remove([path]).then(({error}) => { if (error) console.error('[SB] remove foto:', error.message); });
-    }
-  }
-};
-
-window.setWorkerPhoto = (src, file) => {
-  const w = getW(_previewName); if (!w) return;
-  w.photo = src;
-  openPreview(_previewName); buildGrid(); renderTrabajadores();
-  if (file && w._sbId) {
-    if (typeof compressImage === 'function' && typeof sbUploadFotoTrabajador === 'function') {
-      compressImage(file).then(function(blob) {
-        sbUploadFotoTrabajador(w._sbId, blob).then(res => {
-          if (res.url) { w.photo = res.url; buildGrid(); renderTrabajadores(); }
-          else if (res.error) showToast('Error al subir la foto');
-        });
-      }).catch(function(err) { console.error('[img] compressImage error:', err); });
-    } else {
-      sbUpdateTrabajador(w._sbId, { foto_url: src });
-    }
-  }
-};
 
 /* ── ACCIONES DE ADMIN ── */
 function prev_sendInvite(name) {
@@ -399,26 +457,41 @@ document.addEventListener('DOMContentLoaded', function() {
       '.overlay .modal-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:8px}' +
       '.overlay .modal-title{font-size:16px;font-weight:600;color:var(--text)}' +
       '.overlay .modal-sub{font-size:12px;color:var(--dim);margin-top:2px}' +
-      '.overlay .mclose{background:var(--nav);border:1px solid var(--border2);border-radius:7px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--dim);font-size:20px;flex-shrink:0;line-height:1}';
+      '.overlay .mclose{background:var(--nav);border:1px solid var(--border2);border-radius:7px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--dim);font-size:20px;flex-shrink:0;line-height:1}' +
+      '.w-disp-row{display:flex;flex-direction:row;align-items:center;gap:6px;margin:0}' +
+      '.w-disp-row span{font-size:11px;font-weight:600;color:var(--dim)}' +
+      '.w-disp-row .sw{position:relative;display:inline-block;width:40px;height:24px;flex-shrink:0}' +
+      '.w-disp-row .sw input{opacity:0;width:0;height:0;position:absolute}' +
+      '.w-disp-row .sw-track{position:absolute;inset:0;background:var(--border2);border-radius:12px;transition:.2s;cursor:pointer}' +
+      '.w-disp-row .sw-track::before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}' +
+      '.w-disp-row .sw input:checked + .sw-track{background:var(--acc)}' +
+      '.w-disp-row .sw input:checked + .sw-track::before{transform:translateX(16px)}';
     document.head.appendChild(st);
   }
   if (document.getElementById('ov-preview')) return;
   document.body.insertAdjacentHTML('beforeend',
 `<div class="overlay" id="ov-preview">
   <div class="modal">
-    <div class="modal-hdr">
-      <div>
-        <div class="modal-title" id="prev-title">Trabajador</div>
-        <div class="modal-sub" id="prev-sub"></div>
-        <div id="prev-estado" style="font-size:11px;margin-top:3px;font-weight:600"></div>
+    <div class="modal-hdr" style="flex-direction:column;align-items:stretch;gap:6px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div>
+          <div class="modal-title" id="prev-title">Trabajador</div>
+          <div class="modal-sub" id="prev-sub"></div>
+        </div>
+        <button class="mclose" onclick="cancelPreview()">&#215;</button>
       </div>
-      <button class="mclose" onclick="closeOv('ov-preview')">&#215;</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div id="prev-estado" style="font-size:11px;font-weight:600"></div>
+        <div class="w-disp-row">
+          <span>Disponible</span>
+          <label class="sw"><input type="checkbox" id="prev-disponible" checked onchange="toggleDisponible(this)"><span class="sw-track"></span></label>
+        </div>
+      </div>
     </div>
     <div class="w-preview">
       <div class="w-preview-top">
-        <div class="w-avatar-wrap" onclick="triggerPhoto()">
+        <div class="w-avatar-wrap" onclick="viewWorkerPhoto()">
           <div class="w-avatar" id="prev-avatar">AB</div>
-          <div class="w-cam" id="prev-cam-btn">&#128247;</div>
         </div>
         <div class="w-info">
           <div class="w-name" id="prev-name">—</div>
@@ -534,7 +607,7 @@ document.addEventListener('DOMContentLoaded', function() {
       <button id="prev-invite-btn" style="display:none;width:100%;padding:12px;border-radius:12px;border:1.5px solid rgba(197,166,105,.3);background:rgba(197,166,105,.08);color:var(--acc);font-size:13px;font-weight:600;cursor:pointer"></button>
       <button id="prev-reset-pin-btn" style="display:none;width:100%;padding:11px;border-radius:12px;border:1px solid var(--brd2);background:var(--surf);color:var(--dim);font-size:13px;font-weight:600;cursor:pointer" onclick="prev_resetPin()">&#128274; Resetear PIN</button>
       <div style="display:flex;gap:8px">
-        <button class="mbtn-d" style="flex:1;text-align:center;padding:11px" onclick="confirmDelete()">Eliminar</button>
+        <button class="mbtn-d" style="flex:1;text-align:center;padding:11px" onclick="archiveWorker(_previewName)">Eliminar</button>
         <button class="btn-confirm" style="flex:1" onclick="saveProfile()">Guardar y cerrar</button>
       </div>
     </div>

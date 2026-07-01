@@ -159,6 +159,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .ro-empty{font-size:11px;color:var(--faint);font-style:italic}
 .copy-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#25D366;color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
 .copy-toast.show{opacity:1}
+#toast{opacity:0}
+#toast.show{opacity:1}
 
 /* ── PERSONA VIEW ── */
 .filter-bar{padding:10px 14px;display:flex;gap:5px;margin-bottom:10px;flex-wrap:nowrap;align-items:center;overflow-x:auto;scrollbar-width:none}
@@ -870,9 +872,10 @@ input[type=file]{display:none}
   </div>
 </div>
 <div class="copy-toast" id="copy-toast"></div>
+<div id="toast" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a2f3a;border:1px solid var(--border2);color:var(--text);padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;z-index:400;transition:opacity .3s;pointer-events:none;white-space:nowrap"></div>
 
 <!-- VACACIONES POPUP -->
-<div class="overlay" id="ov-vac-popup">
+<div class="overlay" id="ov-vac-popup" style="z-index:300">
   <div class="modal" style="max-width:360px">
     <div class="modal-hdr">
       <div><div class="modal-title">Añadir periodo</div></div>
@@ -997,7 +1000,7 @@ async function sbInitTrabajadores() {
 
   /* 1 — Trabajadores base */
   const {data, error} = await _sb.from('trabajadores')
-    .select('id, nombre, seccion, prioridad, min_turnos, max_turnos, tel, foto_url, activo')
+    .select('id, nombre, seccion, prioridad, min_turnos, max_turnos, tel, foto_url, activo, disponible, visible')
     .eq('local_id', LOCAL_ID)
     .order('nombre');
   if (error) { console.warn('[SB] sbInitTrabajadores:', error.message); return; }
@@ -1080,6 +1083,8 @@ async function sbInitTrabajadores() {
     maxT:        t.max_turnos != null ? t.max_turnos : 0,
     prioridad:   t.prioridad || 'eventual',
     activo:      t.activo !== false,
+    disponible:  t.disponible !== false,
+    visible:     t.visible !== false,
     skills:      skillsByW[t.id] || {},
     unavailMed:  dispoByW[t.id]?.med  || [],
     unavailNoch: dispoByW[t.id]?.noc  || [],
@@ -1348,9 +1353,20 @@ function buildGrid(){
           const dayStr=dayDate.toISOString().split('T')[0];
           return w.vacaciones.some(v=>dayStr>=v.desde&&dayStr<=v.hasta);
         })();
+        const t=w?cntT(name):0;
+        let alertMsg=null;
+        if(w){
+          if(w.maxT&&t>w.maxT) alertMsg=`Exceso de turnos — lleva ${t}, máximo ${w.maxT}`;
+          else if(w.minT&&t<w.minT) alertMsg=`Faltan turnos — lleva ${t}, mínimo ${w.minT}`;
+          else if(w.disponible===false) alertMsg='No disponible';
+          else if(w.visible===false) alertMsg='No visible';
+          else if(unavail) alertMsg='Día no disponible';
+          else if(onVac) alertMsg='En vacaciones';
+        }
         const chip=document.createElement("div");chip.className=`chip chip-${r}`;chip.draggable=true;
         if(unavail)chip.style.cssText="border-color:rgba(200,60,60,.5);background:rgba(200,60,60,.08)";
-        chip.innerHTML=`<div class="dh"><span></span><span></span><span></span></div><span class="chip-name">${name}</span>${hour?`<span class="chip-tag">${hour}</span>`:""}${(unavail||onVac)?`<span style="font-size:9px;color:#cc4444;margin-left:auto">⚠</span>`:""}`;
+        const warnIcon=alertMsg?`<span style="font-size:9px;color:#cc4444;margin-left:auto" title="⚠ ${alertMsg}">⚠</span>`:"";
+        chip.innerHTML=`<div class="dh"><span></span><span></span><span></span></div><span class="chip-name">${name}</span>${hour?`<span class="chip-tag">${hour}</span>`:""}${warnIcon}`;
         chip.onclick=()=>openPreview(name);setupDrag(chip,cell);cell.appendChild(chip);
       });
       const add=document.createElement("div");add.className="add-chip";add.textContent="+ añadir";
@@ -1775,6 +1791,10 @@ function setView(v){
   document.getElementById("vtab-s").classList.toggle("active",v==="semana");
   document.getElementById("vtab-p").classList.toggle("active",v==="persona");
   if(v==="persona")renderW();
+}
+function resetView(){
+  setView('semana');
+  document.querySelectorAll('.overlay.show').forEach(function(m){m.classList.remove('show');});
 }
 
 /* ── NAVEGACIÓN DE SEMANA ── */
@@ -2317,6 +2337,7 @@ function _runAutoGenCore(){
   }
   function isAvail(w,slot,day){
     if(w.activo===false) return false;
+    if(w.disponible===false||w.visible===false) return false;
     if(alreadyIn(slot,day).includes(w.name)) return false;
     if(alreadyInRun(w.name,slot,day)) return false;
     const med=isMed[slot];
