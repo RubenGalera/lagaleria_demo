@@ -239,6 +239,7 @@ function goTo(page){
     if(fr) fr.classList.remove('active');
     if(bn) bn.classList.remove('active');
     try{ if(fr && fr.contentWindow && fr.contentWindow.DatePicker) fr.contentWindow.DatePicker.close(); }catch(e){}
+    try{ if(fr && fr.contentWindow && fr.contentWindow.closeMesasDetail) fr.contentWindow.closeMesasDetail(); }catch(e){}
   });
   var fr = document.getElementById('fr-'+page);
   var bn = document.getElementById('bnav-'+page);

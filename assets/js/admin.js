@@ -68,7 +68,7 @@ async function sbBorrarTrabajadorDefinitivo(id){
 
 async function sbLoadSkills(){
   try{
-    const {data,error} = await _sb.from('skills').select('*').eq('local_id', LOCAL_ID).order('categoria').order('orden');
+    const {data,error} = await _sb.from('trabajadores_skills').select('*').eq('local_id', LOCAL_ID).order('categoria').order('orden');
     if(error) throw error;
     return data || [];
   }catch(e){ console.error('sbLoadSkills',e); return []; }
@@ -98,7 +98,7 @@ async function sbDeleteZona(id){
 
 async function sbLoadProductos(){
   try{
-    const {data,error} = await _sb.from('productos').select('*').eq('local_id', LOCAL_ID).eq('activo', true).order('categoria').order('nombre');
+    const {data,error} = await _sb.from('stock_productos').select('*').eq('local_id', LOCAL_ID).eq('activo', true).order('categoria').order('nombre');
     if(error) throw error;
     return data || [];
   }catch(e){ console.error('sbLoadProductos',e); return []; }
@@ -218,7 +218,7 @@ function showOv(id){var el=document.getElementById(id);if(el)el.classList.add("s
 function closeOv(id){var el=document.getElementById(id);if(el)el.classList.remove("show");}
 document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{if(e.target===o)o.classList.remove("show");}));
 function resetView(){
-  ['view-zonas','view-skills','view-trabajadores','view-weekconfig','view-stock-admin'].forEach(function(v){var e=document.getElementById(v);if(e)e.classList.remove('active');});
+  ['view-zonas','view-skills','view-trabajadores','view-weekconfig','view-stock-admin','view-stock-prov'].forEach(function(v){var e=document.getElementById(v);if(e)e.classList.remove('active');});
   var el=document.getElementById('view-editar-list');if(el)el.style.display='';
   document.querySelectorAll('.overlay.show,.modal-overlay.show').forEach(function(m){m.classList.remove('show');});
 }

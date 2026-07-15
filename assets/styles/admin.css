@@ -50,7 +50,7 @@ body{display:flex;flex-direction:column}
 .zona-list{flex:1;overflow-y:auto;padding:10px 12px 16px;display:flex;flex-direction:column;gap:6px}
 .zona-row{background:var(--surf);border:1px solid var(--brd);border-radius:11px;padding:13px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .15s}
 .zona-row:active{background:rgba(255,255,255,.04)}
-.zona-emoji{font-size:20px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.zona-emoji{font-size:20px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;font-style:normal}
 .zona-info{flex:1;min-width:0}
 .zona-name{font-size:13px;font-weight:600;color:var(--txt)}
 .zona-sub{font-size:11px;color:var(--dim);margin-top:2px}
@@ -67,6 +67,14 @@ body{display:flex;flex-direction:column}
 .btn-nueva-zona:active{background:var(--acc-bg)}
 
 .zona-empty{text-align:center;padding:32px 16px;color:var(--dim);font-size:13px}
+
+/* ── CATEGORÍAS DE STOCK (card clicable + drag-to-reorder) ── */
+.cat-preview{font-size:20px;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid var(--brd2);transition:background .15s,border-color .15s;line-height:1;font-style:normal}
+.cat-row-default{opacity:.7}
+.cat-drag-handle{flex-shrink:0;width:20px;text-align:center;color:var(--faint);font-size:16px;line-height:1;cursor:grab;touch-action:none}
+.cat-drag-handle:active{cursor:grabbing}
+.cat-row.cat-dragging{opacity:.4}
+.cat-row.cat-drag-over{border-color:var(--acc-bd);background:var(--acc-bg)}
 
 /* ── MODAL ZONA ── */
 .modal-body{padding:16px 18px 20px}
@@ -110,26 +118,13 @@ body{display:flex;flex-direction:column}
 /* revisar: posible duplicado de .btn-del en components.css (border-radius/padding/font-size/font-weight distintos, margin-top extra, sin transition) */
 .btn-del{background:transparent;border:1px solid var(--red-bd);border-radius:8px;padding:10px;width:100%;font-size:12px;font-weight:600;color:var(--red);cursor:pointer;margin-top:8px}
 
-.confirm-del{display:none;margin-top:8px}
-.confirm-del .msg{font-size:12px;color:var(--dim);text-align:center;margin-bottom:8px}
-.confirm-del .btns{display:flex;gap:8px}
-.confirm-del .btns button{flex:1;border-radius:8px;padding:10px;font-size:12px;font-weight:600;cursor:pointer}
-.confirm-del .btns .yes{background:transparent;border:1px solid var(--red-bd);color:var(--red)}
-.confirm-del .btns .no{background:transparent;border:1px solid var(--brd2);color:var(--muted)}
-
 .state-msg{text-align:center;padding:24px 16px;font-size:12px;color:var(--dim)}
 .state-msg.error{color:var(--red)}
 
 #view-skills,#view-trabajadores{flex:1;display:none;flex-direction:column;min-height:0}
 #view-skills.active,#view-trabajadores.active{display:flex}
 .skill-cat-header{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;padding:10px 4px 4px}
-.skill-cat-badge{font-size:10px;color:var(--dim);margin-left:auto;padding-right:4px;flex-shrink:0}
 .trab-avatar{width:36px;height:36px;border-radius:50%;background:var(--acc-bg);border:1.5px solid var(--acc-bd);color:var(--acc);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.lugar-btn-wrap{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--brd2);border-radius:10px;overflow:hidden}
-.lugar-btn{padding:11px;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all .15s}
-.lugar-btn.active{background:var(--acc);color:#1a1000}
-.lugar-btn:not(.active){background:var(--surf);color:var(--dim)}
-
 #view-weekconfig{flex:1;display:none;flex-direction:column;min-height:0}
 #view-weekconfig.active{display:flex}
 .wc-day-block{margin-bottom:20px}
@@ -312,21 +307,9 @@ input[type=file]{display:none}
 #view-stock-admin{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg);z-index:10;overflow:hidden}
 #view-stock-admin.active{display:flex}
 
-/* Stock productos */
-.st-prod-item{background:var(--surf);border:1px solid var(--brd);border-radius:11px;padding:11px 13px;margin-bottom:7px;display:flex;align-items:center;gap:10px;cursor:pointer}
-.st-prod-sema{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.st-sema-grn{background:#48bb78}.st-sema-amb{background:#ed8936}.st-sema-red{background:#fc8181}
-.st-prod-info{flex:1;min-width:0}
-.st-prod-name{font-size:13px;font-weight:600;color:var(--txt)}
-.st-prod-meta{font-size:11px;color:var(--dim);margin-top:2px}
-.st-prod-qty{font-size:15px;font-weight:700;color:var(--txt)}
-.st-prod-unit{font-size:10px;color:var(--dim)}
-.st-sec-hdr{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 0 6px;font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.8px}
-.st-sec-hdr::before,.st-sec-hdr::after{content:"";flex:1;height:1px;background:var(--brd)}
-.st-archived-toggle{padding:10px 0 6px;cursor:pointer;font-size:12px;font-weight:600;color:var(--dim);display:flex;align-items:center;gap:6px;border-top:1px solid var(--brd)}
-.st-color-row{display:flex;gap:8px;flex-wrap:wrap;padding:4px 0}
-.st-color-opt{width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all .15s}
-.st-color-opt.active{border-color:var(--txt);transform:scale(1.15)}
+/* #view-stock-prov — overlay absoluto sobre todo el body, mismo patrón que #view-stock-admin */
+#view-stock-prov{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg);z-index:10;overflow:hidden}
+#view-stock-prov.active{display:flex}
 
 /* ── INVITE TRABAJADOR ── */
 .inv-sec-group{display:flex;gap:6px;margin-top:6px}
@@ -336,6 +319,16 @@ input[type=file]{display:none}
 /* ── MODAL OVERLAY ── */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}
 .modal-overlay.show{display:flex}
+
+/* ── Jerarquía z-index de overlays (Admin) ──
+   200 — modales base (.modal-overlay aquí, .overlay en worker-modal.js): AdminEntityModal, #ov-preview, #ov-invite-trab.
+   300 — popups que se abren DESDE DENTRO de un modal base y deben quedar por encima de él: #ov-skills (ya inline),
+         #ov-worker-photo (ya inline, worker-modal.js), #ov-vac-popup, #ov-confirm (showConfirm() puede abrirse
+         con #ov-preview aún abierto, ej. prev_resetPin() en worker-modal.js).
+   350/360 — selector de hora (.tp-backdrop/.tp-popup) — el más anidado, se abre desde dentro de #ov-preview.
+   400 — toast (#_toast). 500 — bloqueador de carga (.autogen-loading).
+   Nuevo overlay anidado dentro de otro modal → añadirlo aquí con z-index:300, no como caso aislado. */
+#ov-vac-popup, #ov-confirm{z-index:300}
 
 /* ── NUEVO TRABAJADOR ── */
 .inv-access-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--nav);border:1px solid var(--brd2);border-radius:10px;margin-bottom:12px}

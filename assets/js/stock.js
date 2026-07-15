@@ -1,5 +1,8 @@
-let prods   = []
-let oneoffs = []
+let prods     = []
+let oneoffs   = []
+let stockCatsAll       = [] // todas las categorías activas — alimenta el <select> del modal de producto
+let stockCatsWithProds = [] // solo las que tienen ≥1 producto — alimenta los chips de #cat-bar
+let stockProvsAll      = [] // todos los proveedores activos — alimenta el <select> del modal de producto
 
 function getStockUser() {
   if (typeof currentUser !== 'undefined') return currentUser
@@ -8,7 +11,7 @@ function getStockUser() {
 }
 
 function normCat(v) {
-  if (!v) return 'ali'
+  if (!v) return ''
   const map = { bebidas:'beb', alimentacion:'ali', 'alimentación':'ali', limpieza:'lim', material:'mat' }
   return map[v.toLowerCase()] || v
 }
@@ -38,7 +41,6 @@ const el = {
   regList:       document.getElementById('reg-list'),
 
   modalBg:       document.getElementById('modal-bg'),
-  editSheetBg:   document.getElementById('edit-sheet-bg'),
   oneoffModalBg: document.getElementById('oneoff-modal-bg'),
   confirmDelBg:  document.getElementById('confirm-del-bg'),
   confirmDelName:document.getElementById('confirm-del-name'),
@@ -48,20 +50,15 @@ const el = {
 }
 
 const inputs = {
-  npName: document.getElementById('np-n'),
-  npCat:  document.getElementById('np-c'),
-  npLoc:  document.getElementById('np-l'),
-  npQty:  document.getElementById('np-q'),
-  npUnit: document.getElementById('np-u'),
-  npMin:  document.getElementById('np-m'),
-  npNote: document.getElementById('np-no'),
-
-  epName: document.getElementById('ep-n'),
-  epCat:  document.getElementById('ep-c'),
-  epLoc:  document.getElementById('ep-l'),
-  epMin:  document.getElementById('ep-m'),
-  epUnit: document.getElementById('ep-u'),
-  epNote: document.getElementById('ep-no'),
+  pmName: document.getElementById('pm-n'),
+  pmCat:  document.getElementById('pm-c'),
+  pmProv: document.getElementById('pm-p'),
+  pmLoc:  document.getElementById('pm-l'),
+  pmQty:  document.getElementById('pm-q'),
+  pmUnit: document.getElementById('pm-u'),
+  pmMin:  document.getElementById('pm-m'),
+  pmNote: document.getElementById('pm-no'),
+  pmActivo: document.getElementById('pm-activo'),
 
   ooName: document.getElementById('oo-n'),
   ooQty:  document.getElementById('oo-q'),
@@ -69,12 +66,6 @@ const inputs = {
 }
 
 const prefs = {
-  categories: {
-    beb: { label: 'Bebidas',       emoji: '🍺' },
-    ali: { label: 'Alimentación',  emoji: '🥩' },
-    lim: { label: 'Limpieza',      emoji: '🧴' },
-    mat: { label: 'Material',      emoji: '📦' },
-  },
   locations: {
     d: { label: 'Almacén', color: 'loc-d' },
     g: { label: 'Garaje',   color: 'loc-g' },
@@ -93,14 +84,94 @@ function sbToLocal(r) {
     min:     r.minimo    ?? 0,
     unit:    r.unidad    || '',
     note:    r.nota      || '',
+    provId:  r.proveedor_id || null,
+    activo:  r.activo    !== false,
     updated: Date.now(),
   }
 }
 
+/* ─── Categorías (Supabase, gestionadas desde Admin) ─── */
+async function fetchStockCategorias() {
+  try {
+    const { data, error } = await _sb.from('stock_categorias')
+      .select('*')
+      .eq('local_id', LOCAL_ID)
+      .eq('activa', true)
+      .order('orden')
+    if (error) throw error
+    stockCatsAll = data || []
+  } catch(e) {
+    console.error('[stock] fetchStockCategorias:', e)
+    stockCatsAll = []
+  }
+}
+
+function renderCatBar() {
+  const bar = document.getElementById('cat-bar')
+  if (!bar) return
+  const repPill = bar.querySelector('.cpill-rep')
+  bar.querySelectorAll('.cpill-dyn').forEach(p => p.remove())
+  stockCatsWithProds = stockCatsAll.filter(c => prods.some(p => p.cat === c.slug))
+  stockCatsWithProds.forEach(c => {
+    const pill = document.createElement('div')
+    pill.className = 'cpill cpill-dyn'
+    pill.innerHTML = `${c.icono} <span class="cpill-lbl">${c.nombre}</span>`
+    pill.addEventListener('click', () => setCat(c.slug, pill))
+    bar.insertBefore(pill, repPill)
+  })
+  const activeCatGone = activeCat !== 'all' && activeCat !== 'rep' && activeCat !== 'sin-cat'
+    && !stockCatsWithProds.some(c => c.slug === activeCat)
+  if (activeCatGone) {
+    activeCat = 'all'
+    bar.querySelectorAll('.cpill').forEach(el => el.classList.remove('act'))
+    bar.querySelector('.cpill-all')?.classList.add('act')
+    renderInventory()
+  }
+}
+
+function fillCatSelect() {
+  if (!inputs.pmCat) return
+  /* 'default' ("Sin categoría") es el fallback automático de productos huérfanos —
+     no debe poder elegirse a mano en el modal. */
+  inputs.pmCat.innerHTML = stockCatsAll
+    .filter(c => c.slug !== 'default')
+    .map(c => `<option value="${c.slug}">${c.icono} ${c.nombre}</option>`).join('')
+}
+
+/* ─── Proveedores (Supabase, gestionados desde Admin) ─── */
+async function fetchStockProveedores() {
+  try {
+    const { data, error } = await _sb.from('stock_proveedores')
+      .select('*')
+      .eq('local_id', LOCAL_ID)
+      .eq('activo', true)
+      .order('nombre')
+    if (error) throw error
+    stockProvsAll = data || []
+  } catch(e) {
+    console.error('[stock] fetchStockProveedores:', e)
+    stockProvsAll = []
+  }
+}
+
+function fillProvSelect() {
+  if (!inputs.pmProv) return
+  inputs.pmProv.innerHTML = '<option value="">Sin proveedor</option>'
+    + stockProvsAll.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('')
+}
+
+function provName(id) {
+  return stockProvsAll.find(p => p.id === id)?.nombre || ''
+}
+
 /* ─── Init ─── */
 async function initStock() {
+  await Promise.all([fetchStockCategorias(), fetchStockProveedores()])
+  fillCatSelect()
+  fillProvSelect()
+
   try {
-    const { data, error } = await _sb.from('productos')
+    const { data, error } = await _sb.from('stock_productos')
       .select('*')
       .eq('local_id', LOCAL_ID)
       .eq('activo', true)
@@ -112,6 +183,7 @@ async function initStock() {
     toast('Error al cargar productos')
   }
 
+  renderCatBar()
   await sbLoadProductosPuntuales()
   applyRolePermissions()
   renderTab(activeTab)
@@ -161,7 +233,7 @@ function setCat(cat, button) {
 /* ─── Inventory render ─── */
 function renderInventory() {
   const EMPTY = '<div class="ped-empty"><div class="ped-empty-icon">📦</div><div class="ped-empty-title">No hay productos</div><div class="ped-empty-sub">Usa el botón + para agregar un producto.</div></div>'
-  const knownCats = new Set(Object.keys(prefs.categories))
+  const knownCats = new Set(stockCatsAll.map(c => c.slug))
 
   if (activeCat === 'rep') {
     const items = prods.filter(isPendingForOrderView)
@@ -188,11 +260,11 @@ function renderInventory() {
   }
 
   let html = ''
-  for (const [cat, catInfo] of Object.entries(prefs.categories)) {
-    const items = prods.filter(p => p.cat === cat)
+  for (const c of stockCatsAll) {
+    const items = prods.filter(p => p.cat === c.slug)
       .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
     if (!items.length) continue
-    html += `<div class="sec-hdr"><div class="sec-lbl">${catInfo.emoji} ${catInfo.label.toUpperCase()}</div><div class="sec-line"></div></div>`
+    html += `<div class="sec-hdr"><div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div><div class="sec-line"></div></div>`
     html += items.map(renderProduct).join('')
   }
   const sinCatItems = prods.filter(p => !knownCats.has(p.cat))
@@ -208,26 +280,28 @@ function renderInventory() {
 function renderProduct(prod) {
   const location    = prefs.locations[prod.loc]
   const statusClass = getStockStatus(prod.qty, prod.min)
+  const prov        = provName(prod.provId)
   return `
-    <div class="prod ${statusClass}">
+    <div class="prod ${statusClass}" onclick="openProdModal('${prod.id}')">
       <div class="prod-sema-col">
         <span class="sema ${statusClass}"></span>
       </div>
       <div class="prod-info">
-        <div class="prod-name prod-name-link" onclick="openEdit('${prod.id}')">${prod.name}</div>
+        <div class="prod-name">${prod.name}</div>
         <div class="prod-meta">
           <span class="loc-badge ${location?.color || 'loc-a'}">${location?.label || 'Otro'}</span>
+          ${prov ? `<span class="prov-badge">🚚 ${prov}</span>` : ''}
           <span class="prod-min">Mín ${prod.min} ${prod.unit}</span>
           ${prod.note ? `<span class="prod-note">${prod.note}</span>` : ''}
         </div>
       </div>
       <div class="stepper">
-        <button class="sbtn" onclick="adjustQty('${prod.id}', -1)">−</button>
+        <button class="sbtn" onclick="event.stopPropagation(); adjustQty('${prod.id}', -1)">−</button>
         <div class="sval">
           <span class="sval-num">${prod.qty}</span>
           <span class="sval-unit">${prod.unit}</span>
         </div>
-        <button class="sbtn" onclick="adjustQty('${prod.id}', 1)">+</button>
+        <button class="sbtn" onclick="event.stopPropagation(); adjustQty('${prod.id}', 1)">+</button>
       </div>
     </div>
   `
@@ -249,7 +323,7 @@ async function adjustQty(id, delta) {
   const tipo  = invMode ? 'inventario' : 'ajuste'
   try {
     await Promise.all([
-      _sb.from('productos').update({ cantidad: newQty }).eq('id', id),
+      _sb.from('stock_productos').update({ cantidad: newQty }).eq('id', id),
       _sb.from('stock_movimientos').insert({ producto_id: id, delta, tipo, quien }),
     ])
   } catch(e) {
@@ -263,28 +337,31 @@ function toggleInv() {
   invMode = !invMode
   el.invBanner.classList.toggle('show', invMode)
   el.btnInv.classList.toggle('active', invMode)
+  el.prodList.classList.toggle('inv-active', invMode)
 }
 function cancelInv() {
   invMode = false
   el.invBanner.classList.remove('show')
   el.btnInv.classList.remove('active')
+  el.prodList.classList.remove('inv-active')
 }
 function saveInv() {
   invMode = false
   el.invBanner.classList.remove('show')
   el.btnInv.classList.remove('active')
+  el.prodList.classList.remove('inv-active')
   toast('Inventario guardado')
 }
 
 function updateSinCatChip() {
   const bar = document.getElementById('cat-bar')
   if (!bar) return
-  const knownCats = new Set(Object.keys(prefs.categories))
+  const knownCats = new Set(stockCatsAll.map(c => c.slug))
   const hasSinCat = prods.some(p => !knownCats.has(p.cat))
   let chip = bar.querySelector('[data-cat="sin-cat"]')
   if (hasSinCat && !chip) {
     chip = document.createElement('div')
-    chip.className = 'cpill'
+    chip.className = 'cpill cpill-dyn'
     chip.dataset.cat = 'sin-cat'
     chip.innerHTML = '❓ <span class="cpill-lbl">Sin categoría</span>'
     chip.addEventListener('click', () => setCat('sin-cat', chip))
@@ -314,94 +391,80 @@ function updateInventoryStatus() {
   el.invDot.classList.add('active')
 }
 
-/* ─── Add product modal ─── */
-function showAddProdModal() { el.modalBg.classList.add('show') }
-function hideAddProdModal() { el.modalBg.classList.remove('show'); resetNewProductForm() }
-function resetNewProductForm() {
-  inputs.npName.value = ''
-  inputs.npCat.value  = 'beb'
-  inputs.npLoc.value  = 'd'
-  inputs.npQty.value  = ''
-  inputs.npUnit.value = ''
-  inputs.npMin.value  = ''
-  inputs.npNote.value = ''
-}
+/* ─── Product modal (crear / editar — mismo modal, mismo patrón que adminStock.js) ─── */
+async function openProdModal(id) {
+  /* Admin y Stock son iframes con estado JS independiente — una categoría o proveedor creado
+     en Admin mientras Stock ya estaba cargado no aparecería en el select sin este refetch. */
+  await Promise.all([fetchStockCategorias(), fetchStockProveedores()])
+  fillCatSelect()
+  fillProvSelect()
 
-async function addProd() {
-  const name = inputs.npName.value.trim()
-  const qty  = Number(inputs.npQty.value)
-  const min  = Number(inputs.npMin.value)
-  const unit = inputs.npUnit.value.trim()
+  editProdId = id || null
+  const prod = editProdId ? prods.find(item => item.id === editProdId) : null
+  document.getElementById('prod-modal-title').textContent = prod ? prod.name : 'Nuevo producto'
+  document.getElementById('prod-modal-btn').textContent = prod ? 'Guardar cambios' : 'Añadir producto'
+  document.getElementById('prod-modal-del').style.display = prod ? 'block' : 'none'
+  inputs.pmName.value = prod ? prod.name : ''
+  inputs.pmCat.value  = prod ? prod.cat  : (stockCatsAll.find(c => c.slug !== 'default')?.slug || '')
+  inputs.pmProv.value = prod ? (prod.provId || '') : ''
+  inputs.pmLoc.value  = prod ? prod.loc  : 'd'
+  inputs.pmQty.value  = prod ? prod.qty  : ''
+  inputs.pmUnit.value = prod ? prod.unit : ''
+  inputs.pmMin.value  = prod ? prod.min  : ''
+  inputs.pmNote.value = prod ? prod.note : ''
+  inputs.pmActivo.checked = prod ? prod.activo !== false : true
+  el.modalBg.classList.add('show')
+}
+function closeProdModal() { editProdId = null; el.modalBg.classList.remove('show') }
+
+async function saveProdModal() {
+  const name = inputs.pmName.value.trim()
+  const qty  = Number(inputs.pmQty.value)
+  const min  = Number(inputs.pmMin.value)
+  const unit = inputs.pmUnit.value.trim()
+  const activo = inputs.pmActivo.checked
   if (!name || !unit || Number.isNaN(qty)) { toast('Completa nombre, cantidad y unidad'); return }
   const payload = {
-    local_id:  LOCAL_ID,
-    nombre:    name,
-    categoria: inputs.npCat.value,
-    ubicacion: inputs.npLoc.value,
-    cantidad:  qty,
-    minimo:    Number.isNaN(min) ? 0 : min,
-    unidad:    unit,
-    nota:      inputs.npNote.value.trim(),
-    activo:    true,
+    nombre:       name,
+    categoria:    inputs.pmCat.value,
+    proveedor_id: inputs.pmProv.value || null,
+    ubicacion:    inputs.pmLoc.value,
+    cantidad:     qty,
+    minimo:       Number.isNaN(min) ? 0 : min,
+    unidad:       unit,
+    nota:         inputs.pmNote.value.trim(),
+    activo,
   }
   try {
-    const { data, error } = await _sb.from('productos').insert(payload).select('*').single()
-    if (error) throw error
-    prods.unshift(sbToLocal(data))
+    if (editProdId) {
+      const prod = prods.find(item => item.id === editProdId)
+      if (!prod) return
+      const { error } = await _sb.from('stock_productos').update(payload).eq('id', editProdId)
+      if (error) throw error
+      if (activo) {
+        Object.assign(prod, { name: payload.nombre, cat: payload.categoria, provId: payload.proveedor_id, loc: payload.ubicacion, qty: payload.cantidad, min: payload.minimo, unit: payload.unidad, note: payload.nota, activo: true, updated: Date.now() })
+      } else {
+        /* desactivado desde el toggle — mismo efecto que "Eliminar producto": sale del inventario activo */
+        prods = prods.filter(item => item.id !== editProdId)
+      }
+      toast(activo ? 'Producto actualizado' : 'Producto desactivado')
+    } else {
+      const { data, error } = await _sb.from('stock_productos')
+        .insert({ ...payload, local_id: LOCAL_ID })
+        .select('*').single()
+      if (error) throw error
+      if (activo) prods.unshift(sbToLocal(data))
+      toast('Producto añadido')
+    }
     renderInventory()
     updatePedDot()
+    renderCatBar()
     updateSinCatChip()
     if (activeTab === 'ped') renderPedido()
-    hideAddProdModal()
-    toast('Producto añadido')
+    closeProdModal()
   } catch(e) {
-    console.error('[stock] addProd:', e)
-    toast('Error al añadir producto')
-  }
-}
-
-/* ─── Edit product sheet ─── */
-function openEdit(id) {
-  const prod = prods.find(item => item.id === id)
-  if (!prod) return
-  editProdId = id
-  inputs.epName.value = prod.name
-  inputs.epCat.value  = prod.cat
-  inputs.epLoc.value  = prod.loc
-  inputs.epMin.value  = prod.min
-  inputs.epUnit.value = prod.unit
-  inputs.epNote.value = prod.note
-  el.editSheetBg.classList.add('show')
-}
-function closeEditSheet() { editProdId = null; el.editSheetBg.classList.remove('show') }
-
-async function saveEditProd() {
-  const prod = prods.find(item => item.id === editProdId)
-  if (!prod) return
-  const name = inputs.epName.value.trim()
-  const min  = Number(inputs.epMin.value)
-  const unit = inputs.epUnit.value.trim()
-  if (!name || !unit) { toast('Completa nombre y unidad'); return }
-  const payload = {
-    nombre:    name,
-    categoria: inputs.epCat.value,
-    ubicacion: inputs.epLoc.value,
-    minimo:    Number.isNaN(min) ? 0 : min,
-    unidad:    unit,
-    nota:      inputs.epNote.value.trim(),
-  }
-  try {
-    const { error } = await _sb.from('productos').update(payload).eq('id', editProdId)
-    if (error) throw error
-    Object.assign(prod, { name: payload.nombre, cat: payload.categoria, loc: payload.ubicacion, min: payload.minimo, unit: payload.unidad, note: payload.nota, updated: Date.now() })
-    renderInventory()
-    updatePedDot()
-    if (activeTab === 'ped') renderPedido()
-    closeEditSheet()
-    toast('Producto actualizado')
-  } catch(e) {
-    console.error('[stock] saveEditProd:', e)
-    toast('Error al guardar cambios')
+    console.error('[stock] saveProdModal:', e)
+    toast('Error al guardar')
   }
 }
 
@@ -419,16 +482,17 @@ function deleteProd() {
 function closeConfirmDel() { el.confirmDelBg?.classList.remove('show') }
 async function confirmDelProd() {
   closeConfirmDel()
-  closeEditSheet()
+  closeProdModal()
   if (!editProdId) return
   const id = editProdId
   editProdId = null
   try {
-    const { error } = await _sb.from('productos').update({ activo: false }).eq('id', id)
+    const { error } = await _sb.from('stock_productos').update({ activo: false }).eq('id', id)
     if (error) throw error
     prods = prods.filter(item => item.id !== id)
     renderInventory()
     updatePedDot()
+    renderCatBar()
     updateSinCatChip()
     if (activeTab === 'ped') renderPedido()
     toast('Producto eliminado')
@@ -449,7 +513,7 @@ function renderPedido() {
   const canManageOneoffs = rol === 'encargado' || rol === 'admin' || rol === 'superadmin'
   const needsOrder       = prods.filter(isPendingForOrderView)
 
-  const topButtons = `
+  const bottomButtons = `
     <button class="ped-send" onclick="sendPedidoWhatsApp()"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg> Enviar pedido por WhatsApp</button>
     ${canManageOneoffs ? `<button class="oneoff-btn" onclick="showOneoffModal()">+ Añadir producto puntual</button>` : ''}
   `
@@ -472,13 +536,13 @@ function renderPedido() {
   }
 
   if (!needsOrder.length && !oneoffs.length) {
-    el.pedContent.innerHTML = topButtons + `
+    el.pedContent.innerHTML = `
       <div class="ped-empty">
         <div class="ped-empty-icon">🛒</div>
         <div class="ped-empty-title">¡Todo en orden!</div>
         <div class="ped-empty-sub">Los productos por reponer aparecerán aquí automáticamente.</div>
       </div>
-    `
+    ` + bottomButtons
     return
   }
 
@@ -488,17 +552,16 @@ function renderPedido() {
     byCat[p.cat].push(p)
   }
 
-  const catSections = Object.keys(prefs.categories)
-    .filter(cat => byCat[cat])
-    .map(cat => {
-      const catInfo = prefs.categories[cat]
+  const catSections = stockCatsAll
+    .filter(c => byCat[c.slug])
+    .map(c => {
       const header = `
         <div class="sec-hdr">
-          <div class="sec-lbl">${catInfo.emoji} ${catInfo.label.toUpperCase()}</div>
+          <div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div>
           <div class="sec-line"></div>
         </div>
       `
-      const items = byCat[cat].slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map(p => {
+      const items = byCat[c.slug].slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map(p => {
         const st  = getStockStatus(p.qty, p.min)
         const loc = prefs.locations[p.loc] || { label: 'Otro' }
         const n   = Math.max(1, p.min - p.qty)
@@ -515,7 +578,7 @@ function renderPedido() {
       return header + items
     }).join('')
 
-  el.pedContent.innerHTML = topButtons + oneoffSectionHtml + catSections
+  el.pedContent.innerHTML = oneoffSectionHtml + catSections + bottomButtons
 }
 
 function updatePedDot() {
@@ -546,11 +609,10 @@ function sendPedidoWhatsApp() {
     if (!byCat[p.cat]) byCat[p.cat] = []
     byCat[p.cat].push(p)
   }
-  for (const cat of Object.keys(prefs.categories)) {
-    if (!byCat[cat]) continue
-    const catInfo = prefs.categories[cat]
-    lines.push(`_${catInfo.emoji} ${catInfo.label}:_`)
-    for (const p of byCat[cat]) {
+  for (const c of stockCatsAll) {
+    if (!byCat[c.slug]) continue
+    lines.push(`_${c.icono} ${c.nombre}:_`)
+    for (const p of byCat[c.slug]) {
       const n = Math.max(1, p.min - p.qty)
       lines.push(`• ${p.name}: +${n} ${p.unit}`)
     }
@@ -577,7 +639,7 @@ async function deleteOneoff(id) {
 /* ─── Supabase — productos_puntuales ─── */
 async function sbLoadProductosPuntuales() {
   try {
-    const { data, error } = await _sb.from('productos_puntuales')
+    const { data, error } = await _sb.from('stock_productos_puntuales')
       .select('*')
       .eq('local_id', LOCAL_ID)
       .order('created_at', { ascending: true })
@@ -591,7 +653,7 @@ async function sbLoadProductosPuntuales() {
 
 async function sbAddProductoPuntual(nombre, cantidad, unidad) {
   const quien = getStockUser()?.nombre || null
-  const { data, error } = await _sb.from('productos_puntuales')
+  const { data, error } = await _sb.from('stock_productos_puntuales')
     .insert({ local_id: LOCAL_ID, nombre, cantidad, unidad, creado_por: quien })
     .select('*')
     .single()
@@ -600,7 +662,7 @@ async function sbAddProductoPuntual(nombre, cantidad, unidad) {
 }
 
 async function sbDeleteProductoPuntual(id) {
-  const { error } = await _sb.from('productos_puntuales').delete().eq('id', id)
+  const { error } = await _sb.from('stock_productos_puntuales').delete().eq('id', id)
   if (error) throw error
   oneoffs = oneoffs.filter(o => o.id !== id)
 }

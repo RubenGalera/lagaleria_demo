@@ -27,16 +27,6 @@
 <!-- RESERVAS VIEW -->
 <div id="view-res">
 
-  <!-- ZONA FILTER BAR -->
-  <div class="zona-bar toolbar-row" id="zona-bar">
-    <div class="zpill act" onclick="setZona('all',this)"><span class="zpill-icon">✦</span><span class="zpill-txt">Todo</span></div>
-    <div class="zpill" onclick="setZona(1,this)"><span class="zpill-icon">☀️</span><span class="zpill-txt">Terraza</span></div>
-    <div class="zpill" onclick="setZona(2,this)"><span class="zpill-icon">🚪</span><span class="zpill-txt">Entrada</span></div>
-    <div class="zpill" onclick="setZona(3,this)"><span class="zpill-icon">🍷</span><span class="zpill-txt">Barra</span></div>
-    <div class="zpill" onclick="setZona(4,this)"><span class="zpill-icon">🪑</span><span class="zpill-txt">Sala</span></div>
-    <div class="zpill" onclick="setZona(5,this)"><span class="zpill-icon">🎭</span><span class="zpill-txt">Salón</span></div>
-  </div>
-
   <!-- DATE NAV -->
   <div class="date-nav">
     <div class="tp-week-nav">
@@ -59,8 +49,18 @@
     </div>
   </div>
 
-  <!-- MESAS DETAIL -->
+  <!-- MESAS DETAIL (aforo) -->
   <div class="mesas-detail" id="mesas-detail"></div>
+
+  <!-- ZONA FILTER BAR -->
+  <div class="zona-bar toolbar-row" id="zona-bar">
+    <div class="zpill act" onclick="setZona('all',this)"><span class="zpill-icon">✦</span><span class="zpill-txt">Todo</span></div>
+    <div class="zpill" onclick="setZona(1,this)"><span class="zpill-icon">☀️</span><span class="zpill-txt">Terraza</span></div>
+    <div class="zpill" onclick="setZona(2,this)"><span class="zpill-icon">🚪</span><span class="zpill-txt">Entrada</span></div>
+    <div class="zpill" onclick="setZona(3,this)"><span class="zpill-icon">🍷</span><span class="zpill-txt">Barra</span></div>
+    <div class="zpill" onclick="setZona(4,this)"><span class="zpill-icon">🪑</span><span class="zpill-txt">Sala</span></div>
+    <div class="zpill" onclick="setZona(5,this)"><span class="zpill-icon">🎭</span><span class="zpill-txt">Salón</span></div>
+  </div>
 
   <!-- LIST -->
   <div id="res-list"></div>

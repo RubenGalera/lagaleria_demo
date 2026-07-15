@@ -1,10 +1,11 @@
 /* adminSkills.js — Gestión de Habilidades / Skills
-   Globals required: showOv, closeOv, showToast, doDeleteWorker, getW, _previewName, curLocal */
+   Usa el modal compartido AdminEntityModal (assets/lib/admin-entity-modal.js).
+   Globals required: showOv, closeOv, showToast, toast, showConfirm, getW, _previewName, curLocal, AdminEntityModal */
 
 var _editSkillId = null, _skillCat = 'cocina';
-var _skillEmoji = '⭐', _skillEmojiExpanded = false;
 var SKILL_EMOJIS = ['🍺','🍳','📋','🥗','🤝','📦','🍞','🪑','🏃','📅','⭐','🔥','🎯','💪','🔑','📊','🧹','🚀','💡','🎨','🎭','🎪','🥂','🍾','🧊','🔧','🌿','🧂','🫙','🎸'];
 var SKILL_EMOJIS_EXTRA = ['🏆','🎖️','🥇','🎗️','🏅','🎀','💎','👑','🌟','✨','💫','⚡','🌈','🎆','🎇','🧨'];
+var SKILL_ICONS = SKILL_EMOJIS.concat(SKILL_EMOJIS_EXTRA);
 var LG_SKILLS_KEY = 'lg_skills_v1';
 
 var ROLES_COCINA = [
@@ -37,76 +38,80 @@ function closeSkillsPanel(){
 function renderSkillsList(){
   var list=document.getElementById('skills-list');if(!list)return;
   var h='';
-  if(ROLES_COCINA.length){h+='<div class="skill-cat-header">Cocina</div>';ROLES_COCINA.forEach(function(r){h+='<div class="zona-row skill-row-item" data-id="'+r.id+'" data-cat="cocina"><div style="font-size:20px;width:28px;text-align:center">'+r.icon+'</div><div class="zona-name" style="flex:1">'+r.label+'</div><span class="skill-cat-badge">Cocina</span><span class="zona-arrow">›</span></div>';});}
-  if(ROLES_SALA.length){h+='<div class="skill-cat-header">Sala</div>';ROLES_SALA.forEach(function(r){h+='<div class="zona-row skill-row-item" data-id="'+r.id+'" data-cat="sala"><div style="font-size:20px;width:28px;text-align:center">'+r.icon+'</div><div class="zona-name" style="flex:1">'+r.label+'</div><span class="skill-cat-badge">Sala</span><span class="zona-arrow">›</span></div>';});}
-  if(!h)h='<div class="zona-empty">Sin habilidades.</div>';
-  h+='<div style="padding:12px 0 4px"><button onclick="openNuevaSkill()" style="width:100%;padding:13px;border-radius:10px;border:1.5px dashed var(--acc-bd);background:transparent;color:var(--acc);font-size:13px;font-weight:600;cursor:pointer">+ Añadir habilidad</button></div>';
+  h+='<div class="skill-cat-header">Cocina</div>';
+  ROLES_COCINA.forEach(function(r){h+='<div class="zona-row skill-row-item" data-id="'+r.id+'" data-cat="cocina"><span class="zona-emoji">'+r.icon+'</span><div class="zona-info"><div class="zona-name">'+escHtml(r.label)+'</div></div><span class="zona-arrow">›</span></div>';});
+  h+='<button class="btn-nueva-zona" data-newcat="cocina">+ Añadir a Cocina</button>';
+  h+='<div class="skill-cat-header">Sala</div>';
+  ROLES_SALA.forEach(function(r){h+='<div class="zona-row skill-row-item" data-id="'+r.id+'" data-cat="sala"><span class="zona-emoji">'+r.icon+'</span><div class="zona-info"><div class="zona-name">'+escHtml(r.label)+'</div></div><span class="zona-arrow">›</span></div>';});
+  h+='<button class="btn-nueva-zona" data-newcat="sala">+ Añadir a Sala</button>';
   list.innerHTML=h;
   list.querySelectorAll('.skill-row-item').forEach(function(el){el.addEventListener('click',function(){openEditSkill(el.dataset.id,el.dataset.cat);});});
+  list.querySelectorAll('[data-newcat]').forEach(function(btn){btn.addEventListener('click',function(){openNuevaSkill(btn.dataset.newcat);});});
 }
-function openNuevaSkill(){
-  _editSkillId=null;_skillCat='cocina';_skillEmoji='⭐';_skillEmojiExpanded=false;
-  document.getElementById('modal-skill-title').textContent='Editar / añadir habilidad';
-  document.getElementById('skill-nombre').value='';document.getElementById('skill-activa').checked=true;
-  document.getElementById('btn-del-skill').style.display='none';
-  document.getElementById('btn-save-skill').textContent='+ Añadir habilidad';
-  document.querySelectorAll('.lugar-btn').forEach(function(b){b.classList.toggle('active',b.dataset.cat==='cocina');});
-  var sw=document.getElementById('skill-emoji-wrap');if(sw)sw.classList.add('collapsed');
-  renderSkillEmojiGrid(false);document.getElementById('modal-skill').classList.add('show');
+function openNuevaSkill(cat){
+  _editSkillId=null;_skillCat=cat||'cocina';
+  AdminEntityModal.open({
+    title:'Nueva habilidad',
+    saveLabel:'+ Añadir habilidad',
+    nombre:'',
+    nombrePlaceholder:'Barra, Plancha...',
+    activo:true,
+    activoLabel:'Activa',
+    icons:SKILL_ICONS,
+    icono:'⭐',
+    onSave:saveSkill,
+    onDelete:null
+  });
 }
 function openEditSkill(id,cat){
   var roles=cat==='cocina'?ROLES_COCINA:ROLES_SALA;
   var skill=roles.find(function(r){return r.id===id;});if(!skill)return;
-  _editSkillId=id;_skillCat=cat;_skillEmoji=skill.icon||'⭐';_skillEmojiExpanded=false;
-  document.getElementById('modal-skill-title').textContent='Editar / añadir habilidad';
-  document.getElementById('skill-nombre').value=skill.label;document.getElementById('skill-activa').checked=true;
-  document.getElementById('btn-del-skill').style.display='block';
-  document.getElementById('btn-save-skill').textContent='Guardar habilidad';
-  document.querySelectorAll('.lugar-btn').forEach(function(b){b.classList.toggle('active',b.dataset.cat===cat);});
-  var sw=document.getElementById('skill-emoji-wrap');if(sw)sw.classList.add('collapsed');
-  renderSkillEmojiGrid(false);document.getElementById('modal-skill').classList.add('show');
+  _editSkillId=id;_skillCat=cat;
+  AdminEntityModal.open({
+    title:'Editar habilidad',
+    saveLabel:'Guardar habilidad',
+    deleteLabel:'Eliminar habilidad',
+    nombre:skill.label,
+    activo:true,
+    activoLabel:'Activa',
+    icons:SKILL_ICONS,
+    icono:skill.icon||'⭐',
+    onSave:saveSkill,
+    onDelete:function(){ AdminEntityModal.close(); promptDelSkill(); }
+  });
 }
-function closeModalSkill(){document.getElementById('modal-skill').classList.remove('show');}
-function selectSkillCat(btn){_skillCat=btn.dataset.cat;document.querySelectorAll('.lugar-btn').forEach(function(b){b.classList.toggle('active',b===btn);});}
-function renderSkillEmojiGrid(expanded){
-  _skillEmojiExpanded=expanded;
-  var emojis=expanded?SKILL_EMOJIS.concat(SKILL_EMOJIS_EXTRA):SKILL_EMOJIS;
-  var grid=document.getElementById('skill-emoji-grid');if(!grid)return;
-  var h='';
-  emojis.forEach(function(e){h+='<button class="emoji-opt'+(e===_skillEmoji?' act':'')+'" data-emoji="'+e+'" type="button">'+e+'</button>';});
-  grid.innerHTML=h;
-  grid.querySelectorAll('.emoji-opt').forEach(function(btn){btn.addEventListener('click',function(){pickSkillEmoji(btn.getAttribute('data-emoji'));});});
-  var wrap=document.getElementById('skill-emoji-wrap'),chev=document.getElementById('skill-emoji-chev'),lbl=document.getElementById('skill-emoji-lbl');
-  if(wrap){if(expanded){wrap.classList.remove('collapsed');wrap.style.maxHeight='';}else{wrap.classList.add('collapsed');wrap.style.maxHeight='';}}
-  if(chev)chev.style.transform=expanded?'rotate(180deg)':'';
-  if(lbl)lbl.textContent=expanded?'Ver menos':'Ver más iconos';
-}
-function pickSkillEmoji(e){_skillEmoji=e;renderSkillEmojiGrid(_skillEmojiExpanded);}
-function toggleSkillEmojis(){renderSkillEmojiGrid(!_skillEmojiExpanded);}
-function saveSkill(){
-  var nombre=document.getElementById('skill-nombre').value.trim();if(!nombre){alert('Introduce un nombre');return;}
-  var s={id:nombre.toLowerCase().replace(/\s+/g,'_'),label:nombre,icon:_skillEmoji};
-  if(_editSkillId){var arr=_skillCat==='cocina'?ROLES_COCINA:ROLES_SALA;var i=arr.findIndex(function(r){return r.id===_editSkillId;});if(i>=0)arr[i]=s;}
-  else{if(_skillCat==='cocina')ROLES_COCINA.push(s);else ROLES_SALA.push(s);}
-  saveSkillsLocal();closeModalSkill();renderSkillsList();
+function saveSkill(data){
+  var nombre=(data.nombre||'').trim();
+  if(!nombre){ toast('Introduce un nombre'); return; }
+  var s={id:_editSkillId||nombre.toLowerCase().replace(/\s+/g,'_'),label:nombre,icon:data.icono||'⭐'};
+  if(_editSkillId){
+    var arr=_skillCat==='cocina'?ROLES_COCINA:ROLES_SALA;
+    var i=arr.findIndex(function(r){return r.id===_editSkillId;});
+    if(i>=0)arr[i]=s;
+  } else {
+    if(_skillCat==='cocina')ROLES_COCINA.push(s);else ROLES_SALA.push(s);
+  }
+  saveSkillsLocal();
+  AdminEntityModal.close();
+  renderSkillsList();
 }
 function promptDelSkill(){
   if(!_editSkillId)return;
   var skill=ROLES_COCINA.concat(ROLES_SALA).find(function(r){return r.id===_editSkillId;});
   var name=skill?skill.label:'esta habilidad';
-  var body=document.getElementById('confirm-body');if(body)body.textContent='Vas a eliminar "'+name+'". Los trabajadores que la tengan asignada la perderán.';
-  var btn=document.querySelector('#ov-confirm .mbtn-d');if(btn){btn.textContent='Sí, eliminar';btn.onclick=doDeleteSkill;}
-  var cancel=document.querySelector('#ov-confirm .mbtn-c');if(cancel){cancel.onclick=function(){closeOv('ov-confirm');showOv('modal-skill');};}
-  closeModalSkill();showOv('ov-confirm');
+  showConfirm({
+    title:'¿Eliminar habilidad?',
+    message:'Vas a eliminar "'+name+'". Los trabajadores que la tengan asignada la perderán.',
+    confirmLabel:'Sí, eliminar',
+    onConfirm:doDeleteSkill
+  });
 }
 function doDeleteSkill(){
-  closeOv('ov-confirm');
   ROLES_COCINA=ROLES_COCINA.filter(function(r){return r.id!==_editSkillId;});
   ROLES_SALA=ROLES_SALA.filter(function(r){return r.id!==_editSkillId;});
-  saveSkillsLocal();renderSkillsList();
-  var btn=document.querySelector('#ov-confirm .mbtn-d');if(btn){btn.textContent='Sí, eliminar';btn.onclick=doDeleteWorker;}
-  var cancel=document.querySelector('#ov-confirm .mbtn-c');if(cancel){cancel.onclick=function(){closeOv('ov-confirm');showOv('ov-preview');};}
-  if(typeof showToast==='function')showToast('Habilidad eliminada');
+  saveSkillsLocal();
+  renderSkillsList();
+  toast('Habilidad eliminada');
 }
 
 function ensureWorkerExtras(w){

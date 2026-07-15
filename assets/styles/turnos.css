@@ -277,6 +277,8 @@ tr.wr td:last-child{border-radius:0 8px 8px 0;border:1px solid var(--border);bor
 .hora-add-btn{background:transparent;border:1px dashed var(--border2);border-radius:7px;padding:7px 10px;font-size:11px;color:var(--dim);cursor:pointer;width:100%;text-align:left;margin-top:4px}
 .hora-add-btn:active{border-color:var(--acc);color:var(--acc)}
 
+#ov-confirm{z-index:300} /* por encima de #ov-preview (worker-modal.js) — mismo fix que admin.css */
+
 /* ── TIME PICKER POPUP ── */
 .tp-backdrop{position:fixed;inset:0;z-index:350;display:none}
 .tp-backdrop.show{display:block}

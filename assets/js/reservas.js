@@ -60,12 +60,13 @@ async function sbSaveReserva(r){
     if(r._sbId){
       const {error} = await _sb.from('reservas').update(payload).eq('id',r._sbId);
       if(error) throw error;
+      return {ok:true, id:r._sbId};
     } else {
-      const {error} = await _sb.from('reservas').insert(payload);
+      const {data,error} = await _sb.from('reservas').insert(payload).select('id').single();
       if(error) throw error;
+      return {ok:true, id:data.id};
     }
-    return true;
-  }catch(e){ console.error('sbSaveReserva',e); return false; }
+  }catch(e){ console.error('sbSaveReserva',e); return {ok:false}; }
 }
 
 async function sbDeleteReserva(sbId){
@@ -372,6 +373,12 @@ function toggleMesas(){
   if(ch) ch.style.transform=d.classList.contains('show')?'rotate(180deg)':'rotate(0deg)';
   if(d.classList.contains('show')) renderMesasDetail();
 }
+function closeMesasDetail(){
+  const d=document.getElementById('mesas-detail');
+  if(d) d.classList.remove('show');
+  const ch=document.getElementById('mesas-chevron');
+  if(ch) ch.style.transform='rotate(0deg)';
+}
 function renderMesasDetail(){
   const el=document.getElementById('mesas-detail');
   const total=totalMesas();
@@ -430,11 +437,22 @@ function renderRes(){
   updateMesasPill();
   const list=document.getElementById('res-list');
   const zonasToShow=curZona==='all'?zonas:zonas.filter(z=>z.id===curZona);
+  const dayRes=reservas.filter(r=>r.fecha===curDay);
+
+  if(!dayRes.length){
+    list.innerHTML=`<div class="empty">
+      <div class="empty-icon">🍽️</div>
+      <div class="empty-title">Sin reservas</div>
+      <div class="empty-sub">Las reservas del día aparecerán aquí.<br>Añade la primera cuando quieras.</div>
+    </div>
+    <div class="tab-footer"><button class="add-btn" onclick="openNewRes()">+ Nueva reserva</button></div>`;
+    return;
+  }
 
   function buildTurno(turno){
     const label=turno==='mid'?'🌤 Mediodía':'🌙 Noche';
-    const dayRes=reservas.filter(r=>r.fecha===curDay&&turnoDeHora(r.hora)===turno).sort((a,b)=>a.hora.localeCompare(b.hora));
-    const filtered=curZona==='all'?dayRes:dayRes.filter(r=>r.zonaId===curZona);
+    const turnoRes=dayRes.filter(r=>turnoDeHora(r.hora)===turno).sort((a,b)=>a.hora.localeCompare(b.hora));
+    const filtered=curZona==='all'?turnoRes:turnoRes.filter(r=>r.zonaId===curZona);
     let h=`<div class="turno-hdr"><span class="turno-hdr-label">${label}</span><span class="turno-hdr-badge">· ${filtered.length}</span></div>`;
     if(!filtered.length){
       h+=`<div style="text-align:center;padding:18px 20px;font-size:12px;color:var(--faint)">Sin reservas</div>`;
@@ -607,14 +625,14 @@ async function saveRes(){
   var toSave = editingId
     ? Object.assign({}, reservas.find(function(r){return r.id===editingId;})||{}, data)
     : data;
-  var ok = await sbSaveReserva(toSave);
-  if(!ok){ toast('Error al guardar — inténtalo de nuevo'); return; }
-  /* Supabase confirmó → actualizar estado local */
+  var result = await sbSaveReserva(toSave);
+  if(!result.ok){ toast('Error al guardar — inténtalo de nuevo'); return; }
+  /* Supabase confirmó → actualizar estado local (usa el UUID real, nunca un id provisional) */
   if(editingId){
     var r=reservas.find(function(x){return x.id===editingId;});
     if(r) Object.assign(r,data);
   } else {
-    reservas.push({id:++nid,...data});
+    reservas.push({id:result.id, _sbId:result.id, ...data});
   }
   closeModal('ov-edit');
   renderRes();
@@ -809,6 +827,9 @@ async function saveEvento(){
     ? eventos.find(function(e){return e.id===editingEventoId;})
     : eventos[eventos.length-1];
   if(savedEv && typeof sbSaveEvento==='function') await sbSaveEvento(savedEv);
+  /* Alinear el id local con el UUID real — evita el mismatch numérico vs string
+     que rompía abrir/editar el evento recién creado sin recargar */
+  if(!editingEventoId && savedEv && savedEv._sbId) savedEv.id = savedEv._sbId;
   /* Subir imagen al bucket 'eventos' si hay blob nuevo */
   if(evImgBlob && savedEv && savedEv._sbId){
     var imgResult = await sbUploadEventoImg(savedEv._sbId, evImgBlob);

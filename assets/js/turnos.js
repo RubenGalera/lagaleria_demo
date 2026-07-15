@@ -83,10 +83,10 @@ async function sbInitTrabajadores() {
     {data: dispoData,    error: dispoErr},
     {data: vacData,      error: vacErr},
   ] = await Promise.all([
-    _sb.from('skills').select('id, nombre'),
+    _sb.from('trabajadores_skills').select('id, nombre'),
     _sb.from('trabajador_skill').select('trabajador_id, skill_id, nivel').in('trabajador_id', trabIds),
     _sb.from('disponibilidad').select('trabajador_id, dia_semana, turno').in('trabajador_id', trabIds),
-    _sb.from('vacaciones').select('id, trabajador_id, desde, hasta, tipo').in('trabajador_id', trabIds),
+    _sb.from('trabajadores_vacaciones').select('id, trabajador_id, desde, hasta, tipo').in('trabajador_id', trabIds),
   ]);
   if (catalogErr) console.warn('[SB] skills catalog:', catalogErr.message);
   if (skillsErr)  console.warn('[SB] trabajador_skill:', skillsErr.message);
@@ -1078,6 +1078,52 @@ function buildReadonlyHTML(){
   return html;
 }
 
+/* ── GUARDAR IMAGEN (vista Semana) ── */
+async function saveImage(){
+  const btn=document.getElementById('btn-save-img');
+  const orig=btn.textContent; btn.textContent='⏳...'; btn.disabled=true;
+  if(!window.html2canvas){
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      s.onload=res;s.onerror=rej;document.head.appendChild(s);
+    });
+  }
+  const header=document.createElement('div');
+  header.style.cssText='background:#22292D;padding:12px 16px;display:flex;align-items:center;justify-content:space-between';
+  header.innerHTML=`<div style="display:flex;flex-direction:column"><span style="font-size:8px;letter-spacing:2.5px;color:#C5A669;font-family:Georgia,serif">— NEOTABERNA —</span><span style="font-size:18px;color:#C5A669;font-family:Georgia,serif;letter-spacing:4px">LA GALERÍA</span></div><div style="text-align:right"><div style="font-size:11px;font-weight:700;color:#f0ece4">${document.getElementById('wlabel').textContent}</div><div style="font-size:10px;color:#7a8f96">${document.getElementById('wsub').textContent}</div></div>`;
+  const legend=document.createElement('div');
+  legend.style.cssText='background:#1a2226;padding:8px 16px;display:flex;flex-wrap:wrap;gap:10px;border-top:1px solid rgba(255,255,255,.07)';
+  [{l:'Sala mediodía ~12:30',c:'var(--sm-bg)',b:'var(--sm-bd)'},{l:'Sala noche ~20:00',c:'var(--sn-bg)',b:'var(--sn-bd)'},{l:'Cocina mediodía ~12:00',c:'var(--cm-bg)',b:'var(--cm-bd)'},{l:'Cocina noche ~20:00',c:'var(--cn-bg)',b:'var(--cn-bd)'}].forEach(sl=>{
+    legend.innerHTML+=`<span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#7a8f96"><span style="width:10px;height:10px;border-radius:2px;background:${sl.c};border:1px solid ${sl.b};display:inline-block"></span>${sl.l}</span>`;
+  });
+  const wrap=document.createElement('div');
+  wrap.style.cssText='position:fixed;left:-9999px;top:0;background:#111417;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif';
+  document.body.appendChild(wrap);
+  wrap.appendChild(header);
+  const gi=document.querySelector('.grid-inner');
+  const gc=gi.cloneNode(true);
+  gc.style.cssText='width:'+gi.scrollWidth+'px;overflow:visible';
+  const gw=document.createElement('div');
+  gw.style.cssText='background:#111417;padding:10px 16px';
+  gw.appendChild(gc);
+  wrap.appendChild(gw);
+  wrap.appendChild(legend);
+  try{
+    const canvas=await html2canvas(wrap,{backgroundColor:'#111417',scale:2,useCORS:true,logging:false});
+    const a=document.createElement('a');
+    a.download='turnos_'+document.getElementById('wlabel').textContent.replace(/\s/g,'_')+'.png';
+    a.href=canvas.toDataURL('image/png');a.click();
+  }catch(e){alert('Error: '+e.message);}
+  document.body.removeChild(wrap);
+  btn.textContent=orig;btn.disabled=false;
+}
+
+/* ── COMPARTIR ENLACE (vista Semana) — reutiliza el mismo mecanismo que copyLink() ── */
+function shareLink(){
+  copyLink();
+}
+
 function copyLink(){
   // Genera un enlace con los datos codificados en el hash para vista solo lectura
   const data={label:document.getElementById("wlabel").textContent,loc:curLocal,data:L().data,eventos:L().eventos};
@@ -1204,7 +1250,7 @@ function addVacaciones(){
   updateAlert();
   showToast(overlap?"⚠️ Solapamiento detectado — revisa las fechas":"Periodo añadido ✓");
   if(w._sbId){
-    _sb?.from('vacaciones').insert({trabajador_id:w._sbId,desde,hasta,tipo}).select('id').single()
+    _sb?.from('trabajadores_vacaciones').insert({trabajador_id:w._sbId,desde,hasta,tipo}).select('id').single()
       .then(({data,error})=>{
         if(error){console.error('[SB] insert vac:',error.message); return;}
         if(data) newVac._sbId=data.id;
@@ -1225,7 +1271,7 @@ function delVacaciones(idx){
   });
   updateAlert();
   if(w._sbId && item?._sbId){
-    _sb?.from('vacaciones').delete().eq('id',item._sbId)
+    _sb?.from('trabajadores_vacaciones').delete().eq('id',item._sbId)
       .then(({error})=>{if(error) console.error('[SB] delete vac:',error.message);});
   }
 }

@@ -75,19 +75,13 @@
   .cpill-lbl { display: inline }
 }
 
-/* ─── "Todo / Todas" — siempre dorado cuando activo ─── */
+/* ─── "Todo / Todas" y categorías dinámicas — siempre dorado cuando activo,
+   igual que .zpill (Reservas). Las categorías no usan su color personalizado
+   para el estado activo — todas comparten el mismo dorado de marca. ─── */
 .cpill-all           { border-color: var(--acc-bd) }
 .cpill-all.act       { background: var(--acc); border-color: var(--acc); color: #1a1810 }
+.cpill-dyn.act       { background: var(--acc); border-color: var(--acc); color: #1a1810 }
 
-/* ─── Colores por categoría ─── */
-.cpill-beb           { border-color: rgba(59,130,200,.4); color: #5599cc }
-.cpill-beb.act       { background: #0e1e34; border-color: #3b82c8; color: #7ab8f0 }
-.cpill-ali           { border-color: rgba(74,154,90,.4); color: #5ab870 }
-.cpill-ali.act       { background: #0e2018; border-color: #4a9a4a; color: #7ad090 }
-.cpill-lim           { border-color: rgba(80,180,200,.4); color: #60b8cc }
-.cpill-lim.act       { background: #0a1e24; border-color: #50b4c8; color: #80d4e8 }
-.cpill-mat           { border-color: rgba(180,130,50,.4); color: #c89030 }
-.cpill-mat.act       { background: #1e1408; border-color: #b48232; color: #d4a850 }
 .cpill-rep           { border-color: rgba(180,50,50,.5); color: var(--red) }
 .cpill-rep.act       { background: rgba(180,50,50,.18); border-color: var(--red); color: #e86060 }
 

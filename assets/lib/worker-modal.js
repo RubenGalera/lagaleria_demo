@@ -452,7 +452,7 @@ document.addEventListener('DOMContentLoaded', function() {
     st.textContent =
       '.overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:200;display:none;align-items:flex-start;justify-content:center;padding:16px;padding-top:20px;overflow-y:auto}' +
       '.overlay.show{display:flex}' +
-      '.overlay .modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;width:100%;max-width:460px;overflow:visible}' +
+      '.overlay .modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto}' +
       '.overlay .modal-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:8px}' +
       '.overlay .modal-title{font-size:16px;font-weight:600;color:var(--text)}' +
       '.overlay .modal-sub{font-size:12px;color:var(--dim);margin-top:2px}' +

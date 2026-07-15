@@ -152,7 +152,7 @@ async function initDashboard(){
       console.log('[dash] Supabase query eventos: gte',hoyStr,'lte',_sunStr,'local_id',LOCAL_ID);
       var _qEv   = (eventos&&eventos.length) ? null : _sb.from('eventos').select('id,nombre,fecha,hora').eq('local_id',LOCAL_ID).gte('fecha',hoyStr).lte('fecha',_sunStr).order('fecha').order('hora');
       var _qRes  = reservas ? null : _sb.from('reservas').select('*').eq('local_id',LOCAL_ID).eq('fecha',hoyStr).order('hora');
-      var _qProd = prods    ? null : _sb.from('productos').select('nombre,cantidad,minimo').eq('local_id',LOCAL_ID).eq('activo',true);
+      var _qProd = prods    ? null : _sb.from('stock_productos').select('nombre,cantidad,minimo').eq('local_id',LOCAL_ID).eq('activo',true);
       var _qZona = reservas ? null : _sb.from('zonas').select('id,emoji').eq('local_id',LOCAL_ID);
       var _noop=Promise.resolve({data:null});
       var _rs=await Promise.all([

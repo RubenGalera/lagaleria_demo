@@ -31,10 +31,6 @@
     <div class="sticky-header">
       <div id="cat-bar" class="cat-bar toolbar-row">
         <div class="cpill cpill-all act" onclick="setCat('all', this)">✦ <span class="cpill-lbl">Todo</span></div>
-        <div class="cpill cpill-beb" onclick="setCat('beb', this)">🍺 <span class="cpill-lbl">Bebidas</span></div>
-        <div class="cpill cpill-ali" onclick="setCat('ali', this)">🥩 <span class="cpill-lbl">Alimentación</span></div>
-        <div class="cpill cpill-lim" onclick="setCat('lim', this)">🧴 <span class="cpill-lbl">Limpieza</span></div>
-        <div class="cpill cpill-mat" onclick="setCat('mat', this)">📦 <span class="cpill-lbl">Material</span></div>
         <div class="cpill cpill-rep" onclick="setCat('rep', this)">⚠ <span class="cpill-lbl">Reponer</span><span class="cpill-rep-count" id="rep-count"></span></div>
       </div>
       <div class="inv-banner" id="inv-banner">
@@ -52,7 +48,7 @@
     <div class="content" id="prod-list"></div>
 
     <div class="content" style="padding-bottom:14px">
-      <button class="add-btn" onclick="showAddProdModal()">+ Añadir producto</button>
+      <button class="add-btn" onclick="openProdModal()">+ Añadir producto</button>
       <button class="inv-update-btn" id="btn-inv" onclick="toggleInv()">☰ Actualizar inventario</button>
       <div class="inv-last-update">
         <div class="inv-dot" id="inv-dot"></div>
@@ -82,108 +78,61 @@
     <div id="reg-list" class="reg-list"></div>
   </div>
 
-  <!-- MODAL -->
-  <div class="modal-bg" id="modal-bg" onclick="if(event.target===this)hideAddProdModal()">
+  <!-- MODAL producto (crear / editar) -->
+  <div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeProdModal()">
     <div class="modal">
       <div class="modal-hdr">
-        <div class="modal-title">Nuevo producto</div>
-        <button class="modal-cls" onclick="hideAddProdModal()">&#215;</button>
+        <div class="modal-title" id="prod-modal-title">Nuevo producto</div>
+        <button class="modal-cls" onclick="closeProdModal()">&#215;</button>
       </div>
       <div class="field">
         <label>Nombre</label>
-        <input class="inp" id="np-n" placeholder="Cerveza Estrella, Aceite AOVE...">
+        <input class="inp" id="pm-n" placeholder="Cerveza Estrella, Aceite AOVE...">
       </div>
       <div class="row2">
         <div class="field">
           <label>Categoría</label>
-          <select class="sel" id="np-c">
-            <option value="beb">🍺 Bebidas</option>
-            <option value="ali">🥩 Alimentación</option>
-            <option value="lim">🧴 Limpieza</option>
-            <option value="mat">📦 Material</option>
-          </select>
+          <select class="sel" id="pm-c"></select>
         </div>
         <div class="field">
+          <label>Proveedor</label>
+          <select class="sel" id="pm-p"></select>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
           <label>Ubicación</label>
-          <select class="sel" id="np-l">
+          <select class="sel" id="pm-l">
             <option value="d">Almacén</option>
             <option value="g">Garaje</option>
             <option value="a">Ambos</option>
           </select>
         </div>
-      </div>
-      <div class="row2">
         <div class="field">
           <label>Cantidad actual</label>
-          <input class="inp" id="np-q" type="number" min="0" placeholder="0">
-        </div>
-        <div class="field">
-          <label>Unidad</label>
-          <input class="inp" id="np-u" placeholder="bot, kg, caja...">
+          <input class="inp" id="pm-q" type="number" min="0" placeholder="0">
         </div>
       </div>
       <div class="row2">
         <div class="field">
+          <label>Unidad</label>
+          <input class="inp" id="pm-u" placeholder="bot, kg, caja...">
+        </div>
+        <div class="field">
           <label>Mínimo alerta</label>
-          <input class="inp" id="np-m" type="number" min="0" placeholder="0">
-        </div>
-        <div class="field">
-          <label>Nota</label>
-          <input class="inp" id="np-no" placeholder="Nevera pequeña...">
+          <input class="inp" id="pm-m" type="number" min="0" placeholder="0">
         </div>
       </div>
-      <button class="btn-full" onclick="addProd()">Añadir producto</button>
-    </div>
-  </div>
-
-  <!-- EDIT PRODUCT SHEET -->
-  <div class="edit-sheet-bg" id="edit-sheet-bg" onclick="if(event.target===this)closeEditSheet()">
-    <div class="edit-sheet">
-      <div class="edit-sheet-hdr">
-        <div class="edit-sheet-title" id="edit-sheet-title">Editar producto</div>
-        <div class="sheet-cls" onclick="closeEditSheet()">&#215;</div>
+      <div class="field">
+        <label>Nota</label>
+        <input class="inp" id="pm-no" placeholder="Nevera pequeña...">
       </div>
-      <div class="edit-fields">
-        <div class="field">
-          <label>Nombre</label>
-          <input class="inp" id="ep-n" placeholder="Nombre del producto">
-        </div>
-        <div class="edit-row">
-          <div class="field">
-            <label>Categoría</label>
-            <select class="sel" id="ep-c">
-              <option value="beb">🍺 Bebidas</option>
-              <option value="ali">🥩 Alimentación</option>
-              <option value="lim">🧴 Limpieza</option>
-              <option value="mat">📦 Material</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Ubicación</label>
-            <select class="sel" id="ep-l">
-              <option value="d">Almacén</option>
-              <option value="g">Garaje</option>
-              <option value="a">Ambos</option>
-            </select>
-          </div>
-        </div>
-        <div class="edit-row">
-          <div class="field">
-            <label>Cantidad mínima</label>
-            <input class="inp" id="ep-m" type="number" min="0">
-          </div>
-          <div class="field">
-            <label>Unidad</label>
-            <input class="inp" id="ep-u" placeholder="bot, kg...">
-          </div>
-        </div>
-        <div class="field">
-          <label>Nota</label>
-          <input class="inp" id="ep-no" placeholder="Nevera pequeña, 4 abajo...">
-        </div>
+      <div class="field field-toggle">
+        <label>Activo</label>
+        <label class="sw"><input type="checkbox" id="pm-activo" checked><span class="sw-track"></span></label>
       </div>
-      <button class="btn-full" onclick="saveEditProd()">Guardar cambios</button>
-      <button class="btn-del-prod" onclick="deleteProd()">🗑 Eliminar producto del inventario</button>
+      <button class="btn-full" id="prod-modal-btn" onclick="saveProdModal()">Añadir producto</button>
+      <button class="btn-del-prod" id="prod-modal-del" style="display:none" onclick="deleteProd()">🗑 Eliminar producto del inventario</button>
     </div>
   </div>
 

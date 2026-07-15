@@ -15,8 +15,8 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .mesas-pill-lbl{font-size:11px;color:var(--acc);opacity:.8}
 
 /* MESAS DETAIL — two columns */
-.mesas-detail{margin:0 14px 8px;background:var(--surf);border:1px solid var(--brd);border-radius:10px;overflow:hidden;display:none}
-.mesas-detail.show{display:block}
+.mesas-detail{margin:0 14px;max-height:0;background:var(--surf);border:1px solid transparent;border-radius:10px;overflow:hidden;transition:max-height .25s ease,margin-bottom .25s ease,border-color .25s ease}
+.mesas-detail.show{max-height:600px;margin-bottom:8px;border-color:var(--brd)}
 .mz-cols{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--brd)}
 .mz-col-hdr{padding:7px 14px;font-size:10px;font-weight:700;color:var(--dim);letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid var(--brd)}
 .mz-col-hdr:first-child{border-right:1px solid var(--brd)}

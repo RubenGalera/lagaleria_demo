@@ -62,7 +62,12 @@
       </div>
       <div class="row" onclick="openStockPanel()">
         <div class="row-icon ri-red"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
-        <div class="row-info"><div class="row-name">Stock</div><div class="row-sub">Productos, categorías y ubicaciones</div></div>
+        <div class="row-info"><div class="row-name">Stock · Categorías</div><div class="row-sub">Categorías de productos</div></div>
+        <span class="row-arrow">›</span>
+      </div>
+      <div class="row" onclick="openStockProveedoresPanel()">
+        <div class="row-icon ri-red"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
+        <div class="row-info"><div class="row-name">Stock · Proveedores</div><div class="row-sub">Contactos y datos de proveedores</div></div>
         <span class="row-arrow">›</span>
       </div>
     </div>
@@ -138,82 +143,26 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
       Admin
     </button>
-    <span class="view-title">Stock</span>
+    <span class="view-title">Categorías de Stock</span>
     <span style="width:52px"></span>
   </div>
-  <div class="cat-bar toolbar-row" id="st-cat-bar"></div>
-  <div style="flex:1;overflow-y:auto">
-    <div id="st-prod-list" style="padding:0 12px 8px"></div>
-    <div style="padding:0 12px 8px">
-      <button class="btn-add" onclick="stShowAddModal()">+ Añadir producto</button>
-    </div>
-    <div id="st-archived-section" style="padding:0 12px 16px;display:none">
-      <div class="st-archived-toggle" onclick="stToggleArchived(this)">
-        <span class="st-archived-lbl" id="st-archived-lbl">▶ 0 archivados</span>
-      </div>
-      <div id="st-archived-list" style="display:none"></div>
-    </div>
+  <div class="zona-list" id="cat-list">
+    <div class="state-msg">Cargando categorías...</div>
   </div>
 </div>
 
-<!-- ── MODAL ZONA (crear / editar) ── -->
-<div class="modal-overlay" id="modal-zona" onclick="if(event.target===this)closeModalZona()">
-  <div class="modal">
-    <div class="modal-hdr">
-      <span class="modal-title" id="modal-zona-title">Nueva zona</span>
-      <button class="mclose" onclick="closeModalZona()">&#215;</button>
-    </div>
-    <div class="modal-body">
-      <div class="nombre-switch-row">
-        <div class="fgroup">
-          <label class="flbl" for="z-nombre">Nombre</label>
-          <input class="inp" id="z-nombre" placeholder="Terraza...">
-        </div>
-        <div class="switch-col">
-          <span class="flbl">Activa</span>
-          <label class="sw">
-            <input type="checkbox" id="z-activa" checked>
-            <span class="sw-track"></span>
-          </label>
-        </div>
-      </div>
-      <div class="steppers">
-        <div class="fgroup">
-          <label class="flbl">Mesas máx.</label>
-          <div class="step-row">
-            <button class="step-btn" onclick="stepField('z-mesas',-1,1,50)">−</button>
-            <input class="inp step-inp" id="z-mesas" type="number" min="1" max="50" placeholder="4">
-            <button class="step-btn" onclick="stepField('z-mesas',1,1,50)">+</button>
-          </div>
-        </div>
-        <div class="fgroup">
-          <label class="flbl">Personas máx.</label>
-          <div class="step-row">
-            <button class="step-btn" onclick="stepField('z-pax',-1,1,999)">−</button>
-            <input class="inp step-inp" id="z-pax" type="number" min="1" max="999" placeholder="12">
-            <button class="step-btn" onclick="stepField('z-pax',1,1,999)">+</button>
-          </div>
-        </div>
-      </div>
-      <label class="flbl">Icono</label>
-      <div class="emoji-grid-wrap collapsed" id="emoji-wrap">
-        <div class="emoji-grid" id="emoji-grid"></div>
-      </div>
-      <input type="hidden" id="z-emoji" value="🪑">
-      <button class="btn-expand" onclick="toggleEmoji()">
-        <i class="expand-chev" id="emoji-chev">▾</i>
-        <span id="emoji-lbl">Ver más iconos</span>
-      </button>
-      <button class="btn-guardar" id="btn-guardar" onclick="saveZona()">Guardar zona</button>
-      <button class="btn-del" id="btn-del-zona" style="display:none" onclick="promptDelZona()">Eliminar zona</button>
-      <div class="confirm-del" id="confirm-del">
-        <div class="msg">¿Eliminar esta zona? Las reservas asociadas quedarán sin zona.</div>
-        <div class="btns">
-          <button class="yes" onclick="confirmDelZona()">Sí, eliminar</button>
-          <button class="no" onclick="cancelDelZona()">Cancelar</button>
-        </div>
-      </div>
-    </div>
+<!-- PROVEEDORES PANEL — overlay absoluto sobre body -->
+<div id="view-stock-prov">
+  <div class="view-header">
+    <button class="btn-volver" onclick="closeStockProveedoresPanel()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      Admin
+    </button>
+    <span class="view-title">Proveedores</span>
+    <span style="width:52px"></span>
+  </div>
+  <div class="zona-list" id="prov-list">
+    <div class="state-msg">Cargando proveedores...</div>
   </div>
 </div>
 
@@ -222,94 +171,6 @@
 
 <!-- TOAST -->
 <div id="_toast" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a2f3a;border:1px solid var(--brd2);color:var(--txt);padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;z-index:400;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap"></div>
-
-<!-- MODAL producto -->
-<div class="modal-overlay" id="st-modal-prod" onclick="if(event.target===this)stHideModal()">
-  <div class="modal">
-    <div class="modal-hdr">
-      <span class="modal-title" id="st-modal-title">Nuevo producto</span>
-      <button class="mclose" onclick="stHideModal()">&#215;</button>
-    </div>
-    <div class="modal-body">
-      <div class="nombre-switch-row">
-        <div class="fgroup">
-          <label class="flbl">Nombre</label>
-          <input class="inp" id="st-np-n" placeholder="Cerveza Estrella...">
-        </div>
-        <div class="switch-col">
-          <span class="flbl">Activo</span>
-          <label class="sw"><input type="checkbox" id="st-np-active" checked><span class="sw-track"></span></label>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-        <div class="fgroup"><label class="flbl">Categoría</label><select class="inp" id="st-np-c" onchange="stCatChange(this)"></select></div>
-        <div class="fgroup"><label class="flbl">Ubicación</label><select class="inp" id="st-np-l" onchange="stLocChange(this)"></select></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-        <div class="fgroup"><label class="flbl">Cantidad actual</label><input class="inp" id="st-np-q" type="number" min="0" placeholder="0"></div>
-        <div class="fgroup"><label class="flbl">Unidad</label><input class="inp" id="st-np-u" placeholder="bot, kg..."></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
-        <div class="fgroup"><label class="flbl">Mínimo alerta</label><input class="inp" id="st-np-m" type="number" min="0" placeholder="0"></div>
-        <div class="fgroup"><label class="flbl">Nota</label><input class="inp" id="st-np-no" placeholder="Nevera..."></div>
-      </div>
-      <button class="btn-guardar" id="st-modal-btn" onclick="stSaveProd()">Añadir producto</button>
-      <button class="btn-del" id="st-modal-del" style="display:none" onclick="stDeleteProd()">Eliminar producto</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL categoria -->
-<div class="modal-overlay" id="st-modal-cat" onclick="if(event.target===this)stCloseCatModal()">
-  <div class="modal">
-    <div class="modal-hdr">
-      <span class="modal-title" id="st-cat-modal-title">Nueva categoría</span>
-      <button class="mclose" onclick="stCloseCatModal()">&#215;</button>
-    </div>
-    <div class="modal-body">
-      <div class="nombre-switch-row">
-        <div class="fgroup"><label class="flbl">Nombre</label><input class="inp" id="st-cat-name" placeholder="Vinos, Cafés..."></div>
-        <div class="switch-col"><span class="flbl">Activa</span><label class="sw"><input type="checkbox" id="st-cat-activa" checked><span class="sw-track"></span></label></div>
-      </div>
-      <div class="fgroup" style="margin-bottom:12px">
-        <label class="flbl">Color</label>
-        <div class="st-color-row" id="st-color-row">
-          <div class="st-color-opt active" data-color="#5599cc" style="background:#5599cc" onclick="stPickColor(this)"></div>
-          <div class="st-color-opt" data-color="#5ab870" style="background:#5ab870" onclick="stPickColor(this)"></div>
-          <div class="st-color-opt" data-color="#60b8cc" style="background:#60b8cc" onclick="stPickColor(this)"></div>
-          <div class="st-color-opt" data-color="#c89030" style="background:#c89030" onclick="stPickColor(this)"></div>
-          <div class="st-color-opt" data-color="#9b59b6" style="background:#9b59b6" onclick="stPickColor(this)"></div>
-          <div class="st-color-opt" data-color="#e74c3c" style="background:#e74c3c" onclick="stPickColor(this)"></div>
-          <div class="st-color-opt" data-color="#C5A669" style="background:#C5A669" onclick="stPickColor(this)"></div>
-        </div>
-      </div>
-      <label class="flbl">Icono</label>
-      <div class="emoji-grid-wrap collapsed" id="st-cat-emoji-wrap">
-        <div class="emoji-grid" id="st-cat-emoji-grid"></div>
-      </div>
-      <button class="btn-expand" onclick="stToggleCatEmojis()">
-        <i class="expand-chev" id="st-cat-emoji-chev">&#9660;</i>
-        <span id="st-cat-emoji-lbl">Ver más iconos</span>
-      </button>
-      <button class="btn-guardar" id="st-cat-modal-btn" onclick="stSaveCat()">+ Añadir categoría</button>
-      <button class="btn-del" id="st-cat-modal-del" style="display:none" onclick="stDeleteCat()">Eliminar categoría</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL ubicacion -->
-<div class="modal-overlay" id="st-modal-loc" onclick="if(event.target===this)closeOv('st-modal-loc')">
-  <div class="modal">
-    <div class="modal-hdr">
-      <span class="modal-title">Nueva ubicación</span>
-      <button class="mclose" onclick="closeOv('st-modal-loc')">&#215;</button>
-    </div>
-    <div class="modal-body">
-      <div class="fgroup" style="margin-bottom:16px"><label class="flbl">Nombre</label><input class="inp" id="st-loc-name" placeholder="Cámara, Bodega..."></div>
-      <button class="btn-guardar" onclick="stSaveLoc()">Crear ubicación</button>
-    </div>
-  </div>
-</div>
 
 <!-- OVERLAY: Skills -->
 <div class="modal-overlay" id="ov-skills" style="z-index:300">
@@ -359,48 +220,6 @@
     <div style="display:flex;gap:12px;justify-content:center">
       <button class="mbtn-c" onclick="closeOv('ov-confirm')">Cancelar</button>
       <button class="mbtn-d">Confirmar</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL: Nueva habilidad -->
-<div class="modal-overlay" id="modal-skill" onclick="if(event.target===this)closeModalSkill()">
-  <div class="modal">
-    <div class="modal-hdr">
-      <span class="modal-title" id="modal-skill-title">Nueva habilidad</span>
-      <button class="mclose" onclick="closeModalSkill()">&#215;</button>
-    </div>
-    <div class="modal-body">
-      <div class="nombre-switch-row">
-        <div class="fgroup">
-          <label class="flbl" for="skill-nombre">Nombre</label>
-          <input class="inp" id="skill-nombre" placeholder="Barra, Plancha...">
-        </div>
-        <div class="switch-col">
-          <span class="flbl">Activa</span>
-          <label class="sw">
-            <input type="checkbox" id="skill-activa" checked>
-            <span class="sw-track"></span>
-          </label>
-        </div>
-      </div>
-      <div class="fgroup" style="margin-bottom:12px">
-        <label class="flbl">Lugar</label>
-        <div class="lugar-btn-wrap">
-          <button class="lugar-btn active" data-cat="cocina" onclick="selectSkillCat(this)">Cocina</button>
-          <button class="lugar-btn" data-cat="sala" onclick="selectSkillCat(this)">Sala</button>
-        </div>
-      </div>
-      <label class="flbl">Icono</label>
-      <div class="emoji-grid-wrap collapsed" id="skill-emoji-wrap">
-        <div class="emoji-grid" id="skill-emoji-grid"></div>
-      </div>
-      <button class="btn-expand" onclick="toggleSkillEmojis()" id="skill-emoji-expand">
-        <i class="expand-chev" id="skill-emoji-chev">&#9660;</i>
-        <span id="skill-emoji-lbl">Ver más iconos</span>
-      </button>
-      <button class="btn-guardar" id="btn-save-skill" onclick="saveSkill()">+ Añadir habilidad</button>
-      <button class="btn-del" id="btn-del-skill" style="display:none" onclick="promptDelSkill()">Eliminar habilidad</button>
     </div>
   </div>
 </div>
@@ -457,6 +276,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="assets/lib/supabase-client.js"></script>
 <script src="assets/lib/ui-helpers.js"></script>
+<script src="assets/lib/admin-entity-modal.js"></script>
 <script src="assets/lib/adminZones.js"></script>
 <script src="assets/lib/adminSkills.js"></script>
 <script src="assets/lib/adminWeekConfig.js"></script>

@@ -67,7 +67,8 @@
     '._dp-legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}',
     '._dp-legend-dot._dp-legend-today{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.35)}',
     '._dp-legend-dot._dp-legend-sel{background:var(--acc)}',
-    '._dp-legend-dot._dp-legend-evt{background:var(--color-event)}'
+    '._dp-legend-dot._dp-legend-evt{background:var(--color-event)}',
+    '#_dp-dropdown._dp-inline{position:static;left:auto;top:auto;margin:8px 14px}'
   ].join('');
 
   function _injectCSS() {
@@ -82,6 +83,7 @@
   function _buildEl() {
     var el = document.createElement('div');
     el.id = '_dp-dropdown';
+    if (_pushContent) el.classList.add('_dp-inline');
     el.innerHTML =
       '<div class="_dp-hdr">' +
         '<button class="_dp-arrow" id="_dp-prev">&#8249;</button>' +
@@ -95,7 +97,11 @@
         '<span class="_dp-legend-item"><span class="_dp-legend-dot _dp-legend-sel"></span>Selección</span>' +
         '<span class="_dp-legend-item"><span class="_dp-legend-dot _dp-legend-evt"></span>Evento</span>' +
       '</div>';
-    document.body.appendChild(el);
+    if (_pushContent && _anchor && _anchor.parentNode) {
+      _anchor.parentNode.insertBefore(el, _anchor.nextSibling);
+    } else {
+      document.body.appendChild(el);
+    }
     document.getElementById('_dp-prev').addEventListener('click', function (e) {
       e.stopPropagation(); _prevMonth();
     });
@@ -113,6 +119,7 @@
   var _anchor = null;
   var _currentDate = '';
   var _onChange = null;
+  var _pushContent = false;
   var _pkY = 0, _pkM = 0;
   var _isOpen = false;
   var _el = null;
@@ -225,7 +232,7 @@
     _pkY = d.getUTCFullYear();
     _pkM = d.getUTCMonth();
     _render();
-    _position();
+    if (!_pushContent) _position();
     _el.classList.add('show');
     _isOpen = true;
   }
@@ -263,6 +270,7 @@
       _anchor = opts.anchor || null;
       _currentDate = opts.initialDate || _todayStr();
       _onChange = opts.onChange || null;
+      _pushContent = !!opts.pushContent;
       _setEvents(opts.events);
       if (!_el) {
         _el = _buildEl();

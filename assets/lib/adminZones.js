@@ -1,9 +1,9 @@
 /* adminZones.js — Gestión de Zonas
-   Globals required: localId, toast, supaFetch, escHtml, showConfirm, showOv */
+   Usa el modal compartido AdminEntityModal (assets/lib/admin-entity-modal.js).
+   Globals required: localId, toast, supaFetch, escHtml, showConfirm, AdminEntityModal */
 
 var zonas = [];
 var editingZonaId = null;
-var selectedEmoji = '🪑';
 
 var EMOJIS = [
   '☀️','🌙','🌿','🌊','🏡','🚪','🍷','🍺','🎭','🎪',
@@ -66,7 +66,7 @@ async function createZona(data){
   setBtnLoading(true);
   if(!localId){
     var newZ = Object.assign({id:'z'+Date.now(), orden:zonas.length, activa:true}, data);
-    zonas.push(newZ); updateZonasUI(); closeModalZona(); toast('Zona creada ✓ (mock)'); setBtnLoading(false); return;
+    zonas.push(newZ); updateZonasUI(); AdminEntityModal.close(); toast('Zona creada ✓ (mock)'); setBtnLoading(false); return;
   }
   try{
     var body = Object.assign({local_id:localId, orden:zonas.length}, data);
@@ -74,7 +74,7 @@ async function createZona(data){
     if(!res.ok){ var e=await res.json(); throw new Error(e.message||res.status); }
     var created = await res.json();
     zonas.push(Array.isArray(created)?created[0]:created);
-    updateZonasUI(); closeModalZona(); toast('Zona creada ✓');
+    updateZonasUI(); AdminEntityModal.close(); toast('Zona creada ✓');
   }catch(e){ toast('Error: '+e.message); }
   finally{ setBtnLoading(false); }
 }
@@ -84,26 +84,26 @@ async function updateZona(id, data){
   if(!localId){
     var idx=zonas.findIndex(function(z){return z.id===id;});
     if(idx>=0) zonas[idx]=Object.assign(zonas[idx],data);
-    updateZonasUI(); closeModalZona(); toast('Zona guardada ✓ (mock)'); setBtnLoading(false); return;
+    updateZonasUI(); AdminEntityModal.close(); toast('Zona guardada ✓ (mock)'); setBtnLoading(false); return;
   }
   try{
     var res = await supaFetch('/rest/v1/zonas?id=eq.'+id, {method:'PATCH', body:JSON.stringify(data)});
     if(!res.ok){ var e=await res.json(); throw new Error(e.message||res.status); }
     var idx=zonas.findIndex(function(z){return z.id===id;});
     if(idx>=0) zonas[idx]=Object.assign(zonas[idx],data);
-    updateZonasUI(); closeModalZona(); toast('Zona guardada ✓');
+    updateZonasUI(); AdminEntityModal.close(); toast('Zona guardada ✓');
   }catch(e){ toast('Error: '+e.message); }
   finally{ setBtnLoading(false); }
 }
 
 async function deleteZona(id){
   if(!localId){
-    zonas=zonas.filter(function(z){return z.id!==id;}); updateZonasUI(); closeModalZona(); toast('Zona eliminada (mock)'); return;
+    zonas=zonas.filter(function(z){return z.id!==id;}); updateZonasUI(); AdminEntityModal.close(); toast('Zona eliminada (mock)'); return;
   }
   try{
     var res = await supaFetch('/rest/v1/zonas?id=eq.'+id, {method:'DELETE'});
     if(!res.ok){ var e=await res.json(); throw new Error(e.message||res.status); }
-    zonas=zonas.filter(function(z){return z.id!==id;}); updateZonasUI(); closeModalZona(); toast('Zona eliminada');
+    zonas=zonas.filter(function(z){return z.id!==id;}); updateZonasUI(); AdminEntityModal.close(); toast('Zona eliminada');
   }catch(e){ toast('Error: '+e.message); }
 }
 
@@ -118,80 +118,84 @@ function closeZonas(){
   document.getElementById('view-editar-list').style.display='';
 }
 
+function _zonaFieldsHtml(){
+  return [
+    '<div class="steppers">' +
+      '<div class="fgroup"><label class="flbl">Mesas máx.</label><div class="step-row">' +
+        '<button class="step-btn" type="button" onclick="stepField(\'z-mesas\',-1,1,50)">−</button>' +
+        '<input class="inp step-inp" id="z-mesas" type="number" min="1" max="50" placeholder="4">' +
+        '<button class="step-btn" type="button" onclick="stepField(\'z-mesas\',1,1,50)">+</button>' +
+      '</div></div>' +
+      '<div class="fgroup"><label class="flbl">Personas máx.</label><div class="step-row">' +
+        '<button class="step-btn" type="button" onclick="stepField(\'z-pax\',-1,1,999)">−</button>' +
+        '<input class="inp step-inp" id="z-pax" type="number" min="1" max="999" placeholder="12">' +
+        '<button class="step-btn" type="button" onclick="stepField(\'z-pax\',1,1,999)">+</button>' +
+      '</div></div>' +
+    '</div>'
+  ];
+}
+
 function openNewZona(){
   editingZonaId=null;
-  document.getElementById('modal-zona-title').textContent='Nueva zona';
-  document.getElementById('z-nombre').value='';
-  document.getElementById('z-mesas').value='';
-  document.getElementById('z-pax').value='';
-  document.getElementById('z-activa').checked=true;
-  document.getElementById('btn-del-zona').style.display='none';
-  document.getElementById('confirm-del').style.display='none';
-  renderEmojiGrid('🪑');
-  document.getElementById('modal-zona').classList.add('show');
+  AdminEntityModal.open({
+    title:'Nueva zona',
+    saveLabel:'Guardar zona',
+    nombre:'',
+    nombrePlaceholder:'Terraza...',
+    activo:true,
+    activoLabel:'Activa',
+    fields:_zonaFieldsHtml(),
+    icons:EMOJIS,
+    icono:'🪑',
+    onRender:function(){
+      document.getElementById('z-mesas').value='';
+      document.getElementById('z-pax').value='';
+    },
+    onSave:_saveZonaFromModal,
+    onDelete:null
+  });
 }
 
 function openEditZona(id){
   var z=zonas.find(function(x){return x.id===id;});if(!z)return;
   editingZonaId=id;
-  document.getElementById('modal-zona-title').textContent='Editar zona';
-  document.getElementById('z-nombre').value=z.nombre;
-  document.getElementById('z-mesas').value=z.mesas;
-  document.getElementById('z-pax').value=z.pax||'';
-  document.getElementById('z-activa').checked=z.activa!==false;
-  document.getElementById('btn-del-zona').style.display='block';
-  document.getElementById('confirm-del').style.display='none';
-  renderEmojiGrid(z.emoji||'🪑');
-  document.getElementById('modal-zona').classList.add('show');
+  AdminEntityModal.open({
+    title:'Editar zona',
+    saveLabel:'Guardar zona',
+    deleteLabel:'Eliminar zona',
+    nombre:z.nombre,
+    activo:z.activa!==false,
+    activoLabel:'Activa',
+    fields:_zonaFieldsHtml(),
+    icons:EMOJIS,
+    icono:z.emoji||'🪑',
+    onRender:function(){
+      document.getElementById('z-mesas').value=z.mesas||'';
+      document.getElementById('z-pax').value=z.pax||'';
+    },
+    onSave:_saveZonaFromModal,
+    onDelete:function(){ AdminEntityModal.close(); promptDelZona(); }
+  });
 }
 
-function closeModalZona(){
-  document.getElementById('modal-zona').classList.remove('show');
-  var wrap=document.getElementById('emoji-wrap');
-  wrap.classList.remove('expanded'); wrap.classList.add('collapsed');
-  document.getElementById('emoji-chev').style.transform='';
-  document.getElementById('emoji-lbl').textContent='Ver más iconos';
-}
-
-function saveZona(){
-  var nombre=document.getElementById('z-nombre').value.trim();
+function _saveZonaFromModal(data){
+  var nombre=(data.nombre||'').trim();
   if(!nombre){ toast('Introduce un nombre'); return; }
-  var data={nombre:nombre,emoji:selectedEmoji||'🪑',mesas:parseInt(document.getElementById('z-mesas').value)||4,pax:parseInt(document.getElementById('z-pax').value)||null,activa:document.getElementById('z-activa').checked};
-  if(editingZonaId){ updateZona(editingZonaId,data); } else { createZona(data); }
+  var payload={nombre:nombre,emoji:data.icono||'🪑',mesas:parseInt(data['z-mesas'])||4,pax:parseInt(data['z-pax'])||null,activa:data.activo!==false};
+  if(editingZonaId){ updateZona(editingZonaId,payload); } else { createZona(payload); }
 }
 
 function promptDelZona(){
   var z=zonas.find(function(x){return x.id===editingZonaId;});
   var name=z?z.nombre:'esta zona';
-  closeModalZona();
-  showConfirm({message:'Vas a eliminar la zona "'+name+'". Las reservas asociadas no se eliminarán.',onConfirm:function(){if(editingZonaId)deleteZona(editingZonaId);},onCancel:function(){showOv('modal-zona');}});
+  showConfirm({message:'Vas a eliminar la zona "'+name+'". Las reservas asociadas no se eliminarán.',onConfirm:function(){if(editingZonaId)deleteZona(editingZonaId);}});
 }
-function cancelDelZona(){ document.getElementById('confirm-del').style.display='none'; document.getElementById('btn-del-zona').style.display='block'; }
-function confirmDelZona(){ if(editingZonaId) deleteZona(editingZonaId); }
 
 function setBtnLoading(loading){
-  var btn=document.getElementById('btn-guardar');
-  btn.disabled=loading; btn.textContent=loading?'Guardando...':'Guardar zona';
-}
-
-function renderEmojiGrid(current){
-  selectedEmoji=current||EMOJIS[0];
-  document.getElementById('z-emoji').value=selectedEmoji;
-  document.getElementById('emoji-grid').innerHTML=EMOJIS.map(function(e){
-    return '<div class="emoji-opt'+(e===selectedEmoji?' sel':'')+'" onclick="pickEmoji(\''+e+'\',this)">'+e+'</div>';
-  }).join('');
-}
-function pickEmoji(e,el){
-  selectedEmoji=e;
-  document.querySelectorAll('.emoji-opt').forEach(function(x){x.classList.remove('sel');});
-  el.classList.add('sel');
-}
-function toggleEmoji(){
-  var wrap=document.getElementById('emoji-wrap');
-  var expanded=wrap.classList.toggle('expanded');
-  wrap.classList.toggle('collapsed',!expanded);
-  document.getElementById('emoji-chev').style.transform=expanded?'rotate(180deg)':'';
-  document.getElementById('emoji-lbl').textContent=expanded?'Ver menos':'Ver más iconos';
+  var btn=document.getElementById('_aem-save');
+  if(!btn) return;
+  btn.disabled=loading;
+  btn.textContent=loading?'Guardando...':'Guardar zona';
 }
 
 function loadZonasFromParent(){

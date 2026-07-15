@@ -1,0 +1,50 @@
+# CHANGELOG — La Galería Neotaberna
+
+## v0.2.10 — Stock: Proveedores (julio 2026)
+- Nueva sección Admin/Stock·Proveedores con CRUD completo
+- Proveedor asignable a cada producto, badge visible en card de inventario
+- Pedido: WhatsApp y añadir producto puntual movidos al final del listado
+- Chips de categoría con estilo activo dorado igual que Reservas
+- Botones +/- iluminados en azul claro al activar modo "Actualizar inventario"
+- Cards de inventario completamente clickables para editar (excepto +/-)
+- Admin/Stock·Categorías: muestra "X productos" en vez del slug
+- Fixes de z-index y acordeón en modales de trabajador
+
+## v0.2.9 — Refactorización CSS/JS (junio-julio 2026)
+- Separación total de CSS/JS inline en archivos externos (todos los módulos)
+- Estructura de carpetas unificada y documentación movida a docs/
+- Renombrado de tablas BD para mayor consistencia
+
+## v0.2.8 — Rediseño grid Turnos (junio 2026)
+- Grid más compacto: sin columna de horas, fila de eventos dedicada encima de fechas
+- Navegación de semanas y badges de eventos desde Supabase
+
+## v0.2.7 — DatePicker compartido (junio 2026)
+- Componente DatePicker corporativo compartido entre Turnos (semanas) y Reservas (días)
+- Dots de eventos, botón Hoy, navegación libre sin límites
+
+## v0.2.6 — Gestión de trabajadores (mayo-junio 2026)
+- Toggles Disponible y Visible, archivar/restaurar/borrar trabajadores
+- Spinner de carga, logout de superadmin, fixes de popups y z-index
+
+## v0.2.5 — Admin modular + categorías de stock (mayo 2026)
+- AdminEntityModal: componente compartido para Zonas, Habilidades y Categorías
+- Categorías de stock dinámicas desde Supabase, drag-to-reorder, categoría fallback "Sin categoría"
+
+## v0.2.4 — Reservas + Eventos (abril-mayo 2026)
+- DatePicker en Reservas, estado vacío visual, reordenación de cabecera
+- Fix edición inmediata de reservas y eventos recién creados
+
+## v0.2.3 — Admin + design system (abril 2026)
+- Admin como iframe condicional con módulos separados
+- Design system: tokens.css, components.css, save indicator global, ls_init() con spinner
+
+## v0.2.2 — Base de datos (abril 2026)
+- Conexión Supabase, tablas creadas, datos mock eliminados
+
+## v0.2.0 — Arquitectura modular (marzo 2026)
+- Paso de HTML monolítico a arquitectura con iframes y módulos separados
+- Despliegue en Vercel
+
+---
+*Nota: el CHANGELOG se implementó formalmente a partir de v0.2.10. Las versiones anteriores son una reconstrucción aproximada del historial.*
