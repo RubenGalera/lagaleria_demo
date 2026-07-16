@@ -1,5 +1,22 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.13 — Fix login: normalización de teléfono (julio 2026)
+- Login real ahora encuentra al trabajador independientemente del formato del teléfono en BD (+34 656 187 336, 656187336, 656-187-336, etc.)
+- Comparación por últimos 9 dígitos tras eliminar espacios, guiones y prefijos (+34, 0034)
+
+## v0.2.12 — Auth real con PIN + invitación por WhatsApp (julio 2026)
+- Sistema de autenticación real: login con teléfono + PIN hasheado (SHA-256 via Web Crypto API)
+- Flujo de invitación desde Admin: genera PIN temporal 1234, lo hashea en BD, abre WhatsApp con mensaje de bienvenida y enlace personalizado ?tel=
+- Login real contra Supabase (sustituye el bypass hardcodeado como única vía de acceso)
+- Pantalla "Cambia tu PIN" obligatoria en primer acceso (must_change_pin=true)
+- Enlace ?tel= prellena el teléfono y salta directo al teclado PIN
+- Columna archivado añadida a trabajadores (independiente de activo)
+- Separación de estados: Pendiente (sin PIN), Activo (con PIN), Archivado (sin acceso)
+- Badge ⏳ Pendiente / ● Activo en listado de trabajadores
+- Selector de rol al crear trabajador — Superadmin eliminado del selector por seguridad
+- Trabajadores ficticios eliminados, 8 trabajadores reales
+- docs/TFM.md creado con documentación inicial del proyecto
+
 ## v0.2.11 — Pedido por proveedor + catálogo real (julio 2026)
 - Módulo Pedido rediseñado con dos vistas: Por categoría y Por proveedor
 - Vista por proveedor: lista inicial con indicadores 🔴/🟠 de urgencia, resumen de urgentes agrupado por proveedor, catálogo completo con +/- editable

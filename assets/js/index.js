@@ -66,17 +66,31 @@ async function hashPin(pin){
    distinta, así que pin_submit() decide qué hacer según "status". */
 async function sbVerifyLogin(tel, pin){
   try{
-    const telClean = tel.replace(/\s/g,'').replace('+34','');
-    const {data,error} = await _sb.from('trabajadores')
+    /* Comparación de teléfono normalizada en cliente — no un simple ILIKE
+       por columna. En BD los teléfonos se han ido guardando en formatos
+       distintos según quién los introdujo ("+34 656 187 336", "656187336",
+       "0034656187336"…). Un ILIKE '%656187336%' no encuentra "+34 656 187
+       336" porque los espacios rompen la subcadena. La forma robusta de
+       comparar dos teléfonos españoles sin importar prefijo/espacios/
+       guiones es quedarse solo con los dígitos y comparar los últimos 9
+       (longitud fija de un móvil español) — así "+34 656 187 336",
+       "656187336" y "0034656187336" son todos el mismo número.
+       Se trae la lista completa del local (archivado=false) en vez de
+       filtrar en la query: el volumen por local es pequeño (decenas de
+       trabajadores) y así no dependemos de que PostgREST sepa normalizar
+       teléfonos, que no es algo que un filtro de columna pueda expresar. */
+    const telDigits = tel.replace(/\D/g,'').slice(-9);
+    const {data:workers,error} = await _sb.from('trabajadores')
       .select('id, nombre, seccion, tel, rol, prioridad, foto_url, visible, pin_hash, must_change_pin')
       .eq('local_id', LOCAL_ID)
-      .ilike('tel', '%'+telClean+'%')
-      .eq('archivado', false)
-      .maybeSingle();
+      .eq('archivado', false);
     if(error){
       console.warn('sbVerifyLogin RLS/error:', error.message);
       return {status:'error'};
     }
+    const data = (workers||[]).find(function(w){
+      return (w.tel||'').replace(/\D/g,'').slice(-9) === telDigits;
+    });
     if(!data) return {status:'not_found'};
 
     /* Nunca se le ha enviado la invitación (o se le reseteó el PIN) —

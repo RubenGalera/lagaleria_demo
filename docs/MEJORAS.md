@@ -70,6 +70,7 @@ Los siguientes componentes tienen estilos distintos en cada página que debería
 - Eliminar iframes — SPA con React Router y Zustand para estado global
 - Nav y Footer como componentes React reutilizables (actualmente duplicados en HTML)
 - Migrar autenticación de sistema propio (PIN hasheado en BD + sesión localStorage) a Supabase Auth completo. Beneficios en React: RLS automática por JWT, sesiones gestionadas por Supabase, Realtime con auth real. La migración es un refactor de ~1 semana — los datos de trabajadores no cambian, solo la capa de auth.
+- Normalización de teléfonos internacionales: actualmente el login compara los últimos 9 dígitos del teléfono, lo que funciona para números españoles (+34) pero no para otras nacionalidades. En React migrar a una librería como libphonenumber-js para parsear y comparar números en formato E.164 independientemente del país.
 
 ### Base de datos
 - Migrar stock_productos.categoria de slug texto a FK uuid con ON DELETE SET NULL, igual que proveedor_id. Requiere columna nueva + migración de datos + actualizar todo el código que usa categoria como string.
