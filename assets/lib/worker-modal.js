@@ -114,48 +114,51 @@ function openPreview(name) {
   /* Elementos condicionales por rol */
   const isAdmin = _isAdmin();
 
-  _updateEstadoBadge(w);
-
   var resetBtn = document.getElementById('prev-reset-pin-btn');
   if (resetBtn) resetBtn.style.display = isAdmin ? '' : 'none';
 
-  var invBtn = document.getElementById('prev-invite-btn');
-  if (invBtn) {
-    if (!isAdmin) {
-      invBtn.style.display = 'none';
-    } else {
-      var est = w.estado || 'activo';
-      if (est === 'sin_acceso') {
-        invBtn.style.display = '';
-        invBtn.style.opacity = '1';
-        invBtn.style.pointerEvents = '';
-        invBtn.textContent = '📱 Enviar invitación';
-        invBtn.onclick = function() { prev_sendInvite(w.name); };
-      } else if (est === 'sin_telefono') {
-        invBtn.style.display = '';
-        invBtn.style.opacity = '.5';
-        invBtn.style.pointerEvents = 'none';
-        invBtn.textContent = '📞 Añade teléfono para dar acceso';
-      } else {
-        invBtn.style.display = 'none';
-      }
-    }
-  }
+  _refreshInviteUI(w);
 
   showOv('ov-preview');
 }
 
-/* ── DISPONIBILIDAD (independiente de activo/archivado) ── */
-function _updateEstadoBadge(w) {
+/* ── Estado real de acceso + botón "Enviar invitación" ──
+   Fuente de verdad: pin_hash + must_change_pin (BD), no un campo local
+   efímero — así el botón no depende de qué otras interacciones haya habido
+   desde que se creó/cargó w. Un trabajador sigue "pendiente" aunque ya se le
+   haya enviado el PIN temporal (pin_hash relleno): mientras must_change_pin
+   sea true no ha entrado todavía a cambiarlo por el suyo — ese primer acceso
+   real aún no está implementado, así que hoy must_change_pin nunca pasa a
+   false por sí solo. */
+function _refreshInviteUI(w) {
+  var isAdmin  = _isAdmin();
+  var pending  = w.pinHash == null || w.mustChangePin !== false;
+
   var estadoEl = document.getElementById('prev-estado');
-  if (!estadoEl) return;
-  var isAdmin = _isAdmin();
-  var estado = w.estado || 'activo';
-  var eLabels = {activo:'🟢 Activo', invitado:'🟡 Invitado', sin_acceso:'⚪ Sin acceso', sin_telefono:'⚪ Sin teléfono'};
-  var label = eLabels[estado] || '';
-  if (estado === 'activo' && w.disponible === false) label = '🔴   No disponible';
-  estadoEl.textContent = isAdmin ? label : '';
-  estadoEl.style.display = isAdmin ? '' : 'none';
+  if (estadoEl) {
+    var label = !w.tel ? '⚪ Sin teléfono' : (pending ? (w.pinHash ? '🟡 Invitación enviada' : '⚪ Sin acceso') : '🟢 Activo');
+    if (!pending && w.disponible === false) label = '🔴   No disponible';
+    estadoEl.textContent = isAdmin ? label : '';
+    estadoEl.style.display = isAdmin ? '' : 'none';
+  }
+
+  var invBtn = document.getElementById('prev-invite-btn');
+  if (invBtn) {
+    if (!isAdmin || !pending) {
+      invBtn.style.display = 'none';
+    } else if (!w.tel) {
+      invBtn.style.display = '';
+      invBtn.style.opacity = '.5';
+      invBtn.style.pointerEvents = 'none';
+      invBtn.textContent = '📞 Añade teléfono para dar acceso';
+    } else {
+      invBtn.style.display = '';
+      invBtn.style.opacity = '1';
+      invBtn.style.pointerEvents = '';
+      invBtn.textContent = '📱 Enviar invitación';
+      invBtn.onclick = function() { prev_sendInvite(w.name); };
+    }
+  }
 }
 
 function toggleDisponible(el) {
@@ -163,7 +166,7 @@ function toggleDisponible(el) {
   const val = !!el.checked;
   w.disponible = val;
   if (w._sbId) sbUpdateTrabajador(w._sbId, { disponible: val });
-  _updateEstadoBadge(w);
+  _refreshInviteUI(w);
   if (typeof buildGrid === 'function') buildGrid();
   if (typeof renderW === 'function') renderW();
   if (typeof updateStats === 'function') updateStats();
@@ -415,18 +418,90 @@ function viewWorkerPhoto() {
   showOv(ovId);
 }
 
-/* ── ACCIONES DE ADMIN ── */
-function prev_sendInvite(name) {
+/* ── ACCIONES DE ADMIN ──
+   Da de alta el acceso de un trabajador pendiente: genera un PIN temporal,
+   lo guarda hasheado en BD y abre WhatsApp con el mensaje de bienvenida ya
+   escrito para que el admin solo tenga que revisarlo y pulsar enviar.
+   El flujo de login real del trabajador (pantalla de PIN, obligar a
+   cambiarlo en el primer acceso) NO está implementado todavía — esta función
+   solo prepara el acceso; el trabajador sigue "pendiente" hasta que ese
+   flujo exista y se use. */
+async function prev_sendInvite(name) {
   var w = (typeof getW === 'function') ? getW(name) : null;
   if (!w) return;
-  w.estado = 'invitado';
-  if (typeof saveWorker === 'function') saveWorker(name);
-  var estadoEl = document.getElementById('prev-estado');
-  if (estadoEl) estadoEl.textContent = '🟡 Invitado';
-  var invBtn = document.getElementById('prev-invite-btn');
-  if (invBtn) invBtn.style.display = 'none';
+
+  /* Sin teléfono no hay ni canal para avisarle (WhatsApp) ni número con el
+     que vaya a poder entrar — cortamos aquí en vez de generar un PIN que
+     nadie podría recibir ni usar. */
+  if (!w.tel) {
+    if (typeof showToast === 'function') showToast('Este trabajador no tiene teléfono asignado');
+    return;
+  }
+
+  /* ── 1. PIN temporal ──
+     Fijo y conocido (1234), no aleatorio: no es la contraseña definitiva del
+     trabajador, es un valor "de un solo uso" que must_change_pin obliga a
+     cambiar en el primer acceso real. Al ser de un solo uso y de vida muy
+     corta, no hace falta generarlo al azar ni mandarlo por un canal más
+     seguro que WhatsApp. */
+  var TEMP_PIN = '1234';
+
+  /* ── 2. Hash del PIN — SHA-256 vía Web Crypto API ──
+     Se guarda el hash en BD, nunca el PIN en claro, por si la fila llegara a
+     filtrarse. Se usa SHA-256 (nativo del navegador, sin librerías externas)
+     y NO bcrypt/scrypt/Argon2 a propósito: esos algoritmos añaden un coste
+     computacional deliberado para proteger contraseñas de uso prolongado
+     frente a ataques de fuerza bruta offline durante años. Aquí el PIN es
+     temporal y de un solo uso — su "vida útil" termina en cuanto el
+     trabajador lo cambia — así que ese coste extra no aporta seguridad real
+     y sí penaliza rendimiento. Cuando se implemente el cambio de PIN
+     definitivo (el que el propio trabajador elige y usará indefinidamente),
+     ese sí debería hashearse con un algoritmo lento tipo bcrypt. */
+  var hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(TEMP_PIN));
+  var pinHash = Array.from(new Uint8Array(hashBuffer)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+
+  /* ── 3. Persistir en Supabase ──
+     must_change_pin=true es lo que hace que el trabajador siga apareciendo
+     como pendiente (ver _refreshInviteUI) aunque pin_hash ya no sea null:
+     fuerza, en cuanto exista el login real, el flujo de "elige tu PIN" antes
+     de dejarle usar la app con el 1234 temporal. */
+  if (w._sbId) {
+    await sbUpdateTrabajador(w._sbId, { pin_hash: pinHash, must_change_pin: true });
+  }
+  w.pinHash = pinHash;
+  w.mustChangePin = true;
+  _refreshInviteUI(w);
   if (typeof renderTrabajadores === 'function') renderTrabajadores();
-  if (typeof showToast === 'function') showToast('✅ Invitación enviada a ' + name + (w.tel ? ' — ' + w.tel : ''));
+
+  /* ── 4. Notificación por WhatsApp ──
+     Se usa WhatsApp (wa.me) en vez de SMS/email propio porque es el canal
+     que el equipo ya usa a diario (mismo patrón que el envío de pedidos a
+     proveedores en Stock): no requiere backend de envío ni contratar ningún
+     proveedor de SMS/email transaccional, y funciona en cualquier móvil sin
+     instalar nada. wa.me abre la conversación con el texto ya escrito — no
+     se envía nada automáticamente, el admin revisa y pulsa enviar él mismo. */
+  var telClean = w.tel.replace(/[\s-]/g, '');
+  if (telClean.charAt(0) !== '+') telClean = '+34' + telClean;
+
+  /* Enlace con ?tel= (número tal cual está guardado en BD, sin espacios ni
+     prefijo de país) — index.js lo lee al cargar y salta directo a la
+     pantalla de PIN con el teléfono ya puesto, para que el trabajador solo
+     tenga que teclear el PIN que le acabamos de mandar. */
+  var telUrlParam = encodeURIComponent(w.tel.replace(/[\s-]/g, ''));
+
+  var mensaje = '¡Hola ' + w.name + '! 👋\n\n' +
+    'Te damos la bienvenida a La Galería Neotaberna.\n\n' +
+    'Ya tienes acceso a la app de gestión:\n' +
+    '🔗 https://lagaleriademo.vercel.app/?tel=' + telUrlParam + '\n\n' +
+    'Tu acceso:\n' +
+    '📱 Teléfono: ' + w.tel + '\n' +
+    '🔑 PIN temporal: ' + TEMP_PIN + '\n\n' +
+    'Al entrar por primera vez te pedirá que cambies el PIN por uno personal.\n\n' +
+    '¡Cualquier duda con el acceso, habla con el admin!';
+
+  window.open('https://wa.me/' + telClean.replace('+', '') + '?text=' + encodeURIComponent(mensaje), '_blank');
+
+  if (typeof showToast === 'function') showToast('✅ Invitación enviada a ' + name + ' — ' + w.tel);
 }
 
 function prev_resetPin() {

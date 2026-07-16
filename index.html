@@ -32,7 +32,7 @@
       <div class="l-field">
         <div class="l-input-wrap">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8 19.79 19.79 0 01.022 1.18 2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92v2z"/></svg>
-          <input id="l-tel" type="tel" placeholder="+34 600 000 000" autocomplete="tel" oninput="ls_onTelInput(this)">
+          <input id="l-tel" type="tel" inputmode="numeric" placeholder="+34 600 000 000" autocomplete="tel" oninput="ls_onTelInput(this)">
         </div>
       </div>
       <button class="btn-login" id="ls-tel-btn" onclick="ls_goPin()" style="opacity:.4;pointer-events:none">Continuar</button>
@@ -76,6 +76,31 @@
         </button>
       </div>
       <div class="pin-forgot-link" onclick="pin_forgot()">&#191;Olvidaste tu PIN?</div>
+    </div>
+  </div>
+  <!-- Pantalla de cambio de PIN obligatorio en el primer acceso (must_change_pin=true).
+       No tiene botón "atrás" ni forma de saltarla — ver cp_submit() en index.js. -->
+  <div id="ls-change-pin" class="ls-step" style="display:none">
+    <div class="ls-header">
+      <div class="ls-logo-small">G</div>
+      <div class="ls-title">Cambia tu PIN</div>
+      <div class="ls-hint">Es tu primer acceso. Elige un PIN personal de 4 d&#237;gitos.</div>
+    </div>
+    <div class="ls-body">
+      <div class="l-field">
+        <label>Nuevo PIN</label>
+        <div class="l-input-wrap">
+          <input id="cp-pin1" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="&#8226;&#8226;&#8226;&#8226;" oninput="cp_onInput()">
+        </div>
+      </div>
+      <div class="l-field">
+        <label>Confirma el PIN</label>
+        <div class="l-input-wrap">
+          <input id="cp-pin2" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="&#8226;&#8226;&#8226;&#8226;" oninput="cp_onInput()">
+        </div>
+      </div>
+      <div class="cp-error" id="cp-error"></div>
+      <button class="btn-login" id="cp-submit-btn" onclick="cp_submit()">Guardar PIN</button>
     </div>
   </div>
 </div>

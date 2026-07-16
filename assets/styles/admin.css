@@ -337,6 +337,4 @@ input[type=file]{display:none}
 /* ── ESTADO TRABAJADOR ── */
 .trab-estado{font-size:10px;font-weight:700;border-radius:20px;padding:1px 6px}
 .trab-estado.activo{color:#68d391}
-.trab-estado.invitado{color:#f6e05e}
-.trab-estado.sin-acceso{color:var(--dim)}
-.trab-estado.sin-tel{color:var(--dim)}
+.trab-estado.pendiente{color:#f6e05e}

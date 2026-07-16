@@ -17,7 +17,7 @@ async function sbLoadZonas(){
 
 async function sbLoadTrabajadores(){
   try{
-    const {data,error} = await _sb.from('trabajadores').select('*').eq('local_id', LOCAL_ID).eq('activo', true).order('nombre');
+    const {data,error} = await _sb.from('trabajadores').select('*').eq('local_id', LOCAL_ID).eq('archivado', false).order('nombre');
     if(error) throw error;
     return data || [];
   }catch(e){ console.error('sbLoadTrabajadores',e); return []; }
@@ -25,6 +25,7 @@ async function sbLoadTrabajadores(){
 
 async function sbSaveTrabajador(t){
   try{
+    const sbId = t._sbId || t.id;
     const payload = {
       nombre:     t.name     || t.nombre   || '',
       seccion:    t.sec      || t.seccion  || 'sala',
@@ -33,24 +34,33 @@ async function sbSaveTrabajador(t){
       min_turnos: t.minT     != null ? t.minT : (t.min_turnos != null ? t.min_turnos : 3),
       max_turnos: t.maxT     != null ? t.maxT : (t.max_turnos != null ? t.max_turnos : 6),
       prioridad:  t.prioridad || 'eventual',
-      activo:     t.activo   !== false,
+      rol:        t.rol || 'empleado',
+      /* Nuevo trabajador: activo=false hasta que confirme acceso con su PIN (pendiente de invitación).
+         Trabajador existente: se preserva el valor salvo que se pida desactivar explícitamente. */
+      activo:     sbId ? (t.activo !== false) : (t.activo === true),
     };
-    const sbId = t._sbId || t.id;
     if(sbId){
       const {error} = await _sb.from('trabajadores').update(payload).eq('id', sbId);
       if(error) throw error;
+      return true;
     } else {
       payload.local_id = LOCAL_ID;
-      const {error} = await _sb.from('trabajadores').insert(payload);
+      /* .select().single() para recuperar el id real generado por BD — sin esto el
+         objeto local del trabajador recién creado se queda sin _sbId, y cualquier
+         acción posterior que dependa de él (p. ej. prev_sendInvite) no tiene a qué
+         fila de Supabase escribir. */
+      const {data, error} = await _sb.from('trabajadores').insert(payload).select().single();
       if(error) throw error;
+      return data;
     }
-    return true;
   }catch(e){ console.error('sbSaveTrabajador',e); return false; }
 }
 
+/* archivado es independiente de activo: un trabajador archivado no puede volver a
+   conectarse tenga el PIN que tenga, hasta ser restaurado. */
 async function sbArchivarTrabajador(id){
   try{
-    const {error} = await _sb.from('trabajadores').update({activo:false}).eq('id',id);
+    const {error} = await _sb.from('trabajadores').update({archivado:true}).eq('id',id);
     if(error) throw error;
     return true;
   }catch(e){ console.error('sbArchivarTrabajador',e); return false; }
@@ -111,7 +121,7 @@ async function initSupabase(){
   if(zonas.length) window._sbZonas = zonas;
   if(trabajadores.length){
     _trabWorkers = trabajadores.map(function(t){
-      return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,visible:t.visible!==false,skills:{},unavailMed:[],unavailNoch:[],vacaciones:[],_sbId:t.id};
+      return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,archivado:t.archivado===true,pinHash:t.pin_hash||null,mustChangePin:t.must_change_pin!==false,rol:t.rol||'empleado',visible:t.visible!==false,skills:{},unavailMed:[],unavailNoch:[],vacaciones:[],_sbId:t.id};
     });
   }
   if(skills.length) window._sbSkills = skills;

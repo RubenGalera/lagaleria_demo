@@ -34,7 +34,7 @@ function getW(n){return L().staff.find(function(w){return w.name===n;})||null;}
 function cntT(name){var c=0;ROWS.forEach(function(r){L().data[r].forEach(function(d){if(d.some(function(n){return parse(n).name===name;}))c++;});});return c;}
 
 function _mapTrab(t){
-  return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,disponible:t.disponible!==false,visible:t.visible!==false,skills:{},unavailMed:[],unavailNoch:[],vacaciones:[],_sbId:t.id};
+  return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,archivado:t.archivado===true,pinHash:t.pin_hash||null,mustChangePin:t.must_change_pin!==false,rol:t.rol||'empleado',disponible:t.disponible!==false,visible:t.visible!==false,skills:{},unavailMed:[],unavailNoch:[],vacaciones:[],_sbId:t.id};
 }
 
 async function _syncTrab(){
@@ -57,17 +57,19 @@ function closeTrabajadores(){
 }
 function renderTrabajadores(){
   var list=document.getElementById('trab-list');if(!list)return;
-  var staff = _trabWorkers.filter(function(w){ return w.activo !== false && w.visible !== false; });
+  /* archivado ya se filtra en sbLoadTrabajadores() — aquí solo ocultamos los no-visibles.
+     Los pendientes de invitación (sin PIN o sin confirmar el suyo propio) SÍ deben
+     aparecer, con su propio badge. */
+  var staff = _trabWorkers.filter(function(w){ return w.visible !== false; });
   var h='';
   staff.forEach(function(w){
     var sec=w.sec==='sala'?'Sala':w.sec==='cocina'?'Cocina':'Ambos';
-    var estado=w.estado||'activo';
-    var estadoBadge={
-      activo:      '<span class="trab-estado activo">&#9679; Activo</span>',
-      invitado:    '<span class="trab-estado invitado">&#9679; Invitado</span>',
-      sin_acceso:  '<span class="trab-estado sin-acceso">&#9679; Sin acceso</span>',
-      sin_telefono:'<span class="trab-estado sin-tel">&#9679; Sin tel&#233;fono</span>',
-    }[estado]||'';
+    /* Sigue pendiente aunque ya se le haya enviado el PIN temporal (pinHash relleno)
+       mientras no haya entrado a cambiarlo por el suyo — ver prev_sendInvite. */
+    var pending=w.pinHash==null||w.mustChangePin!==false;
+    var estadoBadge=pending
+      ?'<span class="trab-estado pendiente">&#9203; Pendiente</span>'
+      :'<span class="trab-estado activo">&#9679; Activo</span>';
     h+='<div class="zona-row trab-item" data-name="'+w.name.replace(/"/g,'&quot;')+'">'+
        '<div class="trab-avatar">'+w.name.charAt(0).toUpperCase()+'</div>'+
        '<div class="zona-info"><div class="zona-name">'+w.name+'</div>'+
@@ -93,8 +95,9 @@ function openNuevoTrabajador(){
 }
 function inv_setSec(btn){document.querySelectorAll('.inv-sec-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');}
 function inv_send(){
-  var nombreEl=document.getElementById('inv-nombre'),telEl=document.getElementById('inv-tel');
+  var nombreEl=document.getElementById('inv-nombre'),telEl=document.getElementById('inv-tel'),rolEl=document.getElementById('inv-rol');
   var nombre=(nombreEl.value||'').trim(),tel=(telEl.value||'').trim();
+  var rol=rolEl?rolEl.value:'empleado';
   var secBtn=document.querySelector('.inv-sec-btn.active'),sec=secBtn?secBtn.getAttribute('data-sec'):'sala';
   if(!nombre){inv_fieldError(nombreEl,'Introduce el nombre completo');return;}
   var dupNombre=_trabWorkers.find(function(w){return w.name.toLowerCase()===nombre.toLowerCase();});
@@ -104,9 +107,13 @@ function inv_send(){
     var dupTel=_trabWorkers.find(function(w){return(w.tel||'').replace(/\s/g,'')===(tel.replace(/\s/g,''));});
     if(dupTel){inv_fieldError(telEl,'Este teléfono ya pertenece a '+dupTel.name);return;}
   }
-  var newWorker={name:nombre,sec:sec,tel:tel,email:'',photo:null,minT:3,maxT:6,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:'eventual',skills:{},estado:tel?'sin_acceso':'sin_telefono'};
+  var newWorker={name:nombre,sec:sec,tel:tel,rol:rol,email:'',photo:null,minT:3,maxT:6,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:'eventual',skills:{},activo:false,pinHash:null,mustChangePin:true};
   _trabWorkers.push(newWorker);
-  sbSaveTrabajador(newWorker).catch(function(e){console.warn('[SB] create worker failed:',e);});
+  /* Capturamos el id real que devuelve Supabase — sin él, newWorker no tiene _sbId
+     y no se podría, por ejemplo, enviarle la invitación hasta el próximo resync. */
+  sbSaveTrabajador(newWorker).then(function(result){
+    if(result&&result.id){newWorker._sbId=result.id;newWorker.id=result.id;}
+  }).catch(function(e){console.warn('[SB] create worker failed:',e);});
   if(typeof renderTrabajadores==='function')renderTrabajadores();
   closeOv('ov-invite-trab');
   var msg=nombre+' añadido a la plantilla';if(!tel)msg+=' — recuerda añadir su teléfono para darle acceso';
@@ -164,7 +171,7 @@ async function loadArchivados(){
   list.innerHTML='<div style="padding:16px;text-align:center;font-size:12px;color:var(--dim)">Cargando&#8230;</div>';
   if(typeof _sb==='undefined'||!_sb){list.innerHTML='<div style="padding:16px;text-align:center;font-size:12px;color:var(--dim)">Sin conexión</div>';return;}
   try{
-    var r=await _sb.from('trabajadores').select('id,nombre,seccion,tel,foto_url').eq('local_id',LOCAL_ID).eq('activo',false).order('nombre');
+    var r=await _sb.from('trabajadores').select('id,nombre,seccion,tel,foto_url').eq('local_id',LOCAL_ID).eq('archivado',true).order('nombre');
     if(r.error)throw r.error;
     var data=r.data||[];
     if(countEl)countEl.textContent=data.length?'('+data.length+')':'';
@@ -193,7 +200,7 @@ async function loadArchivados(){
 async function restaurarTrabajador(id, name){
   if(typeof _sb==='undefined'||!_sb)return;
   try{
-    var r=await _sb.from('trabajadores').update({activo:true}).eq('id',id);
+    var r=await _sb.from('trabajadores').update({archivado:false}).eq('id',id);
     if(r.error)throw r.error;
     if(typeof showToast==='function')showToast(name+' restaurado ✓');
     await _syncTrab();

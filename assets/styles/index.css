@@ -78,6 +78,9 @@ body{
 }
 .login-forgot span{color:var(--acc);cursor:pointer}
 
+/* ── Cambio de PIN (primer acceso) ── */
+.cp-error{font-size:12px;color:var(--red);text-align:center;min-height:14px}
+
 
 /* ══════════════════════════════
    APP SHELL

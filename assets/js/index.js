@@ -36,40 +36,73 @@ function getActiveLocal(){
   };
 }
 
-/* ── VERIFY LOGIN contra Supabase ──
-   TODO: reemplazar mock por Supabase Phone Auth
-   Por ahora valida tel contra tabla trabajadores */
-async function sbVerifyLogin(tel, pin){
-  /* Mock PIN check — en producción: Supabase Auth */
-  if(pin !== '1234') return null;
+/* ── Hash del PIN — SHA-256 vía Web Crypto API ──
+   Por qué en el cliente: Supabase (PostgREST) es solo CRUD sobre tablas, no
+   ejecuta lógica de aplicación — no hay un backend propio donde hashear "del
+   lado servidor" sin montar una Edge Function aparte. Web Crypto está
+   disponible de forma nativa en cualquier navegador moderno (sin instalar
+   ninguna librería), y es exactamente el mismo algoritmo que ya usa
+   prev_sendInvite() en worker-modal.js al generar la invitación — el hash
+   tiene que coincidir bit a bit entre ambos sitios para poder compararlos.
+   No es bcrypt/scrypt/Argon2 por el mismo motivo que en la invitación: son
+   PINs de 4 dígitos de un espacio de búsqueda pequeño de por sí (10.000
+   combinaciones) protegidos además por estar detrás de RLS y de un teléfono
+   conocido — el coste computacional extra de esos algoritmos no cambia la
+   seguridad real aquí, y si el proyecto necesitara ese nivel de protección
+   más adelante, tocaría migrar a Supabase Auth (ya recogido en MEJORAS.md)
+   en vez de reforzar este hash a mano. */
+async function hashPin(pin){
+  var hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
+  return Array.from(new Uint8Array(hashBuffer)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
 
-  /* Buscar trabajador por teléfono */
+/* ── VERIFY LOGIN contra Supabase ──
+   Devuelve {status,...} en vez de null/profile porque el login real tiene
+   más de dos desenlaces: teléfono que no existe, teléfono que existe pero
+   aún no tiene invitación (pin_hash null — el admin no ha pulsado "Enviar
+   invitación" todavía), PIN que no coincide, o PIN correcto pero es la
+   primera vez que se usa (must_change_pin=true, hay que forzar el cambio
+   antes de dejarle entrar). Cada caso necesita un mensaje o una pantalla
+   distinta, así que pin_submit() decide qué hacer según "status". */
+async function sbVerifyLogin(tel, pin){
   try{
     const telClean = tel.replace(/\s/g,'').replace('+34','');
     const {data,error} = await _sb.from('trabajadores')
-      .select('id, nombre, seccion, tel, prioridad, foto_url, visible')
+      .select('id, nombre, seccion, tel, rol, prioridad, foto_url, visible, pin_hash, must_change_pin')
       .eq('local_id', LOCAL_ID)
       .ilike('tel', '%'+telClean+'%')
-      .eq('activo', true)
+      .eq('archivado', false)
       .maybeSingle();
     if(error){
       console.warn('sbVerifyLogin RLS/error:', error.message);
-      return null; /* fallback to mock */
+      return {status:'error'};
     }
-    if(data){
-      return {
+    if(!data) return {status:'not_found'};
+
+    /* Nunca se le ha enviado la invitación (o se le reseteó el PIN) —
+       no hay nada contra lo que comparar todavía. */
+    if(!data.pin_hash) return {status:'pending'};
+
+    const pinHash = await hashPin(pin);
+    if(pinHash !== data.pin_hash) return {status:'wrong_pin'};
+
+    if(data.must_change_pin) return {status:'must_change_pin', worker:data};
+
+    return {
+      status: 'ok',
+      profile: {
         nombre:   data.nombre,
         initials: data.nombre.split(' ').map(function(n){return n[0];}).join('').toUpperCase().slice(0,2),
-        rol:      'empleado', /* TODO: leer de usuario_local cuando haya auth */
+        rol:      data.rol || 'empleado',
+        seccion:  data.seccion || '',
         localId:  LOCAL_ID,
         _sbId:    data.id,
         tel:      data.tel || '',
         foto_url: data.foto_url || null,
         visible:  data.visible !== false,
-      };
-    }
-  }catch(e){ console.error('sbVerifyLogin',e); }
-  return null;
+      }
+    };
+  }catch(e){ console.error('sbVerifyLogin',e); return {status:'error'}; }
 }
 
 
@@ -125,11 +158,25 @@ var ZONA_EMOJIS = [
    Eliminar toda la lógica de localStorage de esta sección cuando se migre. */
 var LS_KEY = 'ag_session';
 
+/* ── Por qué localStorage para la sesión (y no cookies/JWT) ──
+   Es suficiente para el contexto actual: una PWA de un solo dispositivo por
+   trabajador, sin necesidad de que el servidor valide la sesión en cada
+   petición (Supabase con RLS por anon key ya protege el acceso a datos, no
+   depende de esta sesión local). localStorage sobrevive a cerrar el
+   navegador (a diferencia de sessionStorage) y no requiere backend propio
+   para emitir/rotar tokens. Cuando se migre a Supabase Auth real (ver
+   MEJORAS.md), esto pasa a ser un JWT gestionado por la librería de
+   Supabase — toda esta sección de localStorage se elimina entonces, no se
+   adapta. Los nombres de campo (_sbId, localId) se mantienen tal cual están
+   ahora mismo: en vez de "id"/"local_id" es porque así los usan ya decenas
+   de sitios en el resto de módulos (worker-modal.js, admin.js, turnos.js…);
+   renombrarlos ahora sería un cambio grande y ajeno a este flujo de login. */
 function applySession(profile, remember){
   currentUser = {
     nombre:   profile.nombre,
     initials: profile.initials,
     rol:      profile.rol,
+    seccion:  profile.seccion || '',
     localId:  profile.localId,
     _sbId:    profile._sbId   || null,
     tel:      profile.tel     || '',
@@ -833,6 +880,21 @@ function ls_init(){
       return;
     }
   }catch(e){}
+
+  /* Enlace de invitación con teléfono prellenado (?tel=...) — lo genera
+     prev_sendInvite() en worker-modal.js al enviar la invitación por
+     WhatsApp. Si viene con tel en la URL nos saltamos el paso de teléfono:
+     el trabajador solo tiene que teclear el PIN que le acaban de enviar. */
+  try{
+    var urlTel = new URLSearchParams(window.location.search).get('tel');
+    if(urlTel){
+      var elUrlTel = document.getElementById('l-tel');
+      if(elUrlTel) elUrlTel.value = urlTel;
+      setTimeout(function(){ ls_goPin(); }, 1200);
+      return;
+    }
+  }catch(e){}
+
   /* Sin sesión — mostrar login normal */
   try{
     var savedTel=localStorage.getItem('lg_saved_tel');
@@ -848,7 +910,7 @@ async function ls_refreshAndApply(cached){
   try{
     var result = await Promise.race([
       _sb.from('trabajadores')
-        .select('id, nombre, seccion, tel, prioridad, foto_url, visible')
+        .select('id, nombre, seccion, tel, rol, prioridad, foto_url, visible')
         .eq('id', sbId)
         .maybeSingle(),
       new Promise(function(resolve){
@@ -865,7 +927,8 @@ async function ls_refreshAndApply(cached){
     var fresh = {
       nombre:   d.nombre,
       initials: d.nombre.split(' ').map(function(n){return n[0];}).join('').toUpperCase().slice(0,2),
-      rol:      cached.rol      || 'empleado',
+      rol:      d.rol || cached.rol || 'empleado',
+      seccion:  d.seccion || cached.seccion || '',
       localId:  cached.localId  || LOCAL_ID,
       _sbId:    d.id,
       tel:      d.tel      || '',
@@ -881,7 +944,7 @@ async function ls_refreshAndApply(cached){
   }
 }
 function ls_show(id){
-  ['ls-splash','ls-tel','ls-pin'].forEach(function(s){
+  ['ls-splash','ls-tel','ls-pin','ls-change-pin'].forEach(function(s){
     var el=document.getElementById(s);
     if(el) el.style.display=s===id?'':'none';
   });
@@ -899,14 +962,28 @@ function ls_goPin(){
   if(disp) disp.textContent=tel;
   _pin=''; pin_render();
   ls_show('ls-pin');
+  /* Foco en el primer botón del pad para que, viniendo de un enlace de
+     invitación (?tel=...), el trabajador pueda teclear el PIN sin tocar nada más. */
+  setTimeout(function(){
+    var firstBtn=document.querySelector('#pin-pad .pin-btn');
+    if(firstBtn) firstBtn.focus();
+  }, 50);
 }
 function ls_back(){ _pin=''; pin_render(); ls_show('ls-tel'); }
+
+/* Trabajador verificado con must_change_pin=true — se guarda aquí mientras
+   pasa por la pantalla de cambio de PIN, para que cp_submit() sepa a qué
+   fila escribir sin tener que volver a pedir teléfono+PIN. */
+var _pendingWorker   = null;
+var _pendingRemember = false;
 
 function pin_submit(){
   var tel=(document.getElementById('l-tel').value||'').trim().replace(/\s/g,'');
   if(!tel){ ls_show('ls-tel'); return; }
 
-  /* Acceso de prueba: solo si el campo tel es exactamente una palabra clave de dev */
+  /* Acceso de prueba: solo si el campo tel es exactamente una palabra clave de dev.
+     TODO: eliminar en producción — solo existe para no bloquear el desarrollo
+     mientras el login real (arriba) no cubre todos los roles/casos todavía. */
   var DEV_KEYS = ['admin','superadmin','encargado','trabajador'];
   if(DEV_KEYS.indexOf(tel) !== -1){
     var profile = MOCK_PROFILES[tel]||null;
@@ -918,15 +995,95 @@ function pin_submit(){
   }
 
   /* Número de teléfono real — solo Supabase, sin fallback mock */
-  sbVerifyLogin(tel, _pin).then(function(profile){
-    if(!profile){ pin_error(); return; }
+  sbVerifyLogin(tel, _pin).then(function(result){
     var remember = document.getElementById('l-remember').checked;
+
+    if(result.status==='not_found'){ pin_error(); toast('Teléfono no encontrado'); return; }
+    if(result.status==='pending'){ pin_error(); toast('Acceso pendiente — espera tu invitación del administrador'); return; }
+    if(result.status==='wrong_pin'){ pin_error(); toast('PIN incorrecto'); return; }
+    if(result.status==='error'){ pin_error(); toast('Sin conexión — inténtalo de nuevo'); return; }
+
     if(remember){ try{ localStorage.setItem('lg_saved_tel',tel); }catch(e){} }
-    applySession(profile, remember);
+
+    if(result.status==='must_change_pin'){
+      _pendingWorker   = result.worker;
+      _pendingRemember = remember;
+      cp_open();
+      return;
+    }
+
+    /* status === 'ok' */
+    applySession(result.profile, remember);
   }).catch(function(){
     pin_error();
     toast('Sin conexión — inténtalo de nuevo');
   });
+}
+
+/* ══ CAMBIO DE PIN — primer acceso (must_change_pin=true) ══
+   Por qué must_change_pin como columna separada de pin_hash (en vez de,
+   por ejemplo, comparar si pin_hash sigue siendo el del PIN temporal fijo):
+   es explícito y no depende de que el PIN temporal nunca cambie de valor —
+   si en el futuro el temporal se generase al azar en vez de ser siempre
+   "1234", esta columna seguiría funcionando exactamente igual sin tocar
+   nada aquí. Además dice la intención directamente ("hay que cambiarlo"),
+   no la infiere de comparar hashes. */
+function cp_open(){
+  var i1=document.getElementById('cp-pin1'), i2=document.getElementById('cp-pin2');
+  if(i1) i1.value='';
+  if(i2) i2.value='';
+  cp_clearError();
+  ls_show('ls-change-pin');
+  setTimeout(function(){ if(i1) i1.focus(); }, 50);
+}
+function cp_onInput(){ cp_clearError(); }
+function cp_clearError(){
+  var err=document.getElementById('cp-error');
+  if(err) err.textContent='';
+}
+function cp_showError(msg){
+  var err=document.getElementById('cp-error');
+  if(err) err.textContent=msg;
+}
+async function cp_submit(){
+  var p1=(document.getElementById('cp-pin1').value||'').trim();
+  var p2=(document.getElementById('cp-pin2').value||'').trim();
+
+  if(!/^\d{4}$/.test(p1) || !/^\d{4}$/.test(p2)){ cp_showError('El PIN debe tener 4 dígitos'); return; }
+  if(p1!==p2){ cp_showError('Los PIN no coinciden'); return; }
+  if(!_pendingWorker){ cp_showError('Sesión expirada — vuelve a intentarlo'); ls_show('ls-tel'); return; }
+
+  var btn=document.getElementById('cp-submit-btn');
+  if(btn){ btn.style.opacity='.6'; btn.style.pointerEvents='none'; }
+
+  try{
+    var newHash = await hashPin(p1);
+    var res = await _sb.from('trabajadores')
+      .update({ pin_hash:newHash, must_change_pin:false, activo:true })
+      .eq('id', _pendingWorker.id);
+    if(res.error) throw res.error;
+  }catch(e){
+    console.error('cp_submit',e);
+    cp_showError('Error al guardar — inténtalo de nuevo');
+    if(btn){ btn.style.opacity=''; btn.style.pointerEvents=''; }
+    return;
+  }
+
+  var worker   = _pendingWorker;
+  var remember = _pendingRemember;
+  _pendingWorker = null;
+
+  applySession({
+    nombre:   worker.nombre,
+    initials: worker.nombre.split(' ').map(function(n){return n[0];}).join('').toUpperCase().slice(0,2),
+    rol:      worker.rol || 'empleado',
+    seccion:  worker.seccion || '',
+    localId:  LOCAL_ID,
+    _sbId:    worker.id,
+    tel:      worker.tel || '',
+    foto_url: worker.foto_url || null,
+    visible:  worker.visible !== false,
+  }, remember);
 }
 
 document.addEventListener('DOMContentLoaded', ls_init);

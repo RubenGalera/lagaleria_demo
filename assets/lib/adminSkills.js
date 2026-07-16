@@ -172,15 +172,7 @@ function applySkills(){
     if(hasCocina&&hasSala)w.sec='ambos';else if(hasCocina)w.sec='cocina';else if(hasSala)w.sec='sala';
     var sub=document.getElementById('prev-sub');
     if(sub)sub.textContent=(w.sec==='sala'?'Sala':w.sec==='cocina'?'Cocina':'Ambos')+' · '+(curLocal==='galeria'?'La Galería':'La Sala');
-    var estado=w.estado||'activo';
-    var estadoEl=document.getElementById('prev-estado');
-    if(estadoEl){var eLabels={activo:'🟢 Activo',invitado:'🟡 Invitado',sin_acceso:'⚪ Sin acceso',sin_telefono:'⚪ Sin teléfono'};estadoEl.textContent=eLabels[estado]||'';}
-    var invBtn=document.getElementById('prev-invite-btn');
-    if(invBtn){
-      if(estado==='sin_acceso'){invBtn.style.display='';invBtn.textContent='📱 Enviar invitación';invBtn.onclick=function(){prev_sendInvite(w.name);};}
-      else if(estado==='sin_telefono'){invBtn.style.display='';invBtn.textContent='📞 Añade teléfono para dar acceso';invBtn.style.opacity='.5';invBtn.style.pointerEvents='none';}
-      else{invBtn.style.display='none';}
-    }
+    if(typeof _refreshInviteUI==='function')_refreshInviteUI(w);
   }
   renderSkillsSummary();closeOv('ov-skills');showToast('Skills actualizados');
 }
