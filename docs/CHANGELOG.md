@@ -1,5 +1,16 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.11 — Pedido por proveedor + catálogo real (julio 2026)
+- Módulo Pedido rediseñado con dos vistas: Por categoría y Por proveedor
+- Vista por proveedor: lista inicial con indicadores 🔴/🟠 de urgencia, resumen de urgentes agrupado por proveedor, catálogo completo con +/- editable
+- Badge de proveedor visible en cada producto de la vista por categoría
+- Icono de categoría visible en ambas vistas de Pedido
+- Buscador en tiempo real en tab Productos (filtra por nombre, sin tildes, dentro de categoría activa)
+- 223 productos reales insertados desde facturas de proveedores
+- 35 proveedores reales con teléfonos y emails actualizados
+- Columna EAN añadida a stock_productos
+- Tab "Stock" renombrada a "Productos"
+
 ## v0.2.10 — Stock: Proveedores (julio 2026)
 - Nueva sección Admin/Stock·Proveedores con CRUD completo
 - Proveedor asignable a cada producto, badge visible en card de inventario

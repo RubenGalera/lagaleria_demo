@@ -29,7 +29,7 @@ Prioridad:
 | 🟢 | Modal de Evento: añadir campo "zonas ocupadas" (chips de zona) y campo "mesas" (número editable) que se descuenta del total disponible del local.
 
 ## Stock
-| 🟠 | Pedido: filtro por proveedor — dropdown en cabecera para ver solo productos de ese proveedor y enviar WhatsApp dirigido a su número de teléfono.
+| 🟠 | Pedido: filtro por proveedor — dropdown en cabecera para ver solo productos de ese proveedor y enviar WhatsApp dirigido a su número de teléfono. Al filtrar, mostrar dos grupos: 1) Productos bajo mínimos (rojo, arriba) con cantidad sugerida automática precargada (hasta cubrir el mínimo) editable con +/-, stock actual y mínimo visibles como referencia; 2) Resto de productos del proveedor (gris, abajo) con cantidad 0 editable con +/-, stock actual y mínimo visibles como referencia. Solo los productos con cantidad > 0 se incluyen en el mensaje de WhatsApp.
 | 🟢 | Productos puntuales en Pedido: al pulsar sobre una card, abrir modal de edición con campos rellenos (mismo modal que añadir, pero con datos precargados).
 | 🟢 | Productos archivados: mostrarlos agrupados al final de su categoría en gris, no mezclados con los activos.
 | 🟢 | Etiqueta de tipo de producto en card de inventario: actualmente eliminada. Revisar si es necesario recuperarla cuando se implemente el filtro por proveedor en Pedidos.
@@ -69,6 +69,7 @@ Los siguientes componentes tienen estilos distintos en cada página que debería
 ### Arquitectura
 - Eliminar iframes — SPA con React Router y Zustand para estado global
 - Nav y Footer como componentes React reutilizables (actualmente duplicados en HTML)
+- Migrar autenticación de sistema propio (PIN hasheado en BD + sesión localStorage) a Supabase Auth completo. Beneficios en React: RLS automática por JWT, sesiones gestionadas por Supabase, Realtime con auth real. La migración es un refactor de ~1 semana — los datos de trabajadores no cambian, solo la capa de auth.
 
 ### Base de datos
 - Migrar stock_productos.categoria de slug texto a FK uuid con ON DELETE SET NULL, igual que proveedor_id. Requiere columna nueva + migración de datos + actualizar todo el código que usa categoria como string.

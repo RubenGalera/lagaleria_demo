@@ -27,6 +27,24 @@ let editProdId     = null
 let invMode        = false
 let regFilter      = 'all'
 let regLoadedCount = 0
+let searchQuery    = ''
+
+function normSearch(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+}
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]))
+}
+function matchesSearch(p) {
+  if (!searchQuery) return true
+  return normSearch(p.name).includes(normSearch(searchQuery))
+}
+
+let pedMode   = 'cat'      // 'cat' | 'prov' — modo de vista del tab Pedido
+let pedProvId = null       // proveedor seleccionado en modo 'prov'
+let pedQty    = new Map()  // productId -> cantidad a pedir (solo modo 'prov')
+
+const WA_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>'
 
 const el = {
   prodList:      document.getElementById('prod-list'),
@@ -47,6 +65,9 @@ const el = {
   btnClearReg:   document.getElementById('btn-clear-reg'),
   confirmRegBg:  document.getElementById('confirm-reg-bg'),
   confirmRegMsg: document.getElementById('confirm-reg-msg'),
+
+  searchInput:   document.getElementById('search-input'),
+  searchClear:   document.getElementById('search-clear'),
 }
 
 const inputs = {
@@ -230,13 +251,28 @@ function setCat(cat, button) {
   renderInventory()
 }
 
+/* ─── Búsqueda en tiempo real (tab Productos) ─── */
+function onSearchInput(value) {
+  searchQuery = value
+  if (el.searchClear) el.searchClear.style.display = value ? 'flex' : 'none'
+  renderInventory()
+}
+function clearSearch() {
+  searchQuery = ''
+  if (el.searchInput) el.searchInput.value = ''
+  if (el.searchClear) el.searchClear.style.display = 'none'
+  renderInventory()
+}
+
 /* ─── Inventory render ─── */
 function renderInventory() {
-  const EMPTY = '<div class="ped-empty"><div class="ped-empty-icon">📦</div><div class="ped-empty-title">No hay productos</div><div class="ped-empty-sub">Usa el botón + para agregar un producto.</div></div>'
+  const EMPTY = searchQuery
+    ? `<div class="ped-empty"><div class="ped-empty-icon">🔍</div><div class="ped-empty-title">Sin resultados para "${escapeHtml(searchQuery)}"</div></div>`
+    : '<div class="ped-empty"><div class="ped-empty-icon">📦</div><div class="ped-empty-title">No hay productos</div><div class="ped-empty-sub">Usa el botón + para agregar un producto.</div></div>'
   const knownCats = new Set(stockCatsAll.map(c => c.slug))
 
   if (activeCat === 'rep') {
-    const items = prods.filter(isPendingForOrderView)
+    const items = prods.filter(isPendingForOrderView).filter(matchesSearch)
       .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
     el.prodList.innerHTML = items.map(renderProduct).join('') || EMPTY
     updateReorderCount()
@@ -244,7 +280,7 @@ function renderInventory() {
   }
 
   if (activeCat === 'sin-cat') {
-    const items = prods.filter(p => !knownCats.has(p.cat))
+    const items = prods.filter(p => !knownCats.has(p.cat)).filter(matchesSearch)
       .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
     el.prodList.innerHTML = items.map(renderProduct).join('') || EMPTY
     updateReorderCount()
@@ -252,7 +288,7 @@ function renderInventory() {
   }
 
   if (activeCat !== 'all') {
-    const items = prods.filter(p => p.cat === activeCat)
+    const items = prods.filter(p => p.cat === activeCat).filter(matchesSearch)
       .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
     el.prodList.innerHTML = items.map(renderProduct).join('') || EMPTY
     updateReorderCount()
@@ -261,13 +297,13 @@ function renderInventory() {
 
   let html = ''
   for (const c of stockCatsAll) {
-    const items = prods.filter(p => p.cat === c.slug)
+    const items = prods.filter(p => p.cat === c.slug).filter(matchesSearch)
       .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
     if (!items.length) continue
     html += `<div class="sec-hdr"><div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div><div class="sec-line"></div></div>`
     html += items.map(renderProduct).join('')
   }
-  const sinCatItems = prods.filter(p => !knownCats.has(p.cat))
+  const sinCatItems = prods.filter(p => !knownCats.has(p.cat)).filter(matchesSearch)
     .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
   if (sinCatItems.length) {
     html += `<div class="sec-hdr"><div class="sec-lbl">❓ SIN CATEGORÍA</div><div class="sec-line"></div></div>`
@@ -509,12 +545,28 @@ async function initPedido() {
 }
 
 function renderPedido() {
+  const toggleHtml = `
+    <div class="ped-toggle">
+      <button class="ped-toggle-btn ${pedMode === 'cat' ? 'active' : ''}" onclick="setPedMode('cat')">📦 Por categoría</button>
+      <button class="ped-toggle-btn ${pedMode === 'prov' ? 'active' : ''}" onclick="setPedMode('prov')">🚚 Por proveedor</button>
+    </div>
+  `
+  el.pedContent.innerHTML = toggleHtml + (pedMode === 'prov' ? renderPedProvView() : renderPedCatView())
+}
+
+function setPedMode(mode) {
+  pedMode = mode
+  renderPedido()
+}
+
+/* ─── Pedido — vista Por categoría ─── */
+function renderPedCatView() {
   const rol              = getStockUser()?.rol
   const canManageOneoffs = rol === 'encargado' || rol === 'admin' || rol === 'superadmin'
   const needsOrder       = prods.filter(isPendingForOrderView)
 
   const bottomButtons = `
-    <button class="ped-send" onclick="sendPedidoWhatsApp()"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg> Enviar pedido por WhatsApp</button>
+    <button class="ped-send" onclick="sendPedidoWhatsApp()">${WA_ICON_SVG} Enviar pedido por WhatsApp</button>
     ${canManageOneoffs ? `<button class="oneoff-btn" onclick="showOneoffModal()">+ Añadir producto puntual</button>` : ''}
   `
 
@@ -536,14 +588,13 @@ function renderPedido() {
   }
 
   if (!needsOrder.length && !oneoffs.length) {
-    el.pedContent.innerHTML = `
+    return `
       <div class="ped-empty">
         <div class="ped-empty-icon">🛒</div>
         <div class="ped-empty-title">¡Todo en orden!</div>
         <div class="ped-empty-sub">Los productos por reponer aparecerán aquí automáticamente.</div>
       </div>
     ` + bottomButtons
-    return
   }
 
   const byCat = {}
@@ -562,13 +613,14 @@ function renderPedido() {
         </div>
       `
       const items = byCat[c.slug].slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map(p => {
-        const st  = getStockStatus(p.qty, p.min)
-        const loc = prefs.locations[p.loc] || { label: 'Otro' }
-        const n   = Math.max(1, p.min - p.qty)
+        const st   = getStockStatus(p.qty, p.min)
+        const loc  = prefs.locations[p.loc] || { label: 'Otro' }
+        const n    = Math.max(1, p.min - p.qty)
+        const prov = provName(p.provId)
         return `
           <div class="ped-item ${st}">
             <div class="ped-item-left">
-              <div class="ped-name">${p.name}</div>
+              <div class="ped-name"><span class="ped-cat-icon">${c.icono}</span>${p.name}${prov ? `<span class="ped-item-prov">· ${prov}</span>` : ''}</div>
               <div class="ped-detail">Tienes ${p.qty} ${p.unit} · mín. ${p.min} ${p.unit} · ${loc.label}</div>
             </div>
             <div class="ped-tag ${st}">+${n} ${p.unit}</div>
@@ -578,7 +630,180 @@ function renderPedido() {
       return header + items
     }).join('')
 
-  el.pedContent.innerHTML = oneoffSectionHtml + catSections + bottomButtons
+  return oneoffSectionHtml + catSections + bottomButtons
+}
+
+/* ─── Pedido — vista Por proveedor ─── */
+function pedProdUrgency(p) {
+  if (p.min > 0 && p.qty < p.min) return 'red'
+  if (p.min > 0 && p.qty <= p.min * 1.2) return 'amb'
+  return null
+}
+
+function pedProvIndicator(provId) {
+  const list = prods.filter(p => p.provId === provId)
+  if (list.some(p => pedProdUrgency(p) === 'red')) return '🔴 '
+  if (list.some(p => pedProdUrgency(p) === 'amb')) return '🟠 '
+  return ''
+}
+
+function selectPedProv(id) {
+  pedProvId = id || null
+  pedQty = new Map()
+  if (pedProvId) {
+    for (const p of prods.filter(pr => pr.provId === pedProvId)) {
+      pedQty.set(p.id, pedProdUrgency(p) === 'red' ? Math.max(p.min - p.qty, 1) : 0)
+    }
+  }
+  renderPedido()
+}
+
+function adjustPedQty(id, delta) {
+  const cur = pedQty.get(id) || 0
+  pedQty.set(id, Math.max(0, cur + delta))
+  renderPedido()
+}
+
+function renderPedProvSelect() {
+  const placeholderSelected = pedProvId ? '' : 'selected'
+  const opts = stockProvsAll.map(p =>
+    `<option value="${p.id}" ${p.id === pedProvId ? 'selected' : ''}>${pedProvIndicator(p.id)}${p.nombre}</option>`
+  ).join('')
+  return `
+    <div class="ped-prov-wrap">
+      <select class="inp" onchange="selectPedProv(this.value)">
+        <option value="" ${placeholderSelected}>Selecciona un proveedor…</option>
+        ${opts}
+      </select>
+    </div>
+  `
+}
+
+function renderPedProvItem(p, cls) {
+  const cat      = stockCatsAll.find(c => c.slug === p.cat)
+  const icon     = cat ? cat.icono : ''
+  const qty      = pedQty.get(p.id) || 0
+  const selected = (cls === 'ped-item-grey' && qty > 0) ? ' ped-item-selected' : ''
+  return `
+    <div class="ped-item ${cls}${selected}">
+      <div class="ped-item-left">
+        <div class="ped-name">${icon ? `<span class="ped-cat-icon">${icon}</span>` : ''}${p.name}</div>
+        <div class="ped-detail">Tienes ${p.qty} ${p.unit} · Mín ${p.min} ${p.unit}</div>
+      </div>
+      <div class="ped-qty-wrap">
+        <button class="sbtn" onclick="adjustPedQty('${p.id}', -1)">−</button>
+        <div class="ped-qty-val">${qty}</div>
+        <button class="sbtn" onclick="adjustPedQty('${p.id}', 1)">+</button>
+      </div>
+    </div>
+  `
+}
+
+/* ─── Resumen inicial (sin proveedor seleccionado): lista de proveedores + urgentes ─── */
+function renderPedProvSummary() {
+  const provsWithProds = stockProvsAll
+    .filter(prov => prods.some(p => p.provId === prov.id))
+    .slice()
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+
+  if (!provsWithProds.length) {
+    return `
+      <div class="ped-empty">
+        <div class="ped-empty-icon">🚚</div>
+        <div class="ped-empty-title">Sin proveedores con productos</div>
+        <div class="ped-empty-sub">Asigna un proveedor a tus productos desde Stock.</div>
+      </div>
+    `
+  }
+
+  const listHtml = `
+    <div class="ped-prov-list">
+      ${provsWithProds.map(prov => `
+        <div class="ped-prov-item" onclick="selectPedProv('${prov.id}')">
+          <span>${pedProvIndicator(prov.id)}${prov.nombre}</span>
+          <span class="ped-prov-arrow">›</span>
+        </div>
+      `).join('')}
+    </div>
+  `
+
+  const urgentProvs = provsWithProds.filter(prov => pedProvIndicator(prov.id) !== '')
+  let urgentHtml = ''
+  if (urgentProvs.length) {
+    urgentHtml = `<div class="oneoff-section-lbl">Urgentes</div>` + urgentProvs.map(prov => {
+      const items = prods.filter(p => p.provId === prov.id && pedProdUrgency(p))
+        .sort((a, b) => {
+          const ua = pedProdUrgency(a), ub = pedProdUrgency(b)
+          if (ua !== ub) return ua === 'red' ? -1 : 1
+          return a.name.localeCompare(b.name, 'es')
+        })
+      const itemsHtml = items.map(p => {
+        const st = pedProdUrgency(p)
+        const n  = Math.max(1, p.min - p.qty)
+        return `
+          <div class="ped-item ${st}">
+            <div class="ped-item-left">
+              <div class="ped-name">${p.name}</div>
+              <div class="ped-detail">Tienes ${p.qty} ${p.unit} · Mín ${p.min} ${p.unit}</div>
+            </div>
+            <div class="ped-tag ${st}">+${n} ${p.unit}</div>
+          </div>
+        `
+      }).join('')
+      return `<div class="sec-hdr ped-section-hdr alert"><div class="sec-lbl">${pedProvIndicator(prov.id)}${prov.nombre.toUpperCase()}</div><div class="sec-line"></div></div>${itemsHtml}`
+    }).join('')
+  }
+
+  return listHtml + urgentHtml
+}
+
+function renderPedProvView() {
+  const selectHtml = renderPedProvSelect()
+
+  if (!pedProvId) {
+    return selectHtml + renderPedProvSummary()
+  }
+
+  const prov       = stockProvsAll.find(p => p.id === pedProvId)
+  const provProds  = prods.filter(p => p.provId === pedProvId)
+
+  const bottomButtons = `
+    <button class="ped-send" onclick="sendPedidoWhatsAppProv()">${WA_ICON_SVG} Enviar pedido a ${prov ? prov.nombre : 'proveedor'} por WhatsApp</button>
+  `
+
+  if (!provProds.length) {
+    return selectHtml + `
+      <div class="ped-empty">
+        <div class="ped-empty-icon">🚚</div>
+        <div class="ped-empty-title">Sin productos asignados</div>
+        <div class="ped-empty-sub">Este proveedor no tiene productos asignados. Edítalos en Stock para asignarlos.</div>
+      </div>
+    ` + bottomButtons
+  }
+
+  const repItems = provProds
+    .filter(p => pedProdUrgency(p))
+    .sort((a, b) => {
+      const ua = pedProdUrgency(a), ub = pedProdUrgency(b)
+      if (ua !== ub) return ua === 'red' ? -1 : 1
+      return a.name.localeCompare(b.name, 'es')
+    })
+  const restItems = provProds
+    .filter(p => !pedProdUrgency(p))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+
+  let html = selectHtml
+  if (repItems.length) {
+    html += `<div class="sec-hdr ped-section-hdr alert"><div class="sec-lbl">NECESITAN REPOSICIÓN</div><div class="sec-line"></div></div>`
+    html += repItems.map(p => renderPedProvItem(p, pedProdUrgency(p))).join('')
+  }
+  if (restItems.length) {
+    html += `<div class="ped-otros-hint">Añade cantidad a los productos que quieras incluir en el pedido</div>`
+    html += `<div class="sec-hdr ped-section-hdr"><div class="sec-lbl">OTROS PRODUCTOS</div><div class="sec-line"></div></div>`
+    html += restItems.map(p => renderPedProvItem(p, 'ped-item-grey')).join('')
+  }
+  html += bottomButtons
+  return html
 }
 
 function updatePedDot() {
@@ -617,6 +842,21 @@ function sendPedidoWhatsApp() {
       lines.push(`• ${p.name}: +${n} ${p.unit}`)
     }
     lines.push('')
+  }
+
+  window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n').trim())}`, '_blank')
+}
+
+function sendPedidoWhatsAppProv() {
+  if (!pedProvId) return
+  const prov      = stockProvsAll.find(p => p.id === pedProvId)
+  const provProds = prods.filter(p => p.provId === pedProvId)
+  const items     = provProds.filter(p => (pedQty.get(p.id) || 0) > 0)
+  if (!items.length) { toast('Añade una cantidad a algún producto antes de enviar'); return }
+
+  const lines = [`*Pedido ${prov ? prov.nombre : 'proveedor'} — La Galería*`, '']
+  for (const p of items) {
+    lines.push(`• ${p.name}: ${pedQty.get(p.id)} ${p.unit}`)
   }
 
   window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n').trim())}`, '_blank')

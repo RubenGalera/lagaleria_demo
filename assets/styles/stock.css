@@ -108,6 +108,35 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .ped-tag{font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;white-space:nowrap;flex-shrink:0}
 .ped-tag.red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd)}
 .ped-tag.amb{background:var(--amb-bg);color:var(--amb);border:1px solid var(--amb-bd)}
+
+/* ─── Pedido: toggle Por categoría / Por proveedor ─── */
+.ped-toggle{display:flex;gap:8px;margin-bottom:14px}
+.ped-toggle-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:10px;border:1px solid var(--brd2);background:var(--surf);color:var(--dim);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
+.ped-toggle-btn:active{opacity:.7}
+.ped-toggle-btn.active{background:var(--acc);border-color:var(--acc);color:#1a1810}
+
+/* ─── Pedido por proveedor ─── */
+.ped-prov-wrap{margin-bottom:14px}
+.ped-section-hdr .sec-lbl{color:var(--dim)}
+.ped-section-hdr.alert .sec-lbl{color:var(--red)}
+.ped-item-grey{opacity:.6}
+.ped-item-selected{opacity:1;background:var(--acc-bg);border-color:var(--acc-bd)}
+.ped-qty-wrap{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.ped-qty-val{min-width:22px;text-align:center;font-size:14px;font-weight:700;color:var(--txt)}
+.ped-otros-hint{font-size:11px;color:var(--dim);padding:2px 0 8px}
+
+/* ─── Pedido por proveedor: resumen inicial (lista + urgentes) ─── */
+.ped-prov-list{margin-bottom:8px;border:1px solid var(--brd);border-radius:10px;overflow:hidden}
+.ped-prov-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 13px;font-size:13px;font-weight:600;color:var(--txt);cursor:pointer;border-bottom:1px solid var(--brd);transition:background .15s}
+.ped-prov-item:last-child{border-bottom:none}
+.ped-prov-item:hover{background:var(--surf)}
+.ped-prov-item:active{background:var(--acc-bg)}
+.ped-prov-arrow{color:var(--faint);font-size:14px}
+
+/* ─── Pedido: badge de proveedor e icono de categoría junto al nombre ─── */
+.ped-item-prov{font-size:10px;color:var(--dim);opacity:.75;font-weight:500;margin-left:5px}
+.ped-cat-icon{margin-right:5px;font-size:12px}
+
 /* .mtab, .tab-badge → assets/styles/components.css */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
 .modal-bg.show{display:flex}
@@ -179,6 +208,15 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .content{padding:0 14px}
 .content .sec-hdr:first-child{padding-top:12px}
 .sticky-header{position:sticky;top:46px;z-index:89;background:var(--bg)}
+
+/* ─── Buscador en tiempo real (tab Productos) ─── */
+.search-bar{display:flex;align-items:center;gap:8px;padding:8px var(--sp-md);background:var(--bg);border-bottom:1px solid var(--brd)}
+.search-icon{font-size:13px;flex-shrink:0;opacity:.7}
+.search-input{flex:1;width:100%;background:var(--surf);border:1px solid var(--brd);border-radius:8px;padding:9px 12px;font-size:13px;color:var(--txt);outline:none;transition:border-color .2s}
+.search-input:focus{border-color:var(--acc-bd)}
+.search-input::placeholder{color:var(--faint)}
+.search-clear{display:none;align-items:center;justify-content:center;background:none;border:none;color:var(--dim);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;flex-shrink:0}
+.search-clear:active{color:var(--txt)}
 .inv-dot-blue{width:7px;height:7px;border-radius:50%;background:#5599bb;box-shadow:0 0 6px rgba(85,153,187,.6);flex-shrink:0}
 .sval{min-width:52px;text-align:center;padding:0 4px;display:flex;flex-direction:column;align-items:center}
 .sval-origin-row{height:14px;display:flex;align-items:center;justify-content:center;gap:3px;overflow:hidden}
