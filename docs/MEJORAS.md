@@ -64,6 +64,68 @@ Los siguientes componentes tienen estilos distintos en cada página que debería
 
 ---
 
+## Accesibilidad y UX — Estándares profesionales
+
+### Heurísticas de Nielsen (10 principios)
+Aplicar progresivamente en todos los módulos:
+- **Visibilidad del estado del sistema**: toast de confirmación en TODAS las acciones que escriben en BD. Estilo unificado: ✅ éxito, ❌ error, ⏳ cargando. Actualmente inconsistente entre módulos.
+- **Mensajes de error útiles**: borde rojo en el campo concreto que falla + texto explicativo debajo ("Este email no es válido", "Este teléfono ya existe"...). Eliminar mensajes genéricos tipo "Error al guardar".
+- **Prevención de errores**: validación en tiempo real donde sea posible (formato email, longitud PIN, campos obligatorios) antes de intentar guardar.
+- **Feedback en elementos interactivos**: estado hover y foco de botones notorio — el usuario sabe en todo momento qué está pulsando.
+- Resto de heurísticas a auditar módulo por módulo cuando se aborde la limpieza global.
+
+### Accesibilidad — WCAG 2.1 nivel AA
+Objetivo: cumplir el nivel AA del estándar internacional de accesibilidad web.
+- **Contraste de color**: todos los textos deben cumplir ratio mínimo 4.5:1 (texto normal) y 3:1 (texto grande). Herramienta de verificación: WebAIM Contrast Checker.
+- **Área táctil mínima**: 44x44px en todos los elementos interactivos (botones, links) para uso cómodo en móvil.
+- **Textos alternativos**: `alt` descriptivo en todas las imágenes. Imágenes decorativas con `alt=""`.
+- **Etiquetas en formularios**: todos los inputs con `<label>` asociado o `aria-label`.
+
+### Principios POUR
+Los 4 principios fundamentales de accesibilidad que debe cumplir toda interfaz:
+- **Perceptible**: información presentable de múltiples formas (textos alt, contraste, no depender solo del color para transmitir información).
+- **Operable**: interfaz navegable y usable (navegación por teclado, sin trampas de foco, tiempo suficiente para completar acciones).
+- **Comprensible**: mensajes de error claros, comportamiento predecible, ayuda contextual donde sea necesario.
+- **Robusto**: contenido interpretable por tecnologías de asistencia (HTML semántico, ARIA correctamente implementado).
+
+### Navegación por teclado
+- Todos los elementos interactivos accesibles con Tab en orden lógico (izquierda→derecha, arriba→abajo).
+- Focus visible y notorio en el elemento activo — nunca eliminar `outline` sin alternativa visible.
+- Orden de tabulación coherente con el flujo visual de la página.
+- Esc para cerrar modales, Enter para confirmar acciones principales.
+
+### ARIA (Accessible Rich Internet Applications)
+- `aria-label` en iconos y botones sin texto visible ("×", "≡", "+", "-", emojis como acción).
+- `aria-expanded` en acordeones y desplegables.
+- `aria-live="polite"` en zonas que se actualizan dinámicamente (toasts, contadores, listados que se recargan).
+- `role` apropiado en elementos semánticos personalizados (modales → `role="dialog"`, tabs → `role="tab"`, alertas → `role="alert"`).
+- `aria-required="true"` en campos obligatorios de formularios.
+
+### Panel de accesibilidad en Perfil de usuario
+Opciones personalizables por cada usuario, guardadas en BD (columna `accesibilidad` JSON en trabajadores):
+
+**Tipografía**
+- Tamaño de fuente: Normal / Grande / Muy grande (escala el rem base del sistema)
+- Familia tipográfica: Sans-serif (actual) / Serif / Monospace (útil para usuarios con dislexia)
+
+**Contraste**
+- Tema: Normal (actual) / Alto contraste / Bajo contraste (para sensibilidad a la luz)
+
+**Movimiento**
+- Reducir animaciones: desactiva transiciones y animaciones (respeta `prefers-reduced-motion` del sistema operativo)
+
+**Implementación futura:**
+- Preferencias guardadas en columna `accesibilidad` (JSON) en tabla `trabajadores`
+- Al cargar la app, se aplican vía variables CSS en `:root`
+- En React: Context de accesibilidad que envuelve toda la app
+- Cumple WCAG 2.1 criterios 1.4.4 (Resize text) y 1.4.12 (Text spacing) nivel AA
+
+### Prioridad de implementación
+- **Antes de React**: contraste, etiquetas `alt`, `aria-label` en botones de icono, mensajes de error específicos — rápidos y de alto impacto.
+- **En React**: todo lo demás se aplica globalmente en componentes reutilizables (Button, Input, Modal, Toast) — mucho más eficiente que módulo por módulo en vanilla.
+
+---
+
 ## Cuando migremos a React / Zustand
 
 ### Arquitectura

@@ -81,7 +81,7 @@ async function sbVerifyLogin(tel, pin){
        teléfonos, que no es algo que un filtro de columna pueda expresar. */
     const telDigits = tel.replace(/\D/g,'').slice(-9);
     const {data:workers,error} = await _sb.from('trabajadores')
-      .select('id, nombre, seccion, tel, rol, prioridad, foto_url, visible, pin_hash, must_change_pin')
+      .select('id, nombre, seccion, tel, email, rol, prioridad, foto_url, visible, pin_hash, must_change_pin')
       .eq('local_id', LOCAL_ID)
       .eq('archivado', false);
     if(error){
@@ -112,6 +112,7 @@ async function sbVerifyLogin(tel, pin){
         localId:  LOCAL_ID,
         _sbId:    data.id,
         tel:      data.tel || '',
+        email:    data.email || '',
         foto_url: data.foto_url || null,
         visible:  data.visible !== false,
       }
@@ -593,6 +594,7 @@ async function prf_saveProfile(){
   var payload={};
   if(_prf_dirtyFields.nombre) payload.nombre=name;
   if(_prf_dirtyFields.tel) payload.tel=tel||null;
+  if(_prf_dirtyFields.email) payload.email=email||null;
   var hasFoto=!!_prf_dirtyFields.foto;
   if(!Object.keys(payload).length&&!hasFoto){closeModal('ov-miperfil');return;}
   var saveBtn=document.getElementById('prf-mp-save');
@@ -924,7 +926,7 @@ async function ls_refreshAndApply(cached){
   try{
     var result = await Promise.race([
       _sb.from('trabajadores')
-        .select('id, nombre, seccion, tel, rol, prioridad, foto_url, visible')
+        .select('id, nombre, seccion, tel, email, rol, prioridad, foto_url, visible')
         .eq('id', sbId)
         .maybeSingle(),
       new Promise(function(resolve){
@@ -946,7 +948,7 @@ async function ls_refreshAndApply(cached){
       localId:  cached.localId  || LOCAL_ID,
       _sbId:    d.id,
       tel:      d.tel      || '',
-      email:    cached.email || '',
+      email:    d.email || cached.email || '',
       foto_url: d.foto_url || null,
       visible:  d.visible  !== false,
     };
@@ -1095,6 +1097,7 @@ async function cp_submit(){
     localId:  LOCAL_ID,
     _sbId:    worker.id,
     tel:      worker.tel || '',
+    email:    worker.email || '',
     foto_url: worker.foto_url || null,
     visible:  worker.visible !== false,
   }, remember);

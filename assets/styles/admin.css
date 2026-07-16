@@ -311,6 +311,10 @@ input[type=file]{display:none}
 #view-stock-prov{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg);z-index:10;overflow:hidden}
 #view-stock-prov.active{display:flex}
 
+/* #view-contactos — overlay absoluto sobre todo el body, mismo patrón que #view-stock-prov */
+#view-contactos{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg);z-index:10;overflow:hidden}
+#view-contactos.active{display:flex}
+
 /* ── INVITE TRABAJADOR ── */
 .inv-sec-group{display:flex;gap:6px;margin-top:6px}
 .inv-sec-btn{flex:1;padding:8px 4px;border-radius:10px;border:1px solid var(--brd2);background:var(--surf);color:var(--dim);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}

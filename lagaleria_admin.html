@@ -70,6 +70,11 @@
         <div class="row-info"><div class="row-name">Stock · Proveedores</div><div class="row-sub">Contactos y datos de proveedores</div></div>
         <span class="row-arrow">›</span>
       </div>
+      <div class="row" onclick="openContactosPanel()">
+        <div class="row-icon ri-teal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg></div>
+        <div class="row-info"><div class="row-name">Contactos</div><div class="row-sub">Técnicos y personal de mantenimiento</div></div>
+        <span class="row-arrow">›</span>
+      </div>
     </div>
   </div>
 
@@ -163,6 +168,21 @@
   </div>
   <div class="zona-list" id="prov-list">
     <div class="state-msg">Cargando proveedores...</div>
+  </div>
+</div>
+
+<!-- CONTACTOS PANEL — overlay absoluto sobre body -->
+<div id="view-contactos">
+  <div class="view-header">
+    <button class="btn-volver" onclick="closeContactosPanel()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      Admin
+    </button>
+    <span class="view-title">Contactos</span>
+    <span style="width:52px"></span>
+  </div>
+  <div class="zona-list" id="contactos-list">
+    <div class="state-msg">Cargando contactos...</div>
   </div>
 </div>
 
@@ -282,6 +302,7 @@
 <script src="assets/lib/adminWeekConfig.js"></script>
 <script src="assets/lib/adminWorkers.js"></script>
 <script src="assets/lib/adminStock.js"></script>
+<script src="assets/lib/adminContactos.js"></script>
 <script src="assets/lib/worker-modal.js"></script>
 
 <script src="assets/js/admin.js"></script>
