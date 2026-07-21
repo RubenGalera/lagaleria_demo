@@ -33,6 +33,8 @@ Prioridad:
 | 🟢 | Productos puntuales en Pedido: al pulsar sobre una card, abrir modal de edición con campos rellenos (mismo modal que añadir, pero con datos precargados).
 | 🟢 | Productos archivados: mostrarlos agrupados al final de su categoría en gris, no mezclados con los activos.
 | 🟢 | Etiqueta de tipo de producto en card de inventario: actualmente eliminada. Revisar si es necesario recuperarla cuando se implemente el filtro por proveedor en Pedidos.
+| 🟡 | Ciclo completo de pedidos — guardar pedido al enviarlo por WhatsApp (estado: pendiente → en_reparto → recibido), vista de pedidos en reparto en el dashboard de Inicio, y confirmación de recepción que suma automáticamente las cantidades al stock. Permite verificar que lo recibido coincide con lo pedido y editar diferencias antes de confirmar. Solo accesible para Admin y Encargado. Requiere tabla `pedidos` en BD con estado, proveedor_id, fecha y productos en JSON.
+| 🟢 | Filtro de proveedor en Productos: al pulsar el botón "Filtrar", abrir directamente la lista de proveedores (no el último seleccionado). Mostrar "Filtrar: [nombre]" en el botón cuando hay filtro activo.
 
 ## Admin
 | 🟢 | Descripción de cards "Stock · Categorías" y "Stock · Proveedores": revisar que el texto descriptivo esté actualizado.
@@ -133,6 +135,7 @@ Opciones personalizables por cada usuario, guardadas en BD (columna `accesibilid
 - Nav y Footer como componentes React reutilizables (actualmente duplicados en HTML)
 - Migrar autenticación de sistema propio (PIN hasheado en BD + sesión localStorage) a Supabase Auth completo. Beneficios en React: RLS automática por JWT, sesiones gestionadas por Supabase, Realtime con auth real. La migración es un refactor de ~1 semana — los datos de trabajadores no cambian, solo la capa de auth.
 - Normalización de teléfonos internacionales: actualmente el login compara los últimos 9 dígitos del teléfono, lo que funciona para números españoles (+34) pero no para otras nacionalidades. En React migrar a una librería como libphonenumber-js para parsear y comparar números en formato E.164 independientemente del país.
+- Sistema de filtros unificado en Productos: reemplazar chips de categoría + filtro de proveedor por un panel de filtros con tags activos (con × para quitar cada uno individualmente) y botón "Limpiar todo". Permite combinar múltiples filtros visualmente claros. Referencia UX: filtros de Amazon/Zalando.
 
 ### Base de datos
 - Migrar stock_productos.categoria de slug texto a FK uuid con ON DELETE SET NULL, igual que proveedor_id. Requiere columna nueva + migración de datos + actualizar todo el código que usa categoria como string.

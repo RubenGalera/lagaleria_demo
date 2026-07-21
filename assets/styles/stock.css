@@ -96,27 +96,30 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .ped-empty-icon{font-size:42px;margin-bottom:14px}
 .ped-empty-title{font-size:16px;font-weight:700;color:var(--txt);margin-bottom:6px}
 .ped-empty-sub{font-size:13px;color:var(--dim)}
-.ped-item{display:flex;align-items:center;gap:10px;background:var(--surf);border:1px solid var(--brd);border-radius:10px;padding:10px 12px;margin-bottom:6px;position:relative;overflow:hidden}
-.ped-item::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
-.ped-item.red::before{background:var(--red)}
-.ped-item.amb::before{background:var(--amb)}
-.ped-item.red{border-color:rgba(180,50,50,.25)}
-.ped-item.amb{border-color:rgba(180,130,0,.25)}
-.ped-item-left{flex:1;min-width:0}
-.ped-item-left .ped-name{font-size:13px;font-weight:600;color:var(--txt)}
-.ped-item-left .ped-detail{font-size:11px;color:var(--dim);margin-top:3px}
 .ped-tag{font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;white-space:nowrap;flex-shrink:0}
 .ped-tag.red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd)}
 .ped-tag.amb{background:var(--amb-bg);color:var(--amb);border:1px solid var(--amb-bd)}
 
-/* ─── Pedido: toggle Por categoría / Por proveedor ─── */
-.ped-toggle{display:flex;gap:8px;margin-bottom:14px}
-.ped-toggle-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:10px;border:1px solid var(--brd2);background:var(--surf);color:var(--dim);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
+/* ─── Pedido: toggle Por categoría / Por proveedor — misma altura/padding que .cpill (Productos) ───
+   Sticky igual que .sticky-header en Productos: top:46px (justo debajo de
+   .main-tabs, que mide 46px) y mismo z-index (89) para quedar por debajo de
+   las tabs pero por encima del listado que scrollea. .ped-toggle vive dentro
+   de .ped-wrap (padding lateral 14px), así que "sangra" a ancho completo con
+   márgenes negativos + padding propio para que el fondo cubra borde a borde
+   y no se vea el contenido de detrás asomando por los lados al hacer scroll. */
+.ped-toggle{display:flex;gap:8px;margin:0 -14px 14px;padding:0 14px;position:sticky;top:46px;z-index:89;background:var(--bg)}
+.ped-toggle-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 8px;border-radius:var(--rad-pill);border:1px solid var(--brd2);background:var(--surf);color:var(--dim);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
 .ped-toggle-btn:active{opacity:.7}
 .ped-toggle-btn.active{background:var(--acc);border-color:var(--acc);color:#1a1810}
 
-/* ─── Pedido por proveedor ─── */
-.ped-prov-wrap{margin-bottom:14px}
+/* ─── Pedido por proveedor ───
+   Se apila justo debajo del toggle: top = 46px (toggle) + 30px (alto del
+   botón) + 14px (margen inferior del toggle) = 90px. Mismo truco de sangrado
+   a ancho completo que .ped-toggle. */
+.ped-prov-wrap{margin:0 -14px 14px;padding:0 14px;position:sticky;top:90px;z-index:89;background:var(--bg)}
+/* mismo estilo visual que .search-input (Productos): fondo --surf, borde --brd, radius 8px.
+   height explícito porque <select> y <input> no rinden la misma altura con el mismo padding. */
+.ped-prov-wrap select{background:var(--surf);border:1px solid var(--brd);padding:9px 12px;border-radius:8px;height:35px}
 .ped-section-hdr .sec-lbl{color:var(--dim)}
 .ped-section-hdr.alert .sec-lbl{color:var(--red)}
 .ped-item-grey{opacity:.6}
@@ -133,8 +136,7 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .ped-prov-item:active{background:var(--acc-bg)}
 .ped-prov-arrow{color:var(--faint);font-size:14px}
 
-/* ─── Pedido: badge de proveedor e icono de categoría junto al nombre ─── */
-.ped-item-prov{font-size:10px;color:var(--dim);opacity:.75;font-weight:500;margin-left:5px}
+/* ─── Pedido: icono de categoría junto al nombre (reutilizado en renderPedCard) ─── */
 .ped-cat-icon{margin-right:5px;font-size:12px}
 
 /* .mtab, .tab-badge → assets/styles/components.css */
@@ -217,6 +219,28 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .search-input::placeholder{color:var(--faint)}
 .search-clear{display:none;align-items:center;justify-content:center;background:none;border:none;color:var(--dim);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;flex-shrink:0}
 .search-clear:active{color:var(--txt)}
+
+/* ─── Filtro por proveedor (junto al buscador) ─── */
+.search-filter-btn{display:flex;align-items:center;justify-content:center;gap:5px;flex-shrink:0;height:35px;padding:0 10px;background:var(--surf);border:1px solid var(--brd);border-radius:8px;color:var(--dim);cursor:pointer;transition:all .2s}
+.search-filter-btn:active{opacity:.7}
+.search-filter-btn.active{color:var(--acc);border-color:var(--acc-bd);background:var(--acc-bg)}
+.search-filter-lbl{display:none;font-size:12px;font-weight:600;white-space:nowrap}
+@media (min-width:480px){.search-filter-lbl{display:inline}}
+/* Con filtro activo, el nombre del proveedor se ve también en móvil — es la
+   única forma de saber qué filtro hay puesto sin abrir el panel. */
+.search-filter-btn.active .search-filter-lbl{display:inline}
+
+.filter-panel{display:none;padding:0 var(--sp-md) 10px;background:var(--bg);border-bottom:1px solid var(--brd)}
+.filter-panel.open{display:block}
+.filter-prov-list{border:1px solid var(--brd);border-radius:10px;overflow:hidden}
+.filter-prov-item{padding:11px 13px;font-size:13px;font-weight:600;color:var(--txt);cursor:pointer;border-bottom:1px solid var(--brd);transition:background .15s}
+.filter-prov-item:last-child{border-bottom:none}
+.filter-prov-item:hover{background:var(--surf)}
+.filter-prov-item:active{background:var(--acc-bg)}
+.filter-prov-item.sel{color:var(--acc)}
+/* "Todos los proveedores" — separada visualmente del resto para que quitar
+   el filtro sea obvio de un vistazo. */
+.filter-prov-all{color:var(--acc);font-weight:700;background:var(--acc-bg);border-bottom:2px solid var(--acc-bd)}
 .inv-dot-blue{width:7px;height:7px;border-radius:50%;background:#5599bb;box-shadow:0 0 6px rgba(85,153,187,.6);flex-shrink:0}
 .sval{min-width:52px;text-align:center;padding:0 4px;display:flex;flex-direction:column;align-items:center}
 .sval-origin-row{height:14px;display:flex;align-items:center;justify-content:center;gap:3px;overflow:hidden}

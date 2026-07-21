@@ -28,6 +28,7 @@ let invMode        = false
 let regFilter      = 'all'
 let regLoadedCount = 0
 let searchQuery    = ''
+let searchProvId   = '' // '' = todos los proveedores (filtro adicional al buscador)
 
 function normSearch(s) {
   return (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
@@ -35,9 +36,30 @@ function normSearch(s) {
 function escapeHtml(s) {
   return (s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]))
 }
+/* Multi-campo, multi-palabra: cada palabra del input debe aparecer en AL MENOS
+   UNO de los campos visibles de la card (nombre, proveedor, unidad, nota,
+   ubicación) — así "seygo garrafa" encuentra productos de Seygo cuya unidad
+   o nota contenga "garrafa", sin exigir que ambas palabras estén en el mismo campo. */
 function matchesSearch(p) {
   if (!searchQuery) return true
-  return normSearch(p.name).includes(normSearch(searchQuery))
+  const words = normSearch(searchQuery).split(/\s+/).filter(Boolean)
+  if (!words.length) return true
+  const haystacks = [
+    p.name,
+    provName(p.provId),
+    p.unit,
+    p.note,
+    prefs.locations[p.loc]?.label || '',
+  ].map(normSearch)
+  return words.every(w => haystacks.some(h => h.includes(w)))
+}
+
+function matchesProvFilter(p) {
+  if (!searchProvId) return true
+  return p.provId === searchProvId
+}
+function matchesFilters(p) {
+  return matchesSearch(p) && matchesProvFilter(p)
 }
 
 let pedMode   = 'cat'      // 'cat' | 'prov' — modo de vista del tab Pedido
@@ -264,6 +286,63 @@ function clearSearch() {
   renderInventory()
 }
 
+/* ─── Filtro por proveedor (panel desplegable junto al buscador) ───
+   Lista propia (no <select> nativo): al abrir, pulsar el botón siempre
+   muestra todas las opciones ya expandidas — un <select> nativo solo
+   enseñaría la opción actualmente elegida hasta que el usuario lo
+   despliegue a su vez, que es justo lo que se quiere evitar. También es
+   la única forma de darle a "Todos los proveedores" un estilo propio
+   diferenciado, algo que las <option> no permiten de forma fiable entre navegadores. */
+function toggleFilterPanel() {
+  const panel = document.getElementById('filter-panel')
+  if (!panel) return
+  const opening = !panel.classList.contains('open')
+  if (opening) renderFilterProvList()
+  panel.classList.toggle('open', opening)
+}
+function closeFilterPanel() {
+  document.getElementById('filter-panel')?.classList.remove('open')
+}
+function renderFilterProvList() {
+  const list = document.getElementById('filter-prov-list')
+  if (!list) return
+  const provsWithProds = stockProvsAll
+    .filter(p => prods.some(pr => pr.provId === p.id))
+    .slice().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+  const allRow = `<div class="filter-prov-item filter-prov-all${searchProvId ? '' : ' sel'}" onclick="onFilterProvChange('')">✦ Todos los proveedores</div>`
+  const rows = provsWithProds.map(p =>
+    `<div class="filter-prov-item${p.id === searchProvId ? ' sel' : ''}" onclick="onFilterProvChange('${p.id}')">${escapeHtml(p.nombre)}</div>`
+  ).join('')
+  list.innerHTML = allRow + rows
+}
+function updateFilterBtnLabel() {
+  const btn = document.getElementById('search-filter-btn')
+  const lbl = document.getElementById('search-filter-lbl')
+  if (!btn || !lbl) return
+  const prov = searchProvId ? stockProvsAll.find(p => p.id === searchProvId) : null
+  if (prov) {
+    const name = prov.nombre.length > 15 ? prov.nombre.slice(0, 15) + '...' : prov.nombre
+    lbl.textContent = `Filtrar: ${name}`
+    btn.classList.add('active')
+  } else {
+    lbl.textContent = 'Filtrar'
+    btn.classList.remove('active')
+  }
+}
+function onFilterProvChange(id) {
+  searchProvId = id || ''
+  updateFilterBtnLabel()
+  closeFilterPanel()
+  renderInventory()
+}
+document.addEventListener('click', (e) => {
+  const panel = document.getElementById('filter-panel')
+  const btn = document.getElementById('search-filter-btn')
+  if (!panel || !panel.classList.contains('open')) return
+  if (panel.contains(e.target) || (btn && btn.contains(e.target))) return
+  closeFilterPanel()
+})
+
 /* ─── Inventory render ─── */
 function renderInventory() {
   const EMPTY = searchQuery
@@ -272,7 +351,7 @@ function renderInventory() {
   const knownCats = new Set(stockCatsAll.map(c => c.slug))
 
   if (activeCat === 'rep') {
-    const items = prods.filter(isPendingForOrderView).filter(matchesSearch)
+    const items = prods.filter(isPendingForOrderView).filter(matchesFilters)
       .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
     el.prodList.innerHTML = items.map(renderProduct).join('') || EMPTY
     updateReorderCount()
@@ -280,7 +359,7 @@ function renderInventory() {
   }
 
   if (activeCat === 'sin-cat') {
-    const items = prods.filter(p => !knownCats.has(p.cat)).filter(matchesSearch)
+    const items = prods.filter(p => !knownCats.has(p.cat)).filter(matchesFilters)
       .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
     el.prodList.innerHTML = items.map(renderProduct).join('') || EMPTY
     updateReorderCount()
@@ -288,7 +367,7 @@ function renderInventory() {
   }
 
   if (activeCat !== 'all') {
-    const items = prods.filter(p => p.cat === activeCat).filter(matchesSearch)
+    const items = prods.filter(p => p.cat === activeCat).filter(matchesFilters)
       .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
     el.prodList.innerHTML = items.map(renderProduct).join('') || EMPTY
     updateReorderCount()
@@ -297,13 +376,13 @@ function renderInventory() {
 
   let html = ''
   for (const c of stockCatsAll) {
-    const items = prods.filter(p => p.cat === c.slug).filter(matchesSearch)
+    const items = prods.filter(p => p.cat === c.slug).filter(matchesFilters)
       .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
     if (!items.length) continue
     html += `<div class="sec-hdr"><div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div><div class="sec-line"></div></div>`
     html += items.map(renderProduct).join('')
   }
-  const sinCatItems = prods.filter(p => !knownCats.has(p.cat)).filter(matchesSearch)
+  const sinCatItems = prods.filter(p => !knownCats.has(p.cat)).filter(matchesFilters)
     .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
   if (sinCatItems.length) {
     html += `<div class="sec-hdr"><div class="sec-lbl">❓ SIN CATEGORÍA</div><div class="sec-line"></div></div>`
@@ -559,6 +638,38 @@ function setPedMode(mode) {
   renderPedido()
 }
 
+/* ─── Card de producto en Pedido — misma estructura visual que renderProduct()
+   (Productos): semáforo + icono de categoría + nombre en la línea principal,
+   badges de ubicación/proveedor y "Tienes · Min" en la segunda línea.
+   qtyHtml es lo único que cambia entre vistas: tag fijo "+N unidad" (vista
+   por categoría y resumen de urgentes) o stepper editable +/- (vista por
+   proveedor) — el cálculo de esa cantidad no se toca, solo dónde se pinta.
+   El color SIEMPRE sale de getStockStatus(qty, min) — el mismo criterio que
+   Productos, sin fórmulas alternativas — para que un producto muestre
+   exactamente el mismo semáforo en cualquier tab. */
+function renderPedCard(p, qtyHtml, extraClass = '') {
+  const st   = getStockStatus(p.qty, p.min)
+  const loc  = prefs.locations[p.loc] || { label: 'Otro' }
+  const cat  = stockCatsAll.find(c => c.slug === p.cat)
+  const prov = provName(p.provId)
+  return `
+    <div class="prod ${st}${extraClass ? ' ' + extraClass : ''}">
+      <div class="prod-sema-col">
+        <span class="sema ${st}"></span>
+      </div>
+      <div class="prod-info">
+        <div class="prod-name">${cat ? `<span class="ped-cat-icon">${cat.icono}</span>` : ''}${p.name}</div>
+        <div class="prod-meta">
+          <span class="loc-badge ${loc.color || 'loc-a'}">${loc.label}</span>
+          ${prov ? `<span class="prov-badge">🚚 ${prov}</span>` : ''}
+          <span class="prod-min">Tienes ${p.qty} ${p.unit} · Min ${p.min} ${p.unit}</span>
+        </div>
+      </div>
+      ${qtyHtml}
+    </div>
+  `
+}
+
 /* ─── Pedido — vista Por categoría ─── */
 function renderPedCatView() {
   const rol              = getStockUser()?.rol
@@ -613,19 +724,9 @@ function renderPedCatView() {
         </div>
       `
       const items = byCat[c.slug].slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map(p => {
-        const st   = getStockStatus(p.qty, p.min)
-        const loc  = prefs.locations[p.loc] || { label: 'Otro' }
-        const n    = Math.max(1, p.min - p.qty)
-        const prov = provName(p.provId)
-        return `
-          <div class="ped-item ${st}">
-            <div class="ped-item-left">
-              <div class="ped-name"><span class="ped-cat-icon">${c.icono}</span>${p.name}${prov ? `<span class="ped-item-prov">· ${prov}</span>` : ''}</div>
-              <div class="ped-detail">Tienes ${p.qty} ${p.unit} · mín. ${p.min} ${p.unit} · ${loc.label}</div>
-            </div>
-            <div class="ped-tag ${st}">+${n} ${p.unit}</div>
-          </div>
-        `
+        const st = getStockStatus(p.qty, p.min)
+        const n  = Math.max(1, p.min - p.qty)
+        return renderPedCard(p, `<div class="ped-tag ${st}">+${n} ${p.unit}</div>`)
       }).join('')
       return header + items
     }).join('')
@@ -633,17 +734,13 @@ function renderPedCatView() {
   return oneoffSectionHtml + catSections + bottomButtons
 }
 
-/* ─── Pedido — vista Por proveedor ─── */
-function pedProdUrgency(p) {
-  if (p.min > 0 && p.qty < p.min) return 'red'
-  if (p.min > 0 && p.qty <= p.min * 1.2) return 'amb'
-  return null
-}
-
+/* ─── Pedido — vista Por proveedor ───
+   Todo el color/urgencia de aquí en adelante sale de getStockStatus(qty, min)
+   — mismo criterio que Productos, sin cálculo alternativo. */
 function pedProvIndicator(provId) {
   const list = prods.filter(p => p.provId === provId)
-  if (list.some(p => pedProdUrgency(p) === 'red')) return '🔴 '
-  if (list.some(p => pedProdUrgency(p) === 'amb')) return '🟠 '
+  if (list.some(p => getStockStatus(p.qty, p.min) === 'red')) return '🔴 '
+  if (list.some(p => getStockStatus(p.qty, p.min) === 'amb')) return '🟠 '
   return ''
 }
 
@@ -652,7 +749,7 @@ function selectPedProv(id) {
   pedQty = new Map()
   if (pedProvId) {
     for (const p of prods.filter(pr => pr.provId === pedProvId)) {
-      pedQty.set(p.id, pedProdUrgency(p) === 'red' ? Math.max(p.min - p.qty, 1) : 0)
+      pedQty.set(p.id, getStockStatus(p.qty, p.min) === 'red' ? Math.max(p.min - p.qty, 1) : 0)
     }
   }
   renderPedido()
@@ -679,24 +776,17 @@ function renderPedProvSelect() {
   `
 }
 
-function renderPedProvItem(p, cls) {
-  const cat      = stockCatsAll.find(c => c.slug === p.cat)
-  const icon     = cat ? cat.icono : ''
-  const qty      = pedQty.get(p.id) || 0
-  const selected = (cls === 'ped-item-grey' && qty > 0) ? ' ped-item-selected' : ''
-  return `
-    <div class="ped-item ${cls}${selected}">
-      <div class="ped-item-left">
-        <div class="ped-name">${icon ? `<span class="ped-cat-icon">${icon}</span>` : ''}${p.name}</div>
-        <div class="ped-detail">Tienes ${p.qty} ${p.unit} · Mín ${p.min} ${p.unit}</div>
-      </div>
-      <div class="ped-qty-wrap">
-        <button class="sbtn" onclick="adjustPedQty('${p.id}', -1)">−</button>
-        <div class="ped-qty-val">${qty}</div>
-        <button class="sbtn" onclick="adjustPedQty('${p.id}', 1)">+</button>
-      </div>
+function renderPedProvItem(p, isOtros) {
+  const qty = pedQty.get(p.id) || 0
+  const extraClass = isOtros ? (qty > 0 ? 'ped-item-grey ped-item-selected' : 'ped-item-grey') : ''
+  const qtyHtml = `
+    <div class="ped-qty-wrap">
+      <button class="sbtn" onclick="adjustPedQty('${p.id}', -1)">−</button>
+      <div class="ped-qty-val">${qty}</div>
+      <button class="sbtn" onclick="adjustPedQty('${p.id}', 1)">+</button>
     </div>
   `
+  return renderPedCard(p, qtyHtml, extraClass)
 }
 
 /* ─── Resumen inicial (sin proveedor seleccionado): lista de proveedores + urgentes ─── */
@@ -731,24 +821,15 @@ function renderPedProvSummary() {
   let urgentHtml = ''
   if (urgentProvs.length) {
     urgentHtml = `<div class="oneoff-section-lbl">Urgentes</div>` + urgentProvs.map(prov => {
-      const items = prods.filter(p => p.provId === prov.id && pedProdUrgency(p))
+      const items = prods.filter(p => p.provId === prov.id && getStockStatus(p.qty, p.min) !== 'grn')
         .sort((a, b) => {
-          const ua = pedProdUrgency(a), ub = pedProdUrgency(b)
+          const ua = getStockStatus(a.qty, a.min), ub = getStockStatus(b.qty, b.min)
           if (ua !== ub) return ua === 'red' ? -1 : 1
           return a.name.localeCompare(b.name, 'es')
         })
       const itemsHtml = items.map(p => {
-        const st = pedProdUrgency(p)
-        const n  = Math.max(1, p.min - p.qty)
-        return `
-          <div class="ped-item ${st}">
-            <div class="ped-item-left">
-              <div class="ped-name">${p.name}</div>
-              <div class="ped-detail">Tienes ${p.qty} ${p.unit} · Mín ${p.min} ${p.unit}</div>
-            </div>
-            <div class="ped-tag ${st}">+${n} ${p.unit}</div>
-          </div>
-        `
+        const n = Math.max(1, p.min - p.qty)
+        return renderPedCard(p, `<div class="ped-tag ${getStockStatus(p.qty, p.min)}">+${n} ${p.unit}</div>`)
       }).join('')
       return `<div class="sec-hdr ped-section-hdr alert"><div class="sec-lbl">${pedProvIndicator(prov.id)}${prov.nombre.toUpperCase()}</div><div class="sec-line"></div></div>${itemsHtml}`
     }).join('')
@@ -782,25 +863,25 @@ function renderPedProvView() {
   }
 
   const repItems = provProds
-    .filter(p => pedProdUrgency(p))
+    .filter(p => getStockStatus(p.qty, p.min) !== 'grn')
     .sort((a, b) => {
-      const ua = pedProdUrgency(a), ub = pedProdUrgency(b)
+      const ua = getStockStatus(a.qty, a.min), ub = getStockStatus(b.qty, b.min)
       if (ua !== ub) return ua === 'red' ? -1 : 1
       return a.name.localeCompare(b.name, 'es')
     })
   const restItems = provProds
-    .filter(p => !pedProdUrgency(p))
+    .filter(p => getStockStatus(p.qty, p.min) === 'grn')
     .sort((a, b) => a.name.localeCompare(b.name, 'es'))
 
   let html = selectHtml
   if (repItems.length) {
     html += `<div class="sec-hdr ped-section-hdr alert"><div class="sec-lbl">NECESITAN REPOSICIÓN</div><div class="sec-line"></div></div>`
-    html += repItems.map(p => renderPedProvItem(p, pedProdUrgency(p))).join('')
+    html += repItems.map(p => renderPedProvItem(p, false)).join('')
   }
   if (restItems.length) {
     html += `<div class="ped-otros-hint">Añade cantidad a los productos que quieras incluir en el pedido</div>`
     html += `<div class="sec-hdr ped-section-hdr"><div class="sec-lbl">OTROS PRODUCTOS</div><div class="sec-line"></div></div>`
-    html += restItems.map(p => renderPedProvItem(p, 'ped-item-grey')).join('')
+    html += restItems.map(p => renderPedProvItem(p, true)).join('')
   }
   html += bottomButtons
   return html

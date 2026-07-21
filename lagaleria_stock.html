@@ -37,6 +37,13 @@
         <span class="search-icon">🔍</span>
         <input type="text" class="search-input" id="search-input" placeholder="Buscar producto..." oninput="onSearchInput(this.value)">
         <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">×</button>
+        <button class="search-filter-btn" id="search-filter-btn" onclick="toggleFilterPanel()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <span class="search-filter-lbl" id="search-filter-lbl">Filtrar</span>
+        </button>
+      </div>
+      <div class="filter-panel" id="filter-panel">
+        <div class="filter-prov-list" id="filter-prov-list"></div>
       </div>
       <div class="inv-banner" id="inv-banner">
         <div class="inv-banner-lbl">

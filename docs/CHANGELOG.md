@@ -1,5 +1,17 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.14 — Stock: búsqueda avanzada, pedido mejorado y contactos (julio 2026)
+- Búsqueda multi-campo en Productos: busca en nombre, proveedor, unidad, nota y ubicación simultáneamente. Palabras independientes ("seygo garrafa" filtra por proveedor Y unidad)
+- Filtro de proveedor en Productos: botón junto al buscador, muestra "Filtrar: [nombre]" cuando está activo, abre lista directamente
+- Cards de Pedido rediseñadas para ser visualmente consistentes con Productos (semáforo, icono categoría, badges de ubicación y proveedor)
+- getStockStatus() unificada como única fuente de verdad para semáforos en Productos y Pedido. Fix: min=0 siempre verde
+- Chips, buscador y toggle de Pedido con position sticky — siempre visibles al hacer scroll
+- Admin/Contactos: nueva sección para técnicos y mantenimiento con CRUD completo
+- Botones llamar 📞 y WhatsApp 💬 en modales de proveedores y contactos
+- Alhabia separado en "Alhabia Bebidas" y "Alhabia Alimentación" con sus contactos respectivos
+- 35 proveedores actualizados con teléfonos de comerciales y notas de contacto
+- 8 técnicos insertados en tabla contactos
+
 ## v0.2.13 — Fix login: normalización de teléfono (julio 2026)
 - Login real ahora encuentra al trabajador independientemente del formato del teléfono en BD (+34 656 187 336, 656187336, 656-187-336, etc.)
 - Comparación por últimos 9 dígitos tras eliminar espacios, guiones y prefijos (+34, 0034)

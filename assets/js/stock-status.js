@@ -1,7 +1,7 @@
 function getStockStatus(qty, min) {
-  if (min <= 0) return 'grn'
-  if (qty <= min / 2) return 'red'
-  if (qty <= min) return 'amb'
+  if (!min || min <= 0) return 'grn'
+  if (qty < min) return 'red'
+  if (qty <= min * 1.2) return 'amb'
   return 'grn'
 }
 
