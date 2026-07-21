@@ -190,7 +190,7 @@
 <div id="mock-badge" style="display:none;position:fixed;bottom:72px;right:12px;background:#2a3a2a;border:1px solid rgba(74,154,90,.35);color:#4a9a5a;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;z-index:150;letter-spacing:.4px;pointer-events:none">⬡ MOCK LOCAL</div>
 
 <!-- TOAST -->
-<div id="_toast" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a2f3a;border:1px solid var(--brd2);color:var(--txt);padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;z-index:400;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap"></div>
+<div id="_toast" class="toast"></div>
 
 <!-- OVERLAY: Skills -->
 <div class="modal-overlay" id="ov-skills" style="z-index:300">
@@ -296,6 +296,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="assets/lib/supabase-client.js"></script>
 <script src="assets/lib/ui-helpers.js"></script>
+<script src="assets/lib/utils.js"></script>
+<script src="assets/lib/toast.js"></script>
 <script src="assets/lib/admin-entity-modal.js"></script>
 <script src="assets/lib/adminZones.js"></script>
 <script src="assets/lib/adminSkills.js"></script>

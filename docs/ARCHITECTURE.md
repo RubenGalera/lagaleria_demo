@@ -60,6 +60,31 @@ Se crean con contenido real cuando llegue la migración a React, no antes.
 Este árbol se actualiza cada vez que se crea un módulo nuevo. Si un módulo no
 encaja claramente en ninguna carpeta existente, se discute antes de forzarlo.
 
+### 2.1 Convención real hoy: `assets/js/` vs `assets/lib/`
+
+El árbol de la sección 2 es el objetivo a largo plazo (con `state/`, `modules/`...).
+Hoy, con vanilla JS y arquitectura de shell + iframes, la convención que sí está
+en vigor y se aplica en cada archivo nuevo es esta:
+
+- **`assets/js/`** → un archivo por iframe/página, el script principal que orquesta
+  esa pantalla concreta: `stock.js` (lagaleria_stock.html), `index.js` (index.html,
+  el shell), `admin.js` (lagaleria_admin.html), `turnos.js`, `reservas.js`, `inicio.js`.
+  Un archivo de `assets/js/` no se carga nunca desde más de un iframe.
+
+- **`assets/lib/`** → utilidades compartidas, importables desde cualquier módulo
+  (`assets/js/*.js` u otro archivo de `assets/lib/`). Ejemplos: `utils.js`
+  (`cleanTel`, `hashPin`, `normalizeText`), `toast.js` (`showToast`),
+  `stock-status.js` (semáforo de stock), `supabase-client.js`, `ui-helpers.js`.
+  Los módulos de administración de entidades siguen la convención `admin*.js`
+  (`adminStock.js`, `adminContactos.js`, `adminWorkers.js`, `adminZones.js`,
+  `adminSkills.js`, `adminWeekConfig.js`) — viven en `assets/lib/` porque, aunque
+  cada uno gestiona un dominio distinto, todos son piezas que `lagaleria_admin.html`
+  compone, no el script principal de un iframe por sí solos.
+
+Regla práctica: si el archivo es "la pantalla X", va en `assets/js/`. Si el archivo
+es "una pieza que varias pantallas podrían usar" o "una sección de la pantalla de
+Admin", va en `assets/lib/`.
+
 ## 3. Convención de nombres de funciones
 
 Patrón: `prefijo` + `Sustantivo` (camelCase). El prefijo indica QUÉ HACE la función,

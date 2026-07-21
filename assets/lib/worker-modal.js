@@ -170,7 +170,7 @@ function toggleDisponible(el) {
   if (typeof buildGrid === 'function') buildGrid();
   if (typeof renderW === 'function') renderW();
   if (typeof updateStats === 'function') updateStats();
-  if (typeof showToast === 'function') showToast(val ? _previewName + ' marcado como disponible' : _previewName + ' marcado como no disponible');
+  if (typeof showToast === 'function') showToast(val ? _previewName + ' marcado como disponible' : _previewName + ' marcado como no disponible', 'info');
 }
 
 /* ── CERRAR SIN GUARDAR — descarta turnos, días no disponibles y prioridad tocados en esta apertura ── */
@@ -253,7 +253,7 @@ function toggleSg(cell) {
   if (turningOn) {
     const w = getW(_previewName);
     if (w && (w.disponible === false || w.visible === false)) {
-      if (typeof showToast === 'function') showToast(_previewName + ' no está disponible actualmente');
+      if (typeof showToast === 'function') showToast(_previewName + ' no está disponible actualmente', 'error');
       return;
     }
   }
@@ -346,7 +346,7 @@ function saveProfile() {
   if (gs) gs.scrollLeft = scrollLeft;
   window.scrollTo(0, scrollTop);
   if (w._sbId) sbUpdateTrabajador(w._sbId, { min_turnos: w.minT, max_turnos: w.maxT, prioridad: w.prioridad || 'eventual' });
-  if (typeof showToast === 'function') showToast('Perfil guardado ✓');
+  if (typeof showToast === 'function') showToast('Perfil guardado ✓', 'success');
   if (typeof scheduleAutosave === 'function') scheduleAutosave();
 }
 
@@ -390,14 +390,15 @@ function saveTel() {
   if (w && w._sbId) sbUpdateTrabajador(w._sbId, { tel: v || null });
 }
 
+/* cleanTel() vive en assets/lib/utils.js. */
 function callWorker() {
   const w = getW(_previewName);
-  if (w && w.tel) window.location.href = `tel:${w.tel.replace(/\s/g, '')}`;
+  if (w && w.tel) window.location.href = `tel:${cleanTel(w.tel)}`;
 }
 
 function waWorker() {
   const w = getW(_previewName);
-  if (w && w.tel) window.open(`https://wa.me/34${w.tel.replace(/\D/g, '')}`);
+  if (w && w.tel) window.open(`https://wa.me/34${cleanTel(w.tel)}`);
 }
 
 /* ── FOTO DE TRABAJADOR — solo visor, sin subida ── */
@@ -434,7 +435,7 @@ async function prev_sendInvite(name) {
      que vaya a poder entrar — cortamos aquí en vez de generar un PIN que
      nadie podría recibir ni usar. */
   if (!w.tel) {
-    if (typeof showToast === 'function') showToast('Este trabajador no tiene teléfono asignado');
+    if (typeof showToast === 'function') showToast('Este trabajador no tiene teléfono asignado', 'error');
     return;
   }
 
@@ -447,18 +448,18 @@ async function prev_sendInvite(name) {
   var TEMP_PIN = '1234';
 
   /* ── 2. Hash del PIN — SHA-256 vía Web Crypto API ──
-     Se guarda el hash en BD, nunca el PIN en claro, por si la fila llegara a
-     filtrarse. Se usa SHA-256 (nativo del navegador, sin librerías externas)
-     y NO bcrypt/scrypt/Argon2 a propósito: esos algoritmos añaden un coste
-     computacional deliberado para proteger contraseñas de uso prolongado
-     frente a ataques de fuerza bruta offline durante años. Aquí el PIN es
-     temporal y de un solo uso — su "vida útil" termina en cuanto el
+     hashPin() vive en assets/lib/utils.js — MISMO algoritmo que usa index.js
+     al verificar el login, el hash tiene que coincidir bit a bit. Se guarda
+     el hash en BD, nunca el PIN en claro, por si la fila llegara a
+     filtrarse. No es bcrypt/scrypt/Argon2 a propósito: esos algoritmos
+     añaden un coste computacional deliberado para proteger contraseñas de
+     uso prolongado frente a fuerza bruta offline durante años. Aquí el PIN
+     es temporal y de un solo uso — su "vida útil" termina en cuanto el
      trabajador lo cambia — así que ese coste extra no aporta seguridad real
      y sí penaliza rendimiento. Cuando se implemente el cambio de PIN
      definitivo (el que el propio trabajador elige y usará indefinidamente),
      ese sí debería hashearse con un algoritmo lento tipo bcrypt. */
-  var hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(TEMP_PIN));
-  var pinHash = Array.from(new Uint8Array(hashBuffer)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+  var pinHash = await hashPin(TEMP_PIN);
 
   /* ── 3. Persistir en Supabase ──
      must_change_pin=true es lo que hace que el trabajador siga apareciendo
@@ -480,14 +481,15 @@ async function prev_sendInvite(name) {
      proveedor de SMS/email transaccional, y funciona en cualquier móvil sin
      instalar nada. wa.me abre la conversación con el texto ya escrito — no
      se envía nada automáticamente, el admin revisa y pulsa enviar él mismo. */
-  var telClean = w.tel.replace(/[\s-]/g, '');
-  if (telClean.charAt(0) !== '+') telClean = '+34' + telClean;
+  /* cleanTel() vive en assets/lib/utils.js — mismo criterio en todo el
+     proyecto para limpiar teléfonos (quita espacios/guiones/prefijo de país,
+     deja los últimos 9 dígitos). wa.me necesita el 34 aparte, sin duplicarlo. */
+  var telClean = '34' + cleanTel(w.tel);
 
-  /* Enlace con ?tel= (número tal cual está guardado en BD, sin espacios ni
-     prefijo de país) — index.js lo lee al cargar y salta directo a la
+  /* Enlace con ?tel= — index.js lo lee al cargar y salta directo a la
      pantalla de PIN con el teléfono ya puesto, para que el trabajador solo
      tenga que teclear el PIN que le acabamos de mandar. */
-  var telUrlParam = encodeURIComponent(w.tel.replace(/[\s-]/g, ''));
+  var telUrlParam = encodeURIComponent(cleanTel(w.tel));
 
   var mensaje = '¡Hola ' + w.name + '! 👋\n\n' +
     'Te damos la bienvenida a La Galería Neotaberna.\n\n' +
@@ -499,9 +501,9 @@ async function prev_sendInvite(name) {
     'Al entrar por primera vez te pedirá que cambies el PIN por uno personal.\n\n' +
     '¡Cualquier duda con el acceso, habla con el admin!';
 
-  window.open('https://wa.me/' + telClean.replace('+', '') + '?text=' + encodeURIComponent(mensaje), '_blank');
+  window.open('https://wa.me/' + telClean + '?text=' + encodeURIComponent(mensaje), '_blank');
 
-  if (typeof showToast === 'function') showToast('✅ Invitación enviada a ' + name + ' — ' + w.tel);
+  if (typeof showToast === 'function') showToast('✅ Invitación enviada a ' + name + ' — ' + w.tel, 'success');
 }
 
 function prev_resetPin() {
@@ -510,7 +512,7 @@ function prev_resetPin() {
   if (!w) return;
   var doReset = function() {
     try { localStorage.removeItem('lg_onboarding_done_' + (w.initials || w.sec)); } catch(e) {}
-    if (typeof showToast === 'function') showToast('🔓 PIN de ' + w.name + ' reseteado');
+    if (typeof showToast === 'function') showToast('🔓 PIN de ' + w.name + ' reseteado', 'success');
   };
   if (typeof showConfirm === 'function') {
     showConfirm({ message: 'El PIN de ' + w.name + ' volverá a 1234 y tendrá que cambiarlo en su próximo acceso.', confirmLabel: 'Resetear PIN', onConfirm: doReset });

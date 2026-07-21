@@ -184,35 +184,35 @@ function openEditCategoria(id){
 
 async function saveCategoria(data){
   var nombre=(data.nombre||'').trim();
-  if(!nombre){ toast('Introduce un nombre'); return; }
+  if(!nombre){ showToast('Introduce un nombre','error'); return; }
   var icono=data.icono||'📦';
   var color=data['cat-color']||'#5599cc';
   var activa=data.activo!==false;
   try{
     if(editCatId){
       var cat=stockCats.find(function(x){return x.id===editCatId;});
-      if(cat && cat.slug===STOCK_CAT_DEFAULT_SLUG){ toast('Esta categoría no puede editarse'); return; }
+      if(cat && cat.slug===STOCK_CAT_DEFAULT_SLUG){ showToast('Esta categoría no puede editarse','error'); return; }
       var res=await _sb.from('stock_categorias').update({nombre:nombre,icono:icono,color:color,activa:activa}).eq('id',editCatId);
       if(res.error) throw res.error;
-      toast('Categoría actualizada');
+      showToast('Categoría actualizada','success');
     } else {
       var slug=genCatSlug(nombre);
       var maxOrden=stockCats.reduce(function(m,c){return Math.max(m,c.orden||0);},0);
       var res=await _sb.from('stock_categorias').insert({local_id:LOCAL_ID,nombre:nombre,slug:slug,icono:icono,color:color,activa:activa,orden:maxOrden+1});
       if(res.error) throw res.error;
-      toast('Categoría creada');
+      showToast('Categoría creada','success');
     }
     AdminEntityModal.close();
     await fetchStockCategorias();
   }catch(e){
     console.error('[admin] saveCategoria', e);
-    toast('Error al guardar la categoría');
+    showToast('Error al guardar la categoría','error');
   }
 }
 
 async function promptDelCategoria(id){
   var c=stockCats.find(function(x){return x.id===id;}); if(!c) return;
-  if(c.slug===STOCK_CAT_DEFAULT_SLUG){ toast('Esta categoría no puede eliminarse'); return; }
+  if(c.slug===STOCK_CAT_DEFAULT_SLUG){ showToast('Esta categoría no puede eliminarse','error'); return; }
   var count = 0;
   try{
     var res = await _sb.from('stock_productos').select('id',{count:'exact',head:true}).eq('local_id',LOCAL_ID).eq('categoria',c.slug);
@@ -220,7 +220,7 @@ async function promptDelCategoria(id){
     count = res.count||0;
   }catch(e){
     console.error('[admin] promptDelCategoria count', e);
-    toast('Error al comprobar los productos de la categoría');
+    showToast('Error al comprobar los productos de la categoría','error');
     return;
   }
   var message = count>0
@@ -242,11 +242,11 @@ async function deleteCategoria(id, reassign){
     }
     var res=await _sb.from('stock_categorias').delete().eq('id',id);
     if(res.error) throw res.error;
-    toast('Categoría eliminada');
+    showToast('Categoría eliminada','success');
     await fetchStockCategorias();
   }catch(e){
     console.error('[admin] deleteCategoria', e);
-    toast('Error al eliminar la categoría');
+    showToast('Error al eliminar la categoría','error');
   }
 }
 
@@ -264,7 +264,7 @@ async function reorderCategorias(draggedId, targetId){
     await fetchStockCategorias();
   }catch(e){
     console.error('[admin] reorderCategorias', e);
-    toast('Error al reordenar');
+    showToast('Error al reordenar','error');
   }
 }
 
@@ -319,20 +319,17 @@ function renderProvList(){
   });
 }
 
-/* Número limpio: sin espacios/guiones ni prefijo +34/0034 — mismo criterio
-   para el enlace tel: y para wa.me (que necesita el 34 aparte, sin duplicarlo). */
-function _cleanTel(raw){
-  return (raw||'').replace(/[\s-]/g,'').replace(/^\+?0034/,'').replace(/^\+?34/,'');
-}
 /* inputId: id del campo tel del modal abierto en ese momento — distinto para
    proveedores (prov-tel) y contactos (ctc-tel), así que se lee en el click en
-   vez de cerrar sobre un valor capturado al construir el HTML. */
+   vez de cerrar sobre un valor capturado al construir el HTML.
+   cleanTel() viene de assets/lib/utils.js (necesita el 34 aparte para wa.me,
+   sin duplicarlo, ya que cleanTel() ya quita el prefijo de país). */
 function _callTelField(inputId){
-  var v=_cleanTel(document.getElementById(inputId).value);
+  var v=cleanTel(document.getElementById(inputId).value);
   if(v) window.location.href='tel:'+v;
 }
 function _waTelField(inputId){
-  var v=_cleanTel(document.getElementById(inputId).value);
+  var v=cleanTel(document.getElementById(inputId).value);
   if(v) window.open('https://wa.me/34'+v,'_blank');
 }
 function _contactBtnsHtml(tel, inputId){
@@ -391,7 +388,7 @@ function openEditProveedor(id){
 
 async function saveProveedor(data){
   var nombre=(data.nombre||'').trim();
-  if(!nombre){ toast('Introduce un nombre'); return; }
+  if(!nombre){ showToast('Introduce un nombre','error'); return; }
   var payload={
     nombre:nombre,
     tel:(data['prov-tel']||'').trim()||null,
@@ -403,17 +400,17 @@ async function saveProveedor(data){
     if(editProvId){
       var res=await _sb.from('stock_proveedores').update(payload).eq('id',editProvId);
       if(res.error) throw res.error;
-      toast('Proveedor actualizado');
+      showToast('Proveedor actualizado','success');
     } else {
       var res=await _sb.from('stock_proveedores').insert(Object.assign({local_id:LOCAL_ID}, payload));
       if(res.error) throw res.error;
-      toast('Proveedor creado');
+      showToast('Proveedor creado','success');
     }
     AdminEntityModal.close();
     await fetchStockProveedores();
   }catch(e){
     console.error('[admin] saveProveedor', e);
-    toast('Error al guardar el proveedor');
+    showToast('Error al guardar el proveedor','error');
   }
 }
 
@@ -426,7 +423,7 @@ async function promptDelProveedor(id){
     count = res.count||0;
   }catch(e){
     console.error('[admin] promptDelProveedor count', e);
-    toast('Error al comprobar los productos del proveedor');
+    showToast('Error al comprobar los productos del proveedor','error');
     return;
   }
   var message = count>0
@@ -447,10 +444,10 @@ async function deleteProveedor(id, reassign){
     }
     var res=await _sb.from('stock_proveedores').delete().eq('id',id);
     if(res.error) throw res.error;
-    toast('Proveedor eliminado');
+    showToast('Proveedor eliminado','success');
     await fetchStockProveedores();
   }catch(e){
     console.error('[admin] deleteProveedor', e);
-    toast('Error al eliminar el proveedor');
+    showToast('Error al eliminar el proveedor','error');
   }
 }

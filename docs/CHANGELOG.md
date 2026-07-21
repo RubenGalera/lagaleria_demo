@@ -1,5 +1,11 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.15 — Limpieza y reorganización de código (julio 2026)
+- assets/lib/utils.js creado: centraliza cleanTel(), hashPin() y normalizeText() con JSDoc. Elimina duplicados en worker-modal.js, adminStock.js, index.js, adminContactos.js y stock.js
+- assets/lib/toast.js creado: showToast(mensaje, tipo) unificado con estilos en components.css. Reemplaza implementaciones dispersas en Stock, Admin y shell
+- stock-status.js movido de assets/js/ a assets/lib/ — es una utilidad compartida, no un módulo de página
+- docs/ARCHITECTURE.md actualizado con convención de carpetas: assets/js/ (un archivo por iframe) vs assets/lib/ (utilidades compartidas y módulos admin*.js)
+
 ## v0.2.14 — Stock: búsqueda avanzada, pedido mejorado y contactos (julio 2026)
 - Búsqueda multi-campo en Productos: busca en nombre, proveedor, unidad, nota y ubicación simultáneamente. Palabras independientes ("seygo garrafa" filtra por proveedor Y unidad)
 - Filtro de proveedor en Productos: botón junto al buscador, muestra "Filtrar: [nombre]" cuando está activo, abre lista directamente

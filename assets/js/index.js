@@ -36,27 +36,10 @@ function getActiveLocal(){
   };
 }
 
-/* ── Hash del PIN — SHA-256 vía Web Crypto API ──
-   Por qué en el cliente: Supabase (PostgREST) es solo CRUD sobre tablas, no
-   ejecuta lógica de aplicación — no hay un backend propio donde hashear "del
-   lado servidor" sin montar una Edge Function aparte. Web Crypto está
-   disponible de forma nativa en cualquier navegador moderno (sin instalar
-   ninguna librería), y es exactamente el mismo algoritmo que ya usa
-   prev_sendInvite() en worker-modal.js al generar la invitación — el hash
-   tiene que coincidir bit a bit entre ambos sitios para poder compararlos.
-   No es bcrypt/scrypt/Argon2 por el mismo motivo que en la invitación: son
-   PINs de 4 dígitos de un espacio de búsqueda pequeño de por sí (10.000
-   combinaciones) protegidos además por estar detrás de RLS y de un teléfono
-   conocido — el coste computacional extra de esos algoritmos no cambia la
-   seguridad real aquí, y si el proyecto necesitara ese nivel de protección
-   más adelante, tocaría migrar a Supabase Auth (ya recogido en MEJORAS.md)
-   en vez de reforzar este hash a mano. */
-async function hashPin(pin){
-  var hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
-  return Array.from(new Uint8Array(hashBuffer)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
-}
-
 /* ── VERIFY LOGIN contra Supabase ──
+   hashPin() y cleanTel() vienen de assets/lib/utils.js — el hash tiene que
+   ser el MISMO algoritmo que usa prev_sendInvite() en worker-modal.js al
+   generar la invitación, para poder compararlos bit a bit.
    Devuelve {status,...} en vez de null/profile porque el login real tiene
    más de dos desenlaces: teléfono que no existe, teléfono que existe pero
    aún no tiene invitación (pin_hash null — el admin no ha pulsado "Enviar
@@ -79,7 +62,7 @@ async function sbVerifyLogin(tel, pin){
        filtrar en la query: el volumen por local es pequeño (decenas de
        trabajadores) y así no dependemos de que PostgREST sepa normalizar
        teléfonos, que no es algo que un filtro de columna pueda expresar. */
-    const telDigits = tel.replace(/\D/g,'').slice(-9);
+    const telDigits = cleanTel(tel);
     const {data:workers,error} = await _sb.from('trabajadores')
       .select('id, nombre, seccion, tel, email, rol, prioridad, foto_url, visible, pin_hash, must_change_pin')
       .eq('local_id', LOCAL_ID)
@@ -89,7 +72,7 @@ async function sbVerifyLogin(tel, pin){
       return {status:'error'};
     }
     const data = (workers||[]).find(function(w){
-      return (w.tel||'').replace(/\D/g,'').slice(-9) === telDigits;
+      return cleanTel(w.tel) === telDigits;
     });
     if(!data) return {status:'not_found'};
 

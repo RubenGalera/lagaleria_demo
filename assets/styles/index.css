@@ -284,13 +284,20 @@ body{
 
 /* ══════════════════════════════
    TOAST
+   Posición/color propios de index.html (distintos de los toast-* de
+   components.css). La opacidad y su transición NO se declaran aquí:
+   deben venir de la clase .toast (components.css) para que showToast()
+   (assets/lib/toast.js) pueda controlarlas via classList — un selector
+   por #id tiene más especificidad que .toast.show y las anularía siempre.
+   El toggle inline de ui-helpers.js#toast() sigue funcionando igual,
+   porque el estilo inline gana a cualquier CSS con o sin esta regla.
 ══════════════════════════════ */
 #_toast{
   position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
   background:#1a2f3a;border:1px solid var(--brd2);
   color:var(--txt);padding:9px 18px;border-radius:20px;
   font-size:12px;font-weight:600;
-  z-index:999;opacity:0;transition:opacity .3s;
+  z-index:999;
   pointer-events:none;white-space:nowrap;
 }
 

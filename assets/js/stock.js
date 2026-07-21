@@ -30,19 +30,17 @@ let regLoadedCount = 0
 let searchQuery    = ''
 let searchProvId   = '' // '' = todos los proveedores (filtro adicional al buscador)
 
-function normSearch(s) {
-  return (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
-}
 function escapeHtml(s) {
   return (s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]))
 }
 /* Multi-campo, multi-palabra: cada palabra del input debe aparecer en AL MENOS
    UNO de los campos visibles de la card (nombre, proveedor, unidad, nota,
    ubicación) — así "seygo garrafa" encuentra productos de Seygo cuya unidad
-   o nota contenga "garrafa", sin exigir que ambas palabras estén en el mismo campo. */
+   o nota contenga "garrafa", sin exigir que ambas palabras estén en el mismo campo.
+   normalizeText() (minúsculas + sin tildes) vive en assets/lib/utils.js. */
 function matchesSearch(p) {
   if (!searchQuery) return true
-  const words = normSearch(searchQuery).split(/\s+/).filter(Boolean)
+  const words = normalizeText(searchQuery).split(/\s+/).filter(Boolean)
   if (!words.length) return true
   const haystacks = [
     p.name,
@@ -50,7 +48,7 @@ function matchesSearch(p) {
     p.unit,
     p.note,
     prefs.locations[p.loc]?.label || '',
-  ].map(normSearch)
+  ].map(normalizeText)
   return words.every(w => haystacks.some(h => h.includes(w)))
 }
 
@@ -223,7 +221,7 @@ async function initStock() {
     prods = (data || []).map(sbToLocal)
   } catch(e) {
     console.error('[stock] initStock:', e)
-    toast('Error al cargar productos')
+    showToast('Error al cargar productos','error')
   }
 
   renderCatBar()
@@ -443,7 +441,7 @@ async function adjustQty(id, delta) {
     ])
   } catch(e) {
     console.error('[stock] adjustQty:', e)
-    toast('Error al guardar')
+    showToast('Error al guardar','error')
   }
 }
 
@@ -465,7 +463,7 @@ function saveInv() {
   el.invBanner.classList.remove('show')
   el.btnInv.classList.remove('active')
   el.prodList.classList.remove('inv-active')
-  toast('Inventario guardado')
+  showToast('Inventario guardado','success')
 }
 
 function updateSinCatChip() {
@@ -538,7 +536,7 @@ async function saveProdModal() {
   const min  = Number(inputs.pmMin.value)
   const unit = inputs.pmUnit.value.trim()
   const activo = inputs.pmActivo.checked
-  if (!name || !unit || Number.isNaN(qty)) { toast('Completa nombre, cantidad y unidad'); return }
+  if (!name || !unit || Number.isNaN(qty)) { showToast('Completa nombre, cantidad y unidad','error'); return }
   const payload = {
     nombre:       name,
     categoria:    inputs.pmCat.value,
@@ -562,14 +560,14 @@ async function saveProdModal() {
         /* desactivado desde el toggle — mismo efecto que "Eliminar producto": sale del inventario activo */
         prods = prods.filter(item => item.id !== editProdId)
       }
-      toast(activo ? 'Producto actualizado' : 'Producto desactivado')
+      showToast(activo ? 'Producto actualizado' : 'Producto desactivado', 'success')
     } else {
       const { data, error } = await _sb.from('stock_productos')
         .insert({ ...payload, local_id: LOCAL_ID })
         .select('*').single()
       if (error) throw error
       if (activo) prods.unshift(sbToLocal(data))
-      toast('Producto añadido')
+      showToast('Producto añadido','success')
     }
     renderInventory()
     updatePedDot()
@@ -579,7 +577,7 @@ async function saveProdModal() {
     closeProdModal()
   } catch(e) {
     console.error('[stock] saveProdModal:', e)
-    toast('Error al guardar')
+    showToast('Error al guardar','error')
   }
 }
 
@@ -610,10 +608,10 @@ async function confirmDelProd() {
     renderCatBar()
     updateSinCatChip()
     if (activeTab === 'ped') renderPedido()
-    toast('Producto eliminado')
+    showToast('Producto eliminado','success')
   } catch(e) {
     console.error('[stock] deleteProd:', e)
-    toast('Error al eliminar producto')
+    showToast('Error al eliminar producto','error')
   }
 }
 
@@ -933,7 +931,7 @@ function sendPedidoWhatsAppProv() {
   const prov      = stockProvsAll.find(p => p.id === pedProvId)
   const provProds = prods.filter(p => p.provId === pedProvId)
   const items     = provProds.filter(p => (pedQty.get(p.id) || 0) > 0)
-  if (!items.length) { toast('Añade una cantidad a algún producto antes de enviar'); return }
+  if (!items.length) { showToast('Añade una cantidad a algún producto antes de enviar','error'); return }
 
   const lines = [`*Pedido ${prov ? prov.nombre : 'proveedor'} — La Galería*`, '']
   for (const p of items) {
@@ -953,7 +951,7 @@ async function deleteOneoff(id) {
     renderPedido()
   } catch(e) {
     console.error('[stock] deleteOneoff:', e)
-    toast('Error al eliminar')
+    showToast('Error al eliminar','error')
   }
 }
 
@@ -1146,12 +1144,12 @@ async function deleteRegCard(btn) {
   try {
     const { error } = await _sb.from('stock_movimientos').delete().in('id', ids)
     if (error) throw error
-    toast('Movimientos eliminados')
+    showToast('Movimientos eliminados','success')
     await renderRegistro()
   } catch(e) {
     console.error('[stock] deleteRegCard:', e)
     btn.disabled = false
-    toast('Error al borrar')
+    showToast('Error al borrar','error')
   }
 }
 
@@ -1170,7 +1168,7 @@ function closeClearRegConfirm() {
 async function confirmClearReg() {
   closeClearRegConfirm()
   const prodIds = prods.map(p => p.id)
-  if (!prodIds.length) { toast('No hay movimientos que borrar'); return }
+  if (!prodIds.length) { showToast('No hay movimientos que borrar','info'); return }
   try {
     const range = getRegFilterRange()
     let query = _sb.from('stock_movimientos').delete().in('producto_id', prodIds)
@@ -1178,11 +1176,11 @@ async function confirmClearReg() {
     if (range.to)   query = query.lte('created_at', range.to)
     const { error } = await query
     if (error) throw error
-    toast('Registro borrado')
+    showToast('Registro borrado','success')
     await renderRegistro()
   } catch(e) {
     console.error('[stock] confirmClearReg:', e)
-    toast('Error al borrar el registro')
+    showToast('Error al borrar el registro','error')
   }
 }
 
@@ -1191,7 +1189,7 @@ async function addOneoff() {
   const name = inputs.ooName.value.trim()
   const qty  = Number(inputs.ooQty.value)
   const unit = inputs.ooUnit.value.trim()
-  if (!name || !unit || Number.isNaN(qty) || qty <= 0) { toast('Completa nombre, cantidad y unidad'); return }
+  if (!name || !unit || Number.isNaN(qty) || qty <= 0) { showToast('Completa nombre, cantidad y unidad','error'); return }
   try {
     await sbAddProductoPuntual(name, qty, unit)
     el.oneoffModalBg.classList.remove('show')
@@ -1200,10 +1198,10 @@ async function addOneoff() {
     inputs.ooUnit.value = ''
     updatePedDot()
     renderPedido()
-    toast('Artículo añadido')
+    showToast('Artículo añadido','success')
   } catch(e) {
     console.error('[stock] addOneoff:', e)
-    toast('Error al añadir')
+    showToast('Error al añadir','error')
   }
 }
 

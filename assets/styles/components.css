@@ -399,3 +399,9 @@
   pointer-events: none;
 }
 .toast.show { opacity: 1 }
+
+/* Variantes de showToast() (assets/lib/toast.js) — solo cambian el acento de
+   color, la base (posición/fondo/forma) es la de .toast de arriba. */
+.toast-success { border-color: rgba(85, 187, 85, .45); color: #7fd67f }
+.toast-error   { border-color: rgba(220, 80, 80, .45); color: #e88080 }
+.toast-info    { border-color: var(--acc-bd); color: var(--acc) }

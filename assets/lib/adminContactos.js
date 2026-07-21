@@ -97,7 +97,7 @@ function openEditContacto(id){
 
 async function saveContacto(data){
   var nombre=(data.nombre||'').trim();
-  if(!nombre){ toast('Introduce un nombre'); return; }
+  if(!nombre){ showToast('Introduce un nombre','error'); return; }
   var payload={
     nombre:nombre,
     tel:(data['ctc-tel']||'').trim()||null,
@@ -109,17 +109,17 @@ async function saveContacto(data){
     if(editContactoId){
       var res=await _sb.from('contactos').update(payload).eq('id',editContactoId);
       if(res.error) throw res.error;
-      toast('Contacto actualizado');
+      showToast('Contacto actualizado','success');
     } else {
       var res=await _sb.from('contactos').insert(Object.assign({local_id:LOCAL_ID, tipo:'tecnico'}, payload));
       if(res.error) throw res.error;
-      toast('Contacto creado');
+      showToast('Contacto creado','success');
     }
     AdminEntityModal.close();
     await fetchContactos();
   }catch(e){
     console.error('[admin] saveContacto', e);
-    toast('Error al guardar el contacto');
+    showToast('Error al guardar el contacto','error');
   }
 }
 
@@ -136,10 +136,10 @@ async function deleteContacto(id){
   try{
     var res=await _sb.from('contactos').delete().eq('id',id);
     if(res.error) throw res.error;
-    toast('Contacto eliminado');
+    showToast('Contacto eliminado','success');
     await fetchContactos();
   }catch(e){
     console.error('[admin] deleteContacto', e);
-    toast('Error al eliminar el contacto');
+    showToast('Error al eliminar el contacto','error');
   }
 }

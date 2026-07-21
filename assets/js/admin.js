@@ -272,8 +272,8 @@ function openVacPopup(){
 function addVacaciones(){
   const w=getW(_previewName);if(!w)return;
   const desde=document.getElementById("vac-desde").value,hasta=document.getElementById("vac-hasta").value,tipo=document.getElementById("vac-tipo").value;
-  if(!desde||!hasta){showToast("Selecciona fecha de inicio y fin");return;}
-  if(desde>hasta){showToast("La fecha de inicio debe ser anterior al fin");return;}
+  if(!desde||!hasta){showToast("Selecciona fecha de inicio y fin","error");return;}
+  if(desde>hasta){showToast("La fecha de inicio debe ser anterior al fin","error");return;}
   if(!w.vacaciones)w.vacaciones=[];
   const overlap=vacDatesOverlap(w.vacaciones,desde,hasta,-1);
   w.vacaciones.push({desde,hasta,tipo});w.vacaciones.sort((a,b)=>a.desde.localeCompare(b.desde));
@@ -283,7 +283,7 @@ function addVacaciones(){
     const col=parseInt(c.dataset.col),vacIcon=getDayVacacion(_previewName,col);
     if(vacIcon){c.classList.add("on-vac");c.setAttribute("data-vac-icon",vacIcon);}
   });
-  showToast(overlap?"⚠️ Solapamiento detectado — revisa las fechas":"Periodo añadido ✓");
+  showToast(overlap?"⚠️ Solapamiento detectado — revisa las fechas":"Periodo añadido ✓", overlap?"error":"success");
 }
 
 function delVacaciones(idx){
@@ -362,12 +362,9 @@ function countVacDays(vacaciones){
   return total;
 }
 
-/* TOAST — fixed: uses #_toast, opacity-based */
-function showToast(msg){
-  var t=document.getElementById("_toast");if(!t)return;
-  t.textContent=msg;t.style.opacity='1';
-  clearTimeout(t._t);t._t=setTimeout(function(){t.style.opacity='0';},2200);
-}
+/* showToast() ahora viene de assets/lib/toast.js (window.showToast) —
+   antes admin.js tenía su propia copia local, ligeramente distinta a la de
+   los demás módulos. */
 
 /* ROL PERMISSIONS */
 function applyRolPermissions(r){

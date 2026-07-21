@@ -334,6 +334,12 @@ input[type=file]{display:none}
    Nuevo overlay anidado dentro de otro modal → añadirlo aquí con z-index:300, no como caso aislado. */
 #ov-vac-popup, #ov-confirm{z-index:300}
 
+/* #_toast usa la clase .toast (components.css) para forma/color/opacidad,
+   pero conserva su posición y z-index propios de Admin (por debajo del
+   bloqueador de carga .autogen-loading, ver jerarquía arriba) en vez de
+   los genéricos de .toast. */
+#_toast{bottom:16px;z-index:400}
+
 /* ── NUEVO TRABAJADOR ── */
 .inv-access-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--nav);border:1px solid var(--brd2);border-radius:10px;margin-bottom:12px}
 .inv-access-icon{font-size:16px;flex-shrink:0;margin-top:1px}
