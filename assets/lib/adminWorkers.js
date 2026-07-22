@@ -47,9 +47,16 @@ async function _loadAdminTurnosReadOnly(){
   var res=await _sb.from('turnos').select('slot,dia,trabajador_id,hora_especial').eq('local_id',LOCAL_ID).eq('semana_inicio',semana);
   if(res.error){ console.warn('[SB] _loadAdminTurnosReadOnly:',res.error.message); return; }
   var data={sm:[[],[],[],[],[],[],[]],sn:[[],[],[],[],[],[],[]],cm:[[],[],[],[],[],[],[]],cn:[[],[],[],[],[],[],[]]};
+  if(!res.data||!res.data.length){ _adminTurnosData=data; return; }
+  /* idToName: TODOS los trabajadores del turno (incluidos archivados) — no solo
+     _trabWorkers (el roster activo, sin archivados). Un archivado puede seguir
+     teniendo turnos asignados esta semana y deben mostrarse igual, solo lectura. */
+  var ids=[...new Set(res.data.map(function(t){return t.trabajador_id;}))];
+  var namesRes=await _sb.from('trabajadores').select('id,nombre').in('id',ids);
+  if(namesRes.error){ console.warn('[SB] _loadAdminTurnosReadOnly (nombres):',namesRes.error.message); return; }
   var idToName={};
-  _trabWorkers.forEach(function(w){ idToName[w.id]=w.name; });
-  (res.data||[]).forEach(function(t){
+  (namesRes.data||[]).forEach(function(t){ idToName[t.id]=t.nombre; });
+  res.data.forEach(function(t){
     var nombre=idToName[t.trabajador_id];
     if(!nombre||!data[t.slot]) return;
     data[t.slot][t.dia].push(nombre+(t.hora_especial?':'+t.hora_especial:''));
@@ -63,14 +70,34 @@ function parse(raw){var p=raw.split(":");return{name:p[0].trim(),hour:p.length>1
 function getW(n){return L().staff.find(function(w){return w.name===n;})||null;}
 function cntT(name){var c=0;ROWS.forEach(function(r){L().data[r].forEach(function(d){if(d.some(function(n){return parse(n).name===name;}))c++;});});return c;}
 
-function _mapTrab(t){
-  return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,archivado:t.archivado===true,pinHash:t.pin_hash||null,mustChangePin:t.must_change_pin!==false,rol:t.rol||'empleado',disponible:t.disponible!==false,visible:t.visible!==false,skills:{},unavailMed:[],unavailNoch:[],vacaciones:[],_sbId:t.id};
+/* dispo: {med:[0,2,...], noc:[...]} para ESTE trabajador, ya agrupado desde la tabla
+   'disponibilidad' — ver _syncTrab(). Antes unavailMed/unavailNoch quedaban siempre
+   [] (nunca se cargaban), así que Admin mostraba "sin restricciones" aunque el
+   trabajador sí las tuviera guardadas en BD. */
+function _mapTrab(t, dispo){
+  return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,archivado:t.archivado===true,pinHash:t.pin_hash||null,mustChangePin:t.must_change_pin!==false,rol:t.rol||'empleado',disponible:t.disponible!==false,visible:t.visible!==false,skills:{},unavailMed:(dispo&&dispo.med)||[],unavailNoch:(dispo&&dispo.noc)||[],vacaciones:[],_sbId:t.id};
 }
 
 async function _syncTrab(){
   if(typeof sbLoadTrabajadores==='function'){
     var ts=await sbLoadTrabajadores();
-    if(ts) _trabWorkers=ts.map(_mapTrab);
+    if(ts){
+      var dispoByW={};
+      var trabIds=ts.map(function(t){return t.id;});
+      if(trabIds.length&&_sb){
+        var dispoRes=await _sb.from('disponibilidad').select('trabajador_id,dia_semana,turno').in('trabajador_id',trabIds);
+        if(dispoRes.error){
+          console.warn('[SB] disponibilidad:',dispoRes.error.message);
+        } else {
+          (dispoRes.data||[]).forEach(function(r){
+            if(!dispoByW[r.trabajador_id]) dispoByW[r.trabajador_id]={med:[],noc:[]};
+            if(r.turno==='med') dispoByW[r.trabajador_id].med.push(r.dia_semana);
+            else if(r.turno==='noc') dispoByW[r.trabajador_id].noc.push(r.dia_semana);
+          });
+        }
+      }
+      _trabWorkers=ts.map(function(t){ return _mapTrab(t,dispoByW[t.id]); });
+    }
   }
   renderTrabajadores();
   loadArchivados();

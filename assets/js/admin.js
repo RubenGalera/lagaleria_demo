@@ -115,18 +115,18 @@ async function sbLoadProductos(){
 }
 
 async function initSupabase(){
-  const [zonas, trabajadores, skills, productos] = await Promise.all([
-    sbLoadZonas(), sbLoadTrabajadores(), sbLoadSkills(), sbLoadProductos(),
+  /* _trabWorkers se carga vía _syncTrab() (adminWorkers.js) en vez de un mapeo propio
+     aquí — había dos implementaciones duplicadas y la de aquí nunca cargaba
+     disponibilidad (unavailMed/unavailNoch quedaban siempre []) ni el campo
+     'disponible'. _syncTrab() ya hace fetch real de la tabla 'disponibilidad' y
+     además llama a renderTrabajadores()/loadArchivados() por su cuenta. */
+  const [[zonas, skills, productos]] = await Promise.all([
+    Promise.all([sbLoadZonas(), sbLoadSkills(), sbLoadProductos()]),
+    _syncTrab(),
   ]);
   if(zonas.length) window._sbZonas = zonas;
-  if(trabajadores.length){
-    _trabWorkers = trabajadores.map(function(t){
-      return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,archivado:t.archivado===true,pinHash:t.pin_hash||null,mustChangePin:t.must_change_pin!==false,rol:t.rol||'empleado',visible:t.visible!==false,skills:{},unavailMed:[],unavailNoch:[],vacaciones:[],_sbId:t.id};
-    });
-  }
   if(skills.length) window._sbSkills = skills;
   if(productos.length) window._sbProductos = productos;
-  if(typeof renderTrabajadores==='function') renderTrabajadores();
   if(typeof renderZonas==='function') renderZonas();
 }
 
