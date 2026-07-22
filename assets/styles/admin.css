@@ -189,6 +189,9 @@ body{display:flex;flex-direction:column}
 .sg-cell.on-sm::after,.sg-cell.on-sn::after,.sg-cell.on-cm::after,.sg-cell.on-cn::after{content:"✓";font-size:12px;color:var(--acc)}
 .sg-cell.unavail{background:rgba(200,60,60,.08);border-color:rgba(200,60,60,.3)}
 .sg-cell.unavail::before{content:"";position:absolute;bottom:2px;right:2px;width:4px;height:4px;border-radius:50%;background:#cc4444}
+/* Grid de días solo lectura en Admin — los turnos se asignan desde Turnos (ver toggleSg() en worker-modal.js) */
+#prof-sg .sg-cell{opacity:.6;cursor:not-allowed}
+#prof-sg .sg-cell:active{opacity:.6}
 .modal-note{font-size:11px;color:var(--faint);margin-top:8px;display:flex;align-items:center;gap:4px}
 .sg-cell.on-vac{background:rgba(197,166,105,0.08)!important;border-color:rgba(197,166,105,0.3)!important;cursor:default;pointer-events:none}
 .sg-cell.on-vac::after{content:attr(data-vac-icon);font-size:11px;display:flex;align-items:center;justify-content:center}

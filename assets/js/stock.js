@@ -3,6 +3,7 @@ let oneoffs   = []
 let stockCatsAll       = [] // todas las categorías activas — alimenta el <select> del modal de producto
 let stockCatsWithProds = [] // solo las que tienen ≥1 producto — alimenta los chips de #cat-bar
 let stockProvsAll      = [] // todos los proveedores activos — alimenta el <select> del modal de producto
+let stockUbicaciones   = [] // todas las ubicaciones (Admin) — alimenta el <select> del modal de producto
 
 function getStockUser() {
   if (typeof currentUser !== 'undefined') return currentUser
@@ -15,10 +16,14 @@ function normCat(v) {
   const map = { bebidas:'beb', alimentacion:'ali', 'alimentación':'ali', limpieza:'lim', material:'mat' }
   return map[v.toLowerCase()] || v
 }
+/* Compat: filas antiguas guardaron el código corto ('d'/'g'/'a') en vez del nombre
+   completo de la ubicación — se traduce al nombre real al leer, sin tocar la fila en BD.
+   Cualquier otro valor (nombre real ya guardado tal cual, incl. ubicaciones nuevas como
+   'Bodega') pasa sin modificar. */
 function normLoc(v) {
-  if (!v) return 'd'
-  const map = { despensa:'d', almacen:'d', 'almacén':'d', garaje:'g', ambos:'a' }
-  return map[v.toLowerCase()] || v
+  if (!v) return ''
+  const legacy = { despensa:'Almacén', almacen:'Almacén', 'almacén':'Almacén', d:'Almacén', garaje:'Garaje', g:'Garaje', ambos:'Ambos', a:'Ambos' }
+  return legacy[v.toLowerCase()] || v
 }
 
 let activeTab      = 'inv'
@@ -47,7 +52,7 @@ function matchesSearch(p) {
     provName(p.provId),
     p.unit,
     p.note,
-    prefs.locations[p.loc]?.label || '',
+    p.loc || '',
   ].map(normalizeText)
   return words.every(w => haystacks.some(h => h.includes(w)))
 }
@@ -106,12 +111,16 @@ const inputs = {
   ooUnit: document.getElementById('oo-u'),
 }
 
-const prefs = {
-  locations: {
-    d: { label: 'Almacén', color: 'loc-d' },
-    g: { label: 'Garaje',   color: 'loc-g' },
-    a: { label: 'Ambos',    color: 'loc-a' },
-  },
+/* Colores del badge de ubicación por posición (orden de stock_ubicaciones) — no por
+   nombre fijo, así una ubicación nueva creada en Admin (ej. "Bodega") ya tiene color
+   propio sin tocar código. .loc-d/g/a/x viven en stock.css. */
+const LOC_COLOR_CLASSES = ['loc-d', 'loc-g', 'loc-a', 'loc-x']
+function getLocInfo(nombre) {
+  const idx = stockUbicaciones.findIndex(u => u.nombre === nombre)
+  return {
+    label: nombre || 'Otro',
+    color: idx >= 0 ? LOC_COLOR_CLASSES[idx % LOC_COLOR_CLASSES.length] : 'loc-x',
+  }
 }
 
 /* ─── Supabase ↔ local field mapping ─── */
@@ -205,11 +214,33 @@ function provName(id) {
   return stockProvsAll.find(p => p.id === id)?.nombre || ''
 }
 
+/* ─── Ubicaciones (Supabase, gestionadas desde Admin) ─── */
+async function fetchStockUbicaciones() {
+  try {
+    const { data, error } = await _sb.from('stock_ubicaciones')
+      .select('*')
+      .eq('local_id', LOCAL_ID)
+      .order('orden')
+    if (error) throw error
+    stockUbicaciones = data || []
+  } catch(e) {
+    console.error('[stock] fetchStockUbicaciones:', e)
+    stockUbicaciones = []
+  }
+}
+
+function fillLocSelect() {
+  if (!inputs.pmLoc) return
+  inputs.pmLoc.innerHTML = stockUbicaciones
+    .map(u => `<option value="${u.nombre}">${u.nombre}</option>`).join('')
+}
+
 /* ─── Init ─── */
 async function initStock() {
-  await Promise.all([fetchStockCategorias(), fetchStockProveedores()])
+  await Promise.all([fetchStockCategorias(), fetchStockProveedores(), fetchStockUbicaciones()])
   fillCatSelect()
   fillProvSelect()
+  fillLocSelect()
 
   try {
     const { data, error } = await _sb.from('stock_productos')
@@ -391,7 +422,7 @@ function renderInventory() {
 }
 
 function renderProduct(prod) {
-  const location    = prefs.locations[prod.loc]
+  const location    = getLocInfo(prod.loc)
   const statusClass = getStockStatus(prod.qty, prod.min)
   const prov        = provName(prod.provId)
   return `
@@ -520,7 +551,7 @@ async function openProdModal(id) {
   inputs.pmName.value = prod ? prod.name : ''
   inputs.pmCat.value  = prod ? prod.cat  : (stockCatsAll.find(c => c.slug !== 'default')?.slug || '')
   inputs.pmProv.value = prod ? (prod.provId || '') : ''
-  inputs.pmLoc.value  = prod ? prod.loc  : 'd'
+  inputs.pmLoc.value  = prod ? prod.loc  : (stockUbicaciones[0]?.nombre || '')
   inputs.pmQty.value  = prod ? prod.qty  : ''
   inputs.pmUnit.value = prod ? prod.unit : ''
   inputs.pmMin.value  = prod ? prod.min  : ''
@@ -647,7 +678,7 @@ function setPedMode(mode) {
    exactamente el mismo semáforo en cualquier tab. */
 function renderPedCard(p, qtyHtml, extraClass = '') {
   const st   = getStockStatus(p.qty, p.min)
-  const loc  = prefs.locations[p.loc] || { label: 'Otro' }
+  const loc  = getLocInfo(p.loc)
   const cat  = stockCatsAll.find(c => c.slug === p.cat)
   const prov = provName(p.provId)
   return `

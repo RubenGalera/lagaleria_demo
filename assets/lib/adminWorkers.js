@@ -14,6 +14,14 @@ var _trabWorkers = [];
 var curWeek  = 1;
 var curLocal = 'galeria';
 
+/* Turnos de la semana ACTUAL — SOLO LECTURA, cargados de verdad desde Supabase para que
+   el grid del modal de trabajador (y cntT()) no muestren siempre "0 turnos". Admin nunca
+   asigna turnos (eso vive en Turnos): scheduleAutosave()/saveWeekSnapshot() no existen en
+   esta página, así que aunque el grid fuera clicable no hay forma de que un cambio
+   persista — y además toggleSg() (worker-modal.js) ahora bloquea el click aquí con un
+   toast en vez de tocar esto. Se recarga cada vez que se abre el panel Trabajadores. */
+var _adminTurnosData = {sm:[[],[],[],[],[],[],[]],sn:[[],[],[],[],[],[],[]],cm:[[],[],[],[],[],[],[]],cn:[[],[],[],[],[],[],[]]};
+
 /* Stubs — worker-modal.js provides the real implementations when in Turnos */
 function buildGrid(){}
 function renderW(){}
@@ -22,9 +30,31 @@ function updateStats(){}
 function L(){
   return {
     staff: _trabWorkers,
-    data:  {sm:[[],[],[],[],[],[],[]],sn:[[],[],[],[],[],[],[]],cm:[[],[],[],[],[],[],[]],cn:[[],[],[],[],[],[],[]]},
+    data:  _adminTurnosData,
     eventos: [],
   };
+}
+
+function _mondayOfToday(){
+  var d=new Date();
+  var dow=d.getDay()||7;
+  d.setDate(d.getDate()-(dow-1));
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+async function _loadAdminTurnosReadOnly(){
+  if(!_sb) return;
+  var semana=_mondayOfToday();
+  var res=await _sb.from('turnos').select('slot,dia,trabajador_id,hora_especial').eq('local_id',LOCAL_ID).eq('semana_inicio',semana);
+  if(res.error){ console.warn('[SB] _loadAdminTurnosReadOnly:',res.error.message); return; }
+  var data={sm:[[],[],[],[],[],[],[]],sn:[[],[],[],[],[],[],[]],cm:[[],[],[],[],[],[],[]],cn:[[],[],[],[],[],[],[]]};
+  var idToName={};
+  _trabWorkers.forEach(function(w){ idToName[w.id]=w.name; });
+  (res.data||[]).forEach(function(t){
+    var nombre=idToName[t.trabajador_id];
+    if(!nombre||!data[t.slot]) return;
+    data[t.slot][t.dia].push(nombre+(t.hora_especial?':'+t.hora_especial:''));
+  });
+  _adminTurnosData=data;
 }
 
 /* Helpers required by worker-modal.js */
@@ -50,6 +80,7 @@ function openTrabajadores(){
   document.getElementById('view-editar-list').style.display='none';
   document.getElementById('view-trabajadores').classList.add('active');
   renderTrabajadores();
+  _loadAdminTurnosReadOnly();
 }
 function closeTrabajadores(){
   document.getElementById('view-trabajadores').classList.remove('active');

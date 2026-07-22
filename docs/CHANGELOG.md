@@ -1,5 +1,16 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.17 — Sincronización Admin↔Turnos + fixes post-lanzamiento (julio 2026)
+- Fix crítico: Admin/Trabajadores y Turnos ahora leen de la misma fuente (Supabase) — trabajadores archivados excluidos del roster activo pero conservados en el grid si tienen turnos asignados
+- Grid de días en Admin: modo solo lectura con toast informativo al intentar editar
+- Ubicaciones de stock cargadas desde BD (tabla stock_ubicaciones) — eliminado hardcoding. Bodega añadida como nueva ubicación
+- Constraint de categoría eliminado — categorías dinámicas sin restricción en BD
+- Crear producto con categoría Vinos y ubicación Bodega funciona correctamente
+- PIN escribible con teclado físico (dígitos, Backspace, Enter)
+- Exportación de imagen en Turnos: botones "+ añadir" ocultos
+- Fuente del grid de Turnos aumentada (chips 13px, altura mínima 26px)
+- Trabajadores archivados con turnos: aparecen en grid con opacidad reducida, sin poder añadir nuevos turnos
+
 ## v0.2.16 — Eventos, trabajadores y fixes de roles (julio 2026)
 - Eventos: campo Instagram, hasta 3 imágenes, botón compartir (Web Share API con fallback WhatsApp)
 - Modal de asistente reorganizado: toggle Dudoso, chip Invitado 🎁, campo teléfono, orden lógico de campos

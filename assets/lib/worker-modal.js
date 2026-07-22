@@ -256,6 +256,14 @@ function updateAlert() {
 
 /* ── DISPONIBILIDAD EN PERFIL ── */
 function toggleSg(cell) {
+  /* Solo lectura fuera de Turnos (Admin/Inicio) — scheduleAutosave() solo existe en
+     turnos.js, así que es la señal ya establecida en este archivo para "¿soy la página
+     real del grid?" (ver saveProfile()). El grid aquí muestra los turnos actuales de la
+     semana en curso (_adminTurnosData en adminWorkers.js) pero no se editan desde aquí. */
+  if (typeof scheduleAutosave !== 'function') {
+    if (typeof showToast === 'function') showToast('Los turnos se asignan desde el módulo Turnos, dentro de la semana correspondiente. Aquí solo puedes configurar restricciones generales.', 'info');
+    return;
+  }
   const row = cell.dataset.row, col = parseInt(cell.dataset.col), conf = CONFLICTS[row];
   const turningOn = !cell.classList.contains('on-'+row);
   if (turningOn) {

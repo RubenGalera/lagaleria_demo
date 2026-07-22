@@ -39,6 +39,7 @@ Prioridad:
 
 ## Admin
 | 🟢 | Descripción de cards "Stock · Categorías" y "Stock · Proveedores": revisar que el texto descriptivo esté actualizado.
+| 🟢 | Stock · Ubicaciones: card en Admin para que cada local gestione sus propias ubicaciones (crear/editar/borrar/reordenar). Necesario cuando la app escale a múltiples locales. La tabla stock_ubicaciones ya existe con local_id — solo falta la UI de gestión.
 
 ## Notificaciones (sistema futuro)
 | 🟡 | Notificar al admin cada lunes que puede planificar los turnos de la semana siguiente. Al pulsar, llevar directamente a Turnos/semana siguiente.
@@ -168,3 +169,10 @@ Opciones personalizables por cada usuario, guardadas en BD (columna `accesibilid
 
 ### Meta
 - CHANGELOG implementado formalmente a partir de v0.2.10 — mantener actualizado en cada commit futuro
+
+
+añade en mejoras, que la ubicacion del trabajador deberia ser mas determinante, y para el autogenerador, la ubicacion que tengas hace que te incluyan en cocina, sala o en ambas
+
+
+
+añade tb en mejoras que actualemnte en el modal de trabajadores, en hora especial de entrada, se añade una etiqueta sobre el trabajador indicadndo la hora extra que le corresponde ese turno, hay dos cosas que quiero tener en cuenta para esta etiqueta, La primera esq actualmente se ve doble en el grid, si pones a las 14:00, se ve tambien en el turno de noche, que debe entrar a esa hora, cuando deberia interpretar que ese texto deberia salir solo en el turno de medio dia por logia horaria. como segundo es que en algunos casos a los trabajadores no solo se les pone hora en el grid, sino tb algun texto tipo (sala) para dar indicaciones adicionales de donde va en ese turno, deberiamosa añadir un boton de + Añadir nota especial con un texto para ese turno

@@ -53,8 +53,14 @@ async function sbInitTrabajadores() {
   if (!_sb) { console.warn('[SB] sbInitTrabajadores: _sb no disponible'); return; }
 
   /* 1 — Trabajadores base */
+  /* Se cargan TODOS, incluidos los archivados — necesario para que _nombreToId/_idToNombre
+     (usados por saveWeekSnapshot() al reconstruir la semana) sigan resolviendo el nombre de
+     un archivado con turnos ya asignados; si no, el próximo autosave de la semana borraría
+     esas filas al no poder resolver su trabajador_id (ver isArchivedName() más abajo). El
+     roster real (locals.galeria.staff, "añadir al turno", contadores) sí los excluye — se
+     filtran en el paso 5 más abajo, no aquí en la query. */
   const {data, error} = await _sb.from('trabajadores')
-    .select('id, nombre, seccion, prioridad, min_turnos, max_turnos, tel, foto_url, activo, disponible, visible, rol')
+    .select('id, nombre, seccion, prioridad, min_turnos, max_turnos, tel, foto_url, activo, disponible, visible, rol, archivado')
     .eq('local_id', LOCAL_ID)
     .order('nombre');
   if (error) { console.warn('[SB] sbInitTrabajadores:', error.message); return; }
@@ -127,8 +133,9 @@ async function sbInitTrabajadores() {
     vacByW[r.trabajador_id].push({desde: r.desde, hasta: r.hasta, tipo: r.tipo || 'vacaciones', _sbId: r.id});
   });
 
-  /* 5 — Poblar locals.galeria.staff */
-  locals.galeria.staff = _sbTrabajadores.map(t => ({
+  /* 5 — Poblar locals.galeria.staff — el roster real excluye archivados (aquí sí, no en la
+     query de arriba): no deben poder recibir turnos nuevos ni contar en el panel lateral. */
+  locals.galeria.staff = _sbTrabajadores.filter(t => t.archivado !== true).map(t => ({
     name:        t.nombre,
     sec:         t.seccion,
     photo:       t.foto_url || null,
@@ -363,6 +370,9 @@ function ini(n){return n.split(":")[0].trim().split(" ").map(w=>w[0]).join("").s
 function parse(raw){const p=raw.split(":");return{name:p[0].trim(),hour:p.length>1?p[1]+":"+p[2]:""};}
 function getW(n){return L().staff.find(w=>w.name===n)||null;}
 function cntT(name){let c=0;ROWS.forEach(r=>L().data[r].forEach(d=>{if(d.some(n=>parse(n).name===name))c++;}));return c;}
+/* Un archivado no está en L().staff (getW devuelve null) pero puede seguir teniendo turnos
+   asignados en la semana actual — _sbTrabajadores sí los incluye (ver sbInitTrabajadores). */
+function isArchivedName(name){const t=_sbTrabajadores.find(x=>x.nombre===name);return !!(t&&t.archivado===true);}
 
 /* ── NAVEGACIÓN DE PÁGINA ── */
 function setPage(p){
@@ -470,11 +480,24 @@ function buildGrid(){
           else if(unavail) alertMsg='Día no disponible';
           else if(onVac) alertMsg='En vacaciones';
         }
-        const chip=document.createElement("div");chip.className=`chip chip-${r}`;chip.draggable=true;
+        /* w es null para un archivado (ya no está en L().staff) — si además tiene turno
+           asignado esta semana, se muestra en modo solo lectura: sin drag (no se puede
+           reordenar/"soltar fuera"), sin abrir su perfil, opacidad reducida. No se toca
+           L().data ni la tabla turnos — sigue aaí igual, solo cambia cómo se pinta. */
+        const archived=!w&&isArchivedName(name);
+        const chip=document.createElement("div");chip.className=`chip chip-${r}`+(archived?' chip-archived':'');chip.draggable=!archived;
         if(unavail)chip.style.cssText="border-color:rgba(200,60,60,.5);background:rgba(200,60,60,.08)";
         const warnIcon=alertMsg?`<span style="font-size:9px;color:#cc4444;margin-left:auto" title="⚠ ${alertMsg}">⚠</span>`:"";
-        chip.innerHTML=`<div class="dh"><span></span><span></span><span></span></div><span class="chip-name">${name}</span>${hour?`<span class="chip-tag">${hour}</span>`:""}${warnIcon}`;
-        chip.onclick=()=>openPreview(name);setupDrag(chip,cell);cell.appendChild(chip);
+        const archivedTag=archived?`<span class="chip-tag" title="Trabajador archivado — histórico, solo lectura">📁</span>`:"";
+        chip.innerHTML=`<div class="dh"><span></span><span></span><span></span></div><span class="chip-name">${name}</span>${hour?`<span class="chip-tag">${hour}</span>`:""}${archivedTag}${warnIcon}`;
+        if(archived){
+          chip.title='Trabajador archivado — turno histórico, solo lectura';
+          chip.onclick=()=>{ if(typeof showToast==='function') showToast(name+' está archivado — este turno es histórico, solo lectura'); };
+        } else {
+          chip.onclick=()=>openPreview(name);
+          setupDrag(chip,cell);
+        }
+        cell.appendChild(chip);
       });
       const add=document.createElement("div");add.className="add-chip";add.textContent="+ añadir";
       add.onclick=()=>openAddModal(r,d);cell.appendChild(add);
@@ -1139,12 +1162,16 @@ async function saveImage(){
   gw.appendChild(gc);
   wrap.appendChild(gw);
   wrap.appendChild(legend);
+  /* .exporting (turnos.css) oculta los "+ añadir" — wrap/gc son descendientes reales de
+     body (línea de arriba), así que el selector alcanza también al clon del grid. */
+  document.body.classList.add('exporting');
   try{
     const canvas=await html2canvas(wrap,{backgroundColor:'#111417',scale:2,useCORS:true,logging:false});
     const a=document.createElement('a');
     a.download='turnos_'+document.getElementById('wlabel').textContent.replace(/\s/g,'_')+'.png';
     a.href=canvas.toDataURL('image/png');a.click();
   }catch(e){alert('Error: '+e.message);}
+  document.body.classList.remove('exporting');
   document.body.removeChild(wrap);
   btn.textContent=orig;btn.disabled=false;
 }

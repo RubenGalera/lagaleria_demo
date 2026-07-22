@@ -835,6 +835,27 @@ function pin_error(){
   }, 600);
 }
 
+/* Teclado físico para el PIN — solo activo mientras la pantalla de login está
+   visible Y el paso actual es el teclado numérico (#ls-pin), para no interferir
+   con el campo de teléfono ni con la pantalla de cambio de PIN (esa usa inputs
+   de texto normales que ya reciben teclado de forma nativa). */
+document.addEventListener('keydown', function(e){
+  var loginScreen = document.getElementById('login-screen');
+  var lsPin = document.getElementById('ls-pin');
+  if(!loginScreen || !lsPin) return;
+  if(loginScreen.style.display === 'none' || lsPin.style.display === 'none') return;
+  if(e.key >= '0' && e.key <= '9'){
+    e.preventDefault();
+    pin_press(e.key);
+  } else if(e.key === 'Backspace'){
+    e.preventDefault();
+    pin_del();
+  } else if(e.key === 'Enter'){
+    e.preventDefault();
+    if(_pin.length === PIN_LEN) pin_submit();
+  }
+});
+
 function pin_forgot(){
   var emailEl = document.getElementById('forgot-email');
   if(emailEl) emailEl.value = '';

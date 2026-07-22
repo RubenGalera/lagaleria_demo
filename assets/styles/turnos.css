@@ -107,7 +107,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .ev-day{display:flex;flex-direction:column;flex-wrap:wrap;align-items:center;gap:3px;overflow:hidden;min-width:0}
 .day-headers{display:grid;grid-template-columns:repeat(7,minmax(100px,1fr));gap:4px;height:43px}
 .day-head{text-align:center;padding:0 2px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
-.dname{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.3px;font-weight:500}
+.dname{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.3px;font-weight:500}
 .dnum{font-size:18px;font-weight:700;color:var(--text);line-height:1.2}
 .day-head.today .dname,.day-head.today .dnum{color:var(--acc)}
 .today-dot{width:4px;height:4px;background:var(--acc);border-radius:50%;margin:2px auto 0}
@@ -117,7 +117,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .turno-hdr{display:grid;grid-template-columns:repeat(7,minmax(100px,1fr));gap:4px;min-height:16px;margin-bottom:0;align-items:center}
 .hdr-cell{display:flex;align-items:center;justify-content:flex-end;gap:2px;overflow:hidden;min-width:0}
 .hdr-cell-mon{justify-content:space-between}
-.band-label{font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0;margin-top:2px;align-self:center}
+.band-label{font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0;margin-top:2px;align-self:center}
 .band-label-sm{color:var(--sm-text)}
 .band-label-sn{color:var(--sn-text)}
 .band-label-cm{color:var(--cm-text)}
@@ -128,19 +128,25 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .cell-sn{background:var(--sn-bg);border:1px solid #2a4a2a;border-top:2px solid var(--sn-bd)}
 .cell-cm{background:var(--cm-bg);border:1px solid #5a1a1a;border-top:2px solid var(--cm-bd)}
 .cell-cn{background:var(--cn-bg);border:1px solid #6a3a00;border-top:2px solid var(--cn-bd)}
-.chip{display:flex;align-items:center;gap:3px;border-radius:5px;padding:4px 6px;cursor:pointer;user-select:none;min-width:0;overflow:hidden}
+.chip{display:flex;align-items:center;gap:3px;border-radius:5px;padding:5px 7px;min-height:26px;cursor:pointer;user-select:none;min-width:0;overflow:hidden}
 .chip:active{opacity:.7}
 .chip-sm{background:var(--sm-bg);border:1px solid var(--sm-bd)}
 .chip-sn{background:var(--sn-bg);border:1px solid var(--sn-bd)}
 .chip-cm{background:var(--cm-bg);border:1px solid var(--cm-bd)}
 .chip-cn{background:var(--cn-bg);border:1px solid var(--cn-bd)}
-.chip-name{font-size:11px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#d0dde2}
+.chip-name{font-size:13px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#d0dde2}
 .chip-tag{font-size:9px;padding:1px 5px;border-radius:3px;white-space:nowrap;flex-shrink:0;background:var(--acc-bg);color:var(--acc);border:1px solid var(--acc-bd)}
+/* Trabajador archivado con turno histórico esta semana — solo lectura (ver isArchivedName() en turnos.js) */
+.chip-archived{opacity:.5;cursor:default}
+.chip-archived .dh{display:none}
 .dh{width:10px;height:10px;display:flex;flex-direction:column;justify-content:space-between;flex-shrink:0;opacity:.2;cursor:grab;padding:1px 0}
 .dh span{display:block;height:2px;background:var(--muted);border-radius:1px}
 .chip:hover .dh{opacity:.6}
 .add-chip{border:1px dashed var(--border);border-radius:5px;padding:4px 5px;font-size:10px;color:var(--faint);cursor:pointer;text-align:center;margin-top:1px}
 .add-chip:active{border-color:var(--acc);color:var(--acc)}
+/* body.exporting durante saveImage() (Guardar imagen) — el clon del grid que se
+   fotografía con html2canvas cuelga de document.body, así que este selector lo alcanza */
+.exporting .add-chip{display:none!important}
 .export-bar{display:flex;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap}
 .ebtn{background:var(--acc-bg);border:1px solid var(--acc-bd);border-radius:8px;padding:9px 14px;font-size:12px;color:var(--acc);cursor:pointer;font-weight:600;display:flex;align-items:center;gap:6px;flex:1;justify-content:center}
 .ebtn-wa{background:#25D366;color:#fff;border-color:#25D366}
