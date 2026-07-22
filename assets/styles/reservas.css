@@ -165,8 +165,20 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
 .asi-row:active{opacity:.8}
 .asi-info{flex:1;min-width:0}
 .asi-name{font-size:13px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* dudoso: no se atenúa la fila — al contrario, el nombre se marca en azul+cursiva para que destaque, ver "(Dudoso)" en el propio texto */
+.asi-name.dudoso{font-style:italic;color:#5599bb}
 .asi-sub{font-size:11px;color:var(--dim);margin-top:1px}
 .asi-pago{font-size:11px;font-weight:700;flex-shrink:0;padding:3px 9px;border-radius:10px}
+
+/* INSTAGRAM — mismo patrón visual que .tel-btn/.tel-call/.tel-wa (fila de detalle) */
+.tel-btn.instagram{background:rgba(193,53,132,.15);color:#c13584}
+
+/* IMÁGENES DE EVENTO — miniaturas con botón × (hasta 3, ver ev-img-add-btn) */
+.ev-img-list{display:flex;gap:8px;margin-bottom:8px}
+.ev-img-list:empty{margin-bottom:0}
+.ev-img-thumb{position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;flex-shrink:0}
+.ev-img-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ev-img-thumb button{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.6);border:none;border-radius:50%;width:20px;height:20px;color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
 
 /* CAPACITY WARNING */
 

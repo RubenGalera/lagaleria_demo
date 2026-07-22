@@ -1,5 +1,16 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.16 — Eventos, trabajadores y fixes de roles (julio 2026)
+- Eventos: campo Instagram, hasta 3 imágenes, botón compartir (Web Share API con fallback WhatsApp)
+- Modal de asistente reorganizado: toggle Dudoso, chip Invitado 🎁, campo teléfono, orden lógico de campos
+- Dudosos en azul cursiva + "(Dudoso)" explícito — no cuentan en total económico del evento
+- Invitados no cuentan en dinero a recaudar
+- FAB eliminado — botón "+ Añadir asistente" ancho completo fijo al fondo
+- Botón "+" en grid de Turnos: visible solo para admin/superadmin, genera el botón condicionalmente en el DOM
+- Cambio de rol desde modal de trabajador (solo admin/superadmin)
+- Fix: contador de turnos actualizado en tiempo real al marcar/desmarcar celdas
+- Alejandro renombrado desde Alex
+
 ## v0.2.15 — Limpieza y reorganización de código (julio 2026)
 - assets/lib/utils.js creado: centraliza cleanTel(), hashPin() y normalizeText() con JSDoc. Elimina duplicados en worker-modal.js, adminStock.js, index.js, adminContactos.js y stock.js
 - assets/lib/toast.js creado: showToast(mensaje, tipo) unificado con estilos en components.css. Reemplaza implementaciones dispersas en Stock, Admin y shell

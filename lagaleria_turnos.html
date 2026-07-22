@@ -115,11 +115,34 @@
     </div>
     <div class="msec">Trabajadores</div>
     <div class="add-worker-list" id="add-worker-list"></div>
-    <div class="msec" style="margin-top:0">Nuevo trabajador</div>
-    <div class="pnew-form">
-      <input class="pnew-input" id="add-new-name" type="text" placeholder="Nombre...">
-      <button class="btn-add" onclick="addNewFromShift()">+ Crear</button>
+    <div id="add-new-worker-sec"></div>
+  </div>
+</div>
+
+<!-- NUEVO TRABAJADOR COMPLETO (solo admin/superadmin) — mismos campos que Admin: nombre, sección, rol, teléfono -->
+<div class="overlay" id="ov-nuevo-trabajador">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div><div class="modal-title">Nuevo trabajador</div></div>
+      <button class="mclose" onclick="closeOv('ov-nuevo-trabajador')">&#215;</button>
     </div>
+    <div class="msec" style="margin-top:0">Nombre completo</div>
+    <input class="pnew-input" id="nt-nombre" type="text" placeholder="Nombre..." style="width:100%">
+    <div class="msec">Sección</div>
+    <div class="prio-btns" id="nt-sec-btns">
+      <button class="prio-btn act" data-sec="sala" onclick="nt_setSec(this)">🍺 Sala</button>
+      <button class="prio-btn" data-sec="cocina" onclick="nt_setSec(this)">🍳 Cocina</button>
+      <button class="prio-btn" data-sec="ambos" onclick="nt_setSec(this)">✦ Ambos</button>
+    </div>
+    <div class="msec">Rol</div>
+    <select class="pnew-input" id="nt-rol" style="width:100%">
+      <option value="empleado">Empleado</option>
+      <option value="encargado">Encargado</option>
+      <option value="admin">Admin</option>
+    </select>
+    <div class="msec">Teléfono <span style="font-size:10px;color:var(--faint);font-weight:400">opcional</span></div>
+    <input class="pnew-input" id="nt-tel" type="tel" placeholder="+34 600 000 000" style="width:100%">
+    <button class="btn-add" style="margin-top:14px" onclick="nt_send()">Crear trabajador</button>
   </div>
 </div>
 

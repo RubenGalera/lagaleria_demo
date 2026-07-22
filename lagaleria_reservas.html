@@ -224,17 +224,22 @@
     </div>
     <!-- NOTA -->
     <div class="field"><label>Nota</label><input class="inp" id="ev-nota" placeholder="Alérgicos, intolerancias, excepciones..."></div>
-    <!-- IMAGEN -->
+    <!-- INSTAGRAM -->
     <div class="field">
-      <label>Imagen (cartel / menú)</label>
-      <div id="ev-img-wrap" style="position:relative">
-        <input type="file" id="ev-img-input" accept="image/*" style="display:none" onchange="loadEvImg(this)">
-        <div id="ev-img-preview" style="display:none;position:relative;border-radius:8px;overflow:hidden;margin-bottom:6px">
-          <img id="ev-img-el" style="width:100%;max-height:180px;object-fit:cover;display:block;border-radius:8px">
-          <button onclick="clearEvImg()" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.6);border:none;border-radius:50%;width:26px;height:26px;color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
-        </div>
-        <button class="add-btn" style="margin:0" onclick="document.getElementById('ev-img-input').click()">📷 Añadir imagen</button>
+      <label>Instagram</label>
+      <div style="position:relative">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--dim);pointer-events:none;display:flex">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+        </span>
+        <input class="inp" id="ev-instagram" style="padding-left:32px" placeholder="@lagalerianeotaberna">
       </div>
+    </div>
+    <!-- IMÁGENES (hasta 3) -->
+    <div class="field">
+      <label>Imágenes (cartel / menú) — máx. 3</label>
+      <input type="file" id="ev-img-input" accept="image/*" style="display:none" onchange="loadEvImg(this)">
+      <div id="ev-img-list" class="ev-img-list"></div>
+      <button class="add-btn" id="ev-img-add-btn" style="margin:0" onclick="document.getElementById('ev-img-input').click()">📷 Añadir imagen</button>
     </div>
     <button class="btn-confirm" onclick="saveEvento()">Guardar evento</button>
     <div id="del-ev-confirm-row" style="display:none;margin-top:6px">
@@ -263,6 +268,15 @@
       <img id="evd-img" style="width:100%;max-height:160px;object-fit:cover;display:block">
       <div style="text-align:center;font-size:10px;color:var(--dim);padding:4px 0">Toca para ampliar</div>
     </div>
+    <!-- instagram, solo si el evento tiene handle guardado -->
+    <div class="tel-row" id="evd-instagram-row" style="display:none;margin-bottom:12px">
+      <div class="tel-num" id="evd-instagram-handle"></div>
+      <div class="tel-actions">
+        <a id="evd-instagram-btn" class="tel-btn instagram" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+        </a>
+      </div>
+    </div>
     <!-- stats -->
     <div class="info-grid" id="evd-stats"></div>
     <!-- asistentes -->
@@ -270,6 +284,7 @@
     <div style="margin-top:8px"><button class="add-btn" onclick="openNewAsistente()">+ Añadir asistente</button></div>
     <div style="margin-top:8px;display:flex;gap:8px">
       <button class="btn-confirm" style="flex:1;margin:0" onclick="openEditEventoFromDetail()">✏ Editar evento</button>
+      <button class="btn-confirm" style="flex:1;margin:0;background:rgba(85,153,187,.15);color:#5599bb" onclick="shareEventoWhatsApp()">📤 Compartir</button>
     </div>
   </div>
 </div>
@@ -292,22 +307,32 @@
         </div>
       </div>
     </div>
-    <div class="row2">
-      <div class="field">
-        <label>Pago</label>
-        <div class="zona-pills" id="asi-pago-pills">
-          <div class="zona-pill act" data-p="pendiente" onclick="selectAsiPago('pendiente',this)">⏳ Pendiente</div>
-          <div class="zona-pill" data-p="pagado" onclick="selectAsiPago('pagado',this)">✅ Pagado</div>
-        </div>
+    <div class="switch-row">
+      <div class="switch-info">
+        <span class="switch-lbl">Dudoso</span>
+        <span class="switch-sub">No cuenta como confirmado en el total</span>
       </div>
-      <div class="field" id="asi-metodo-wrap">
-        <label>Método</label>
-        <div class="zona-pills" id="asi-metodo-pills">
-          <div class="zona-pill" data-m="efectivo"      onclick="selectAsiMetodo('efectivo',this)">💵 Efectivo</div>
-          <div class="zona-pill" data-m="visa"          onclick="selectAsiMetodo('visa',this)">💳 Visa</div>
-          <div class="zona-pill" data-m="bizum"         onclick="selectAsiMetodo('bizum',this)">📱 Bizum</div>
-          <div class="zona-pill" data-m="transferencia" onclick="selectAsiMetodo('transferencia',this)">🏦 Transfer.</div>
-        </div>
+      <label class="switch">
+        <input type="checkbox" id="asi-dudoso">
+        <span class="switch-track"></span>
+      </label>
+    </div>
+    <div class="field"><label>Teléfono</label><input class="inp" id="asi-tel" type="tel" placeholder="6XX XXX XXX"></div>
+    <div class="field">
+      <label>Pago</label>
+      <div class="zona-pills" id="asi-pago-pills">
+        <div class="zona-pill act" data-p="pendiente" onclick="selectAsiPago('pendiente',this)">⏳ Pendiente</div>
+        <div class="zona-pill" data-p="pagado" onclick="selectAsiPago('pagado',this)">✅ Pagado</div>
+        <div class="zona-pill" data-p="invitado" onclick="selectAsiPago('invitado',this)">🎁 Invitado</div>
+      </div>
+    </div>
+    <div class="field" id="asi-metodo-wrap">
+      <label>Método</label>
+      <div class="zona-pills" id="asi-metodo-pills">
+        <div class="zona-pill" data-m="efectivo"      onclick="selectAsiMetodo('efectivo',this)">💵 Efectivo</div>
+        <div class="zona-pill" data-m="visa"          onclick="selectAsiMetodo('visa',this)">💳 Visa</div>
+        <div class="zona-pill" data-m="bizum"         onclick="selectAsiMetodo('bizum',this)">📱 Bizum</div>
+        <div class="zona-pill" data-m="transferencia" onclick="selectAsiMetodo('transferencia',this)">🏦 Transfer.</div>
       </div>
     </div>
     <div class="field"><label>Nota</label><input class="inp" id="asi-nota" placeholder="Alergia, petición especial..."></div>

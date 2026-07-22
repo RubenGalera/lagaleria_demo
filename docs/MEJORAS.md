@@ -27,6 +27,7 @@ Prioridad:
 | 🟡 | Sistema de bloqueo de zonas por eventos: al crear un evento en una zona, bloquear esa zona para nuevas reservas ese día/turno. Si ya existe una reserva, mostrar warning para reubicarla. Eventos tienen prioridad sobre Reservas.
 | 🟢 | Estado vacío de Reservas: cuando no hay reservas ese día mostrar estado visual centrado (emoji + texto + botón "Nueva reserva") en vez de secciones MEDIODÍA/NOCHE vacías.
 | 🟢 | Modal de Evento: añadir campo "zonas ocupadas" (chips de zona) y campo "mesas" (número editable) que se descuenta del total disponible del local.
+| 🟡 | Página pública de inscripción a eventos: URL pública por evento (sin login) donde el cliente ve el cartel, el menú y rellena nombre, teléfono y número de acompañantes. Los datos se guardan directamente en la tabla de asistentes pendientes de confirmar por el admin. Requiere rutas públicas — mejor implementar con Next.js en la migración a React.
 
 ## Stock
 | 🟠 | Pedido: filtro por proveedor — dropdown en cabecera para ver solo productos de ese proveedor y enviar WhatsApp dirigido a su número de teléfono. Al filtrar, mostrar dos grupos: 1) Productos bajo mínimos (rojo, arriba) con cantidad sugerida automática precargada (hasta cubrir el mínimo) editable con +/-, stock actual y mínimo visibles como referencia; 2) Resto de productos del proveedor (gris, abajo) con cantidad 0 editable con +/-, stock actual y mínimo visibles como referencia. Solo los productos con cantidad > 0 se incluyen en el mensaje de WhatsApp.

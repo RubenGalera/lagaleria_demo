@@ -54,7 +54,7 @@ async function sbInitTrabajadores() {
 
   /* 1 — Trabajadores base */
   const {data, error} = await _sb.from('trabajadores')
-    .select('id, nombre, seccion, prioridad, min_turnos, max_turnos, tel, foto_url, activo, disponible, visible')
+    .select('id, nombre, seccion, prioridad, min_turnos, max_turnos, tel, foto_url, activo, disponible, visible, rol')
     .eq('local_id', LOCAL_ID)
     .order('nombre');
   if (error) { console.warn('[SB] sbInitTrabajadores:', error.message); return; }
@@ -136,6 +136,7 @@ async function sbInitTrabajadores() {
     minT:        t.min_turnos != null ? t.min_turnos : 0,
     maxT:        t.max_turnos != null ? t.max_turnos : 0,
     prioridad:   t.prioridad || 'eventual',
+    rol:         t.rol || 'empleado',
     activo:      t.activo !== false,
     disponible:  t.disponible !== false,
     visible:     t.visible !== false,
@@ -723,24 +724,53 @@ function openAddModal(row,col){
     if(!isAssigned)item.onclick=()=>{closeOv("ov-add");openPreview(w.name);};
     list.appendChild(item);
   });
+  /* el botón se genera solo si _isAdmin() — no se renderiza nunca en el DOM
+     para empleado/encargado, en vez de renderizarlo siempre y ocultarlo con CSS */
+  const newWorkerSec=document.getElementById("add-new-worker-sec");
+  if(newWorkerSec){
+    newWorkerSec.innerHTML=_isAdmin()
+      ? '<div class="msec" style="margin-top:0">Nuevo trabajador</div><button class="btn-add" style="margin-top:0" onclick="openNuevoTrabajadorCompleto()">+ Añadir nuevo trabajador</button>'
+      : '';
+  }
   showOv("ov-add");
 }
-async function addNewFromShift(){
-  const n=document.getElementById("add-new-name").value.trim();
-  if(!n)return;
-  if(!_sb){showToast('Sin conexión a Supabase');return;}
-  const {data,error}=await _sb.from('trabajadores').insert({
-    nombre:n, local_id:LOCAL_ID, seccion:'ambos', activo:true, prioridad:'eventual', min_turnos:0, max_turnos:0
-  }).select('id').single();
-  if(error){showToast('Error al crear trabajador');console.error('[SB] addNewFromShift:',error.message);return;}
-  const newW={name:n,sec:'ambos',photo:null,tel:"",minT:0,maxT:0,unavailMed:[],unavailNoch:[],vacaciones:[],skills:{},activo:true,prioridad:'eventual',_sbId:data.id};
-  L().staff.push(newW);
-  _nombreToId[n]=data.id;
-  _idToNombre[data.id]=n;
-  document.getElementById("add-new-name").value="";
+
+/* ── NUEVO TRABAJADOR COMPLETO (solo admin/superadmin) — mismos campos que el modal de Admin:
+   nombre, sección, rol, teléfono. Ver openNuevoTrabajador()/inv_send() en adminWorkers.js. ── */
+function openNuevoTrabajadorCompleto(){
   closeOv("ov-add");
+  document.getElementById("nt-nombre").value="";
+  document.getElementById("nt-tel").value="";
+  document.getElementById("nt-rol").value="empleado";
+  document.querySelectorAll("#nt-sec-btns .prio-btn").forEach(b=>b.classList.toggle("act",b.dataset.sec==="sala"));
+  showOv("ov-nuevo-trabajador");
+}
+function nt_setSec(btn){
+  document.querySelectorAll("#nt-sec-btns .prio-btn").forEach(b=>b.classList.remove("act"));
+  btn.classList.add("act");
+}
+async function nt_send(){
+  const nombre=document.getElementById("nt-nombre").value.trim();
+  if(!nombre){showToast("Introduce el nombre");return;}
+  const dup=L().staff.find(w=>w.name.toLowerCase()===nombre.toLowerCase());
+  if(dup){showToast("Ya existe un trabajador con ese nombre");return;}
+  const secBtn=document.querySelector("#nt-sec-btns .prio-btn.act");
+  const sec=secBtn?secBtn.dataset.sec:"sala";
+  const rol=document.getElementById("nt-rol").value;
+  const tel=document.getElementById("nt-tel").value.trim();
+  if(!_sb){showToast("Sin conexión a Supabase");return;}
+  const {data,error}=await _sb.from('trabajadores').insert({
+    nombre, local_id:LOCAL_ID, seccion:sec, rol, tel:tel||null, activo:true, prioridad:'eventual', min_turnos:0, max_turnos:0
+  }).select('id').single();
+  if(error){showToast('Error al crear trabajador');console.error('[SB] nt_send:',error.message);return;}
+  const newW={name:nombre,sec,rol,photo:null,tel,minT:0,maxT:0,unavailMed:[],unavailNoch:[],vacaciones:[],skills:{},activo:true,prioridad:'eventual',_sbId:data.id};
+  L().staff.push(newW);
+  _nombreToId[nombre]=data.id;
+  _idToNombre[data.id]=nombre;
+  closeOv("ov-nuevo-trabajador");
   buildGrid();renderW();updateStats();
-  openPreview(n);
+  showToast(nombre+' creado ✓');
+  openPreview(nombre);
 }
 
 /* ── PANEL TRABAJADORES ── */

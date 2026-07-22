@@ -223,6 +223,12 @@ tr.wr td:last-child{border-radius:0 8px 8px 0;border:1px solid var(--border);bor
 .w-info{flex:1;min-width:0}
 .w-name{font-size:16px;font-weight:700;color:var(--text)}
 .w-sect{font-size:12px;color:var(--dim);margin-top:2px}
+/* Fila "Rol" del modal de trabajador — solo admin/superadmin (ver _isAdmin() en worker-modal.js) */
+.w-rol-row{display:flex;align-items:center;gap:3px;margin-top:3px}
+.w-rol-display{font-size:11px;font-weight:600;color:var(--dim);cursor:pointer}
+.w-rol-display b{color:var(--acc);font-weight:700}
+.w-rol-caret{font-size:8px;color:var(--dim)}
+.w-rol-select{font-size:11px;font-weight:600;background:var(--bg);border:1px solid var(--acc-bd);border-radius:6px;padding:2px 6px;color:var(--text);outline:none}
 .w-right{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex-shrink:0}
 .w-tel-display{font-size:12px;font-weight:500;cursor:pointer;text-align:right;color:var(--text)}
 .w-tel-display.empty{color:var(--faint);font-size:11px;font-style:italic}
@@ -439,6 +445,8 @@ input[type=file]{display:none}
 .prio-btn:active{opacity:.7}
 .prio-btn.prio-fijo{background:rgba(197,166,105,.15);color:var(--acc);border-color:var(--acc-bd)}
 .prio-btn.prio-eventual{background:var(--surface);color:var(--dim);border-color:var(--border2)}
+/* modificador genérico "seleccionado" para grupos de .prio-btn con más de 2 opciones (ver #nt-sec-btns) */
+.prio-btn.act{background:rgba(197,166,105,.15);color:var(--acc);border-color:var(--acc-bd)}
 
 /* ── SKILLS / HABILIDADES ── */
 .skill-dept-lbl{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.8px;padding:8px 0 4px;display:flex;align-items:center;gap:6px}

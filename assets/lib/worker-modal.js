@@ -10,6 +10,7 @@
 var _previewName = '';
 var _horaRows    = [];
 var _previewSnapshot = null;
+var ROL_LABELS = {empleado:'Empleado', encargado:'Encargado', admin:'Admin', superadmin:'Superadmin'};
 
 function getHour(name, d) {
   var h = '';
@@ -62,6 +63,10 @@ function openPreview(name) {
   document.getElementById('prev-avatar').innerHTML = isSafeImg(w.photo) ? `<img src="${w.photo}" alt="${name}">` : `${ini(name)}`;
   document.getElementById('prev-name').textContent = name;
   document.getElementById('prev-sect').textContent = w.sec==='sala'?'Sala':w.sec==='cocina'?'Cocina':'Ambos';
+  document.getElementById('prev-rol-text').textContent = ROL_LABELS[w.rol] || 'Empleado';
+  document.getElementById('prev-rol-select').value = (w.rol === 'admin' || w.rol === 'encargado') ? w.rol : 'empleado';
+  document.getElementById('prev-rol-select').style.display = 'none';
+  document.getElementById('prev-rol-display').style.display = '';
   document.getElementById('prev-min').value = w.minT != null ? String(w.minT) : '';
   document.getElementById('prev-max').value = w.maxT != null ? String(w.maxT) : '';
   document.getElementById('prev-turnos-count').textContent = t + ' turno' + (t !== 1 ? 's' : '');
@@ -116,6 +121,9 @@ function openPreview(name) {
 
   var resetBtn = document.getElementById('prev-reset-pin-btn');
   if (resetBtn) resetBtn.style.display = isAdmin ? '' : 'none';
+
+  var rolRow = document.getElementById('prev-rol-row');
+  if (rolRow) rolRow.style.display = isAdmin ? 'flex' : 'none';
 
   _refreshInviteUI(w);
 
@@ -323,6 +331,10 @@ function saveProfile() {
   const w = getW(_previewName); if (!w) return;
   w.minT = parseInt(document.getElementById('prev-min').value) || 0;
   w.maxT = parseInt(document.getElementById('prev-max').value) || 0;
+  /* rol: solo se toca si la fila era visible/editable (admin/superadmin) — para
+     otros roles ni siquiera se lee el <select>, así que w.rol nunca cambia sin querer */
+  const isAdmin = _isAdmin();
+  if (isAdmin) w.rol = document.getElementById('prev-rol-select').value;
   w.unavailMed  = Array.from(document.querySelectorAll('#unavail-med .unavail-chip-h.active')).map(el => parseInt(el.dataset.d));
   w.unavailNoch = Array.from(document.querySelectorAll('#unavail-noch .unavail-chip-h.active')).map(el => parseInt(el.dataset.d));
   ROWS.forEach(r => L().data[r].forEach((da, di) => { L().data[r][di] = da.filter(n => parse(n).name !== _previewName); }));
@@ -345,7 +357,11 @@ function saveProfile() {
   closeOv('ov-preview'); buildGrid(); renderW(); updateStats();
   if (gs) gs.scrollLeft = scrollLeft;
   window.scrollTo(0, scrollTop);
-  if (w._sbId) sbUpdateTrabajador(w._sbId, { min_turnos: w.minT, max_turnos: w.maxT, prioridad: w.prioridad || 'eventual' });
+  if (w._sbId) {
+    var patch = { min_turnos: w.minT, max_turnos: w.maxT, prioridad: w.prioridad || 'eventual' };
+    if (isAdmin) patch.rol = w.rol;
+    sbUpdateTrabajador(w._sbId, patch);
+  }
   if (typeof showToast === 'function') showToast('Perfil guardado ✓', 'success');
   if (typeof scheduleAutosave === 'function') scheduleAutosave();
 }
@@ -388,6 +404,22 @@ function saveTel() {
   else { td.textContent = '+ Tel'; td.className = 'w-tel-display empty'; }
   td.style.display = '';
   if (w && w._sbId) sbUpdateTrabajador(w._sbId, { tel: v || null });
+}
+
+/* ── ROL (solo admin/superadmin, ver _isAdmin() y prev-rol-row) ──
+   No se guarda al momento: el <select> solo actualiza el texto mostrado;
+   el UPDATE real a Supabase ocurre en saveProfile(), al pulsar "Guardar y cerrar". */
+function startEditRol() {
+  document.getElementById('prev-rol-display').style.display = 'none';
+  const sel = document.getElementById('prev-rol-select');
+  sel.style.display = '';
+  sel.focus();
+}
+function _syncRolDisplay() {
+  const sel = document.getElementById('prev-rol-select');
+  document.getElementById('prev-rol-text').textContent = ROL_LABELS[sel.value] || 'Empleado';
+  sel.style.display = 'none';
+  document.getElementById('prev-rol-display').style.display = '';
 }
 
 /* cleanTel() vive en assets/lib/utils.js. */
@@ -572,6 +604,14 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="w-info">
           <div class="w-name" id="prev-name">—</div>
           <div class="w-sect" id="prev-sect">—</div>
+          <div class="w-rol-row" id="prev-rol-row" style="display:none">
+            <span class="w-rol-display" id="prev-rol-display" onclick="startEditRol()">Rol: <b id="prev-rol-text">Empleado</b> <span class="w-rol-caret">&#9662;</span></span>
+            <select class="w-rol-select" id="prev-rol-select" style="display:none" onchange="_syncRolDisplay()">
+              <option value="empleado">Empleado</option>
+              <option value="encargado">Encargado</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
         </div>
         <div class="w-right">
           <div id="prev-tel-display" class="w-tel-display empty" onclick="startEditTel()">+ Tel</div>

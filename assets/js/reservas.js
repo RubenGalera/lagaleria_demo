@@ -108,19 +108,23 @@ async function sbLoadEventos(fecha){
         precio:     e.precio||'',
         aforo:      e.aforo||null,
         nota:       e.nota||'',
-        img:        e.img_url||null,
+        /* imagenes: array nuevo (hasta 3). Compat con eventos antiguos que solo tienen img_url (1 imagen) */
+        imagenes:   (e.imagenes&&e.imagenes.length) ? e.imagenes : (e.img_url ? [e.img_url] : []),
+        instagram:  e.instagram||'',
         zonasIds:   allZonas.filter(function(z){return z.evento_id===e.id;}).map(function(z){return z.zona_id;}),
         asistentes: allAsi
           .filter(function(a){return a.evento_id===e.id;})
           .map(function(a){
             return {
-              id:     a.id,
-              nombre: a.nombre,
-              acomp:  Number(a.acompanantes)||0,
-              pagado: a.pago==='pagado',
-              metodo: a.metodo||null,
-              nota:   a.nota||'',
-              _sbId:  a.id,
+              id:      a.id,
+              nombre:  a.nombre,
+              tel:     a.tel||'',
+              acomp:   Number(a.acompanantes)||0,
+              dudoso:  !!a.dudoso,
+              pago:    a.pago||'pendiente',
+              metodo:  a.metodo||null,
+              nota:    a.nota||'',
+              _sbId:   a.id,
             };
           }),
         _sbId: e.id,
@@ -129,14 +133,14 @@ async function sbLoadEventos(fecha){
   }catch(e){ console.error('sbLoadEventos',e); return []; }
 }
 
-async function sbUploadEventoImg(eventoId, blob){
+/* index: posición dentro de las hasta-3 imágenes del evento — cada una vive en su propio path del bucket */
+async function sbUploadEventoImg(eventoId, blob, index){
   if(!eventoId||!blob) return {error:'Sin id o imagen'};
-  const path = eventoId+'.jpg';
+  const path = eventoId+'-'+(index||0)+'.jpg';
   const {error:upErr} = await _sb.storage.from('eventos').upload(path, blob, {upsert:true, contentType:'image/jpeg'});
   if(upErr){ console.error('[SB] sbUploadEventoImg:',upErr.message); return {error:upErr.message}; }
   const {data} = _sb.storage.from('eventos').getPublicUrl(path);
   const url = data?.publicUrl ? data.publicUrl+'?t='+Date.now() : null;
-  if(url) await _sb.from('eventos').update({img_url:url}).eq('id',eventoId);
   return {url};
 }
 
@@ -150,8 +154,10 @@ async function sbSaveEvento(ev){
       fecha:       ev.fecha,
       hora:        ev.hora||null,
       precio:      ev.precio||null,
-      img_url:     ev.img||null,
+      imagenes:    ev.imagenes||[],
+      img_url:     (ev.imagenes&&ev.imagenes[0])||null,
       nota:        ev.nota||null,
+      instagram:   ev.instagram||null,
     };
     var eventoId = ev._sbId;
     if(ev._sbId){
@@ -190,9 +196,11 @@ async function sbSaveAsistente(a, eventoId){
     const payload={
       evento_id:    eventoId,
       nombre:       a.nombre,
+      tel:          a.tel||null,
       acompanantes: a.acomp||0,
-      pago:         a.pagado?'pagado':'pendiente',
-      metodo:       a.pagado?(a.metodo||null):null,
+      dudoso:       !!a.dudoso,
+      pago:         a.pago||'pendiente',
+      metodo:       a.pago==='pagado'?(a.metodo||null):null,
       nota:         a.nota||null,
     };
     if(a._sbId){
@@ -676,20 +684,20 @@ const TIPOS_EVENTO = {
 let eventos = [
   {
     id:200, nombre:'Cata Vinos Rioja', tipo:'cata', fecha:hoyStr(), hora:'20:30',
-    precio:45, aforo:20, zonasIds:[5], img:null,
+    precio:45, aforo:20, zonasIds:[5], imagenes:[], instagram:'',
     asistentes:[
-      {id:201, nombre:'Carlos Vega',    acomp:1, pagado:true,  metodo:'bizum',    nota:''},
-      {id:202, nombre:'Marta Soler',    acomp:0, pagado:true,  metodo:'visa',     nota:'Vegetariana'},
-      {id:203, nombre:'Juan Herrero',   acomp:2, pagado:false, metodo:null,       nota:''},
-      {id:204, nombre:'Elena Campos',   acomp:1, pagado:true,  metodo:'efectivo', nota:''},
+      {id:201, nombre:'Carlos Vega',    tel:'', acomp:1, dudoso:false, pago:'pagado',    metodo:'bizum',    nota:''},
+      {id:202, nombre:'Marta Soler',    tel:'', acomp:0, dudoso:false, pago:'pagado',    metodo:'visa',     nota:'Vegetariana'},
+      {id:203, nombre:'Juan Herrero',   tel:'', acomp:2, dudoso:true,  pago:'pendiente', metodo:null,       nota:''},
+      {id:204, nombre:'Elena Campos',   tel:'', acomp:1, dudoso:false, pago:'invitado',  metodo:null,       nota:''},
     ]
   },
   {
     id:210, nombre:'Menú Degustación Primavera', tipo:'menu', fecha:manaStr(), hora:'21:00',
-    precio:65, aforo:16, zonasIds:[4,5], img:null,
+    precio:65, aforo:16, zonasIds:[4,5], imagenes:[], instagram:'',
     asistentes:[
-      {id:211, nombre:'Roberto Gil',   acomp:1, pagado:true,  metodo:'transferencia', nota:''},
-      {id:212, nombre:'Sofía Navarro', acomp:0, pagado:false, metodo:null,            nota:'Sin gluten'},
+      {id:211, nombre:'Roberto Gil',   tel:'', acomp:1, dudoso:false, pago:'pagado',    metodo:'transferencia', nota:''},
+      {id:212, nombre:'Sofía Navarro', tel:'', acomp:0, dudoso:false, pago:'pendiente', metodo:null,            nota:'Sin gluten'},
     ]
   },
 ];
@@ -703,8 +711,8 @@ function renderEventos(){
   list.innerHTML=dayEvs.map(ev=>{
     const tipo=TIPOS_EVENTO[ev.tipo]||TIPOS_EVENTO.evento;
     const zonasBloq=(ev.zonasIds||[]).map(id=>zonas.find(z=>z.id===id)).filter(Boolean);
-    const totalPax=(ev.asistentes||[]).reduce((s,a)=>s+1+(a.acomp||0),0);
-    const pagados=(ev.asistentes||[]).filter(a=>a.pagado).length;
+    const totalPax=(ev.asistentes||[]).filter(a=>!a.dudoso).reduce((s,a)=>s+1+(a.acomp||0),0);
+    const pagados=(ev.asistentes||[]).filter(a=>a.pago==='pagado').length;
     const aforoWarn=ev.aforo&&totalPax>ev.aforo;
     return`<div class="ev-card" onclick="openEvDetail('${ev.id}')">
       <span class="ev-card-icon">${tipo.icon}</span>
@@ -738,21 +746,33 @@ function fillEvZonaPills(selectedIds){
 function toggleEvZona(id,el){el.classList.toggle('act');}
 function getEvZonas(){return [...document.querySelectorAll('#ev-zona-pills .zona-pill.act')].map(el=>el.dataset.zid);}
 
-let evImgBlob=null, evImgPreviewUrl=null;
+/* evImages: hasta 3 {url, blob}. blob=null -> ya subida a Supabase (url real); blob=Blob -> pendiente de subir (url es un blob: local de preview) */
+let evImages=[];
+function renderEvImages(){
+  const list=document.getElementById('ev-img-list');
+  list.innerHTML=evImages.map(function(img,i){
+    return `<div class="ev-img-thumb"><img src="${img.url}"><button type="button" onclick="removeEvImage(${i})">✕</button></div>`;
+  }).join('');
+  document.getElementById('ev-img-add-btn').style.display=evImages.length>=3?'none':'flex';
+}
 function loadEvImg(input){
-  const file=input.files[0];if(!file)return;
+  const file=input.files[0];input.value='';if(!file)return;
+  if(evImages.length>=3)return;
   compressImage(file).then(function(blob){
-    evImgBlob=blob;
-    if(evImgPreviewUrl&&evImgPreviewUrl.startsWith('blob:')) URL.revokeObjectURL(evImgPreviewUrl);
-    evImgPreviewUrl=URL.createObjectURL(blob);
-    document.getElementById('ev-img-el').src=evImgPreviewUrl;
-    document.getElementById('ev-img-preview').style.display='block';
+    evImages.push({url:URL.createObjectURL(blob), blob});
+    renderEvImages();
   }).catch(function(err){ console.error('[img] compressImage error:',err); });
 }
-function clearEvImg(){
-  if(evImgPreviewUrl&&evImgPreviewUrl.startsWith('blob:')) URL.revokeObjectURL(evImgPreviewUrl);
-  evImgBlob=null; evImgPreviewUrl=null;
-  document.getElementById('ev-img-preview').style.display='none';
+function removeEvImage(i){
+  const img=evImages[i];
+  if(img&&img.url&&img.url.startsWith('blob:')) URL.revokeObjectURL(img.url);
+  evImages.splice(i,1);
+  renderEvImages();
+}
+function clearEvImages(){
+  evImages.forEach(function(img){ if(img.url&&img.url.startsWith('blob:')) URL.revokeObjectURL(img.url); });
+  evImages=[];
+  renderEvImages();
   document.getElementById('ev-img-input').value='';
 }
 
@@ -767,10 +787,11 @@ function openNewEvento(){
   document.getElementById('ev-precio').value='';
   document.getElementById('ev-aforo').value='';
   document.getElementById('ev-nota').value='';
+  document.getElementById('ev-instagram').value='';
   document.getElementById('ev-tipo').value='evento';
   updateEvTipoIcon();
   fillEvZonaPills([]);
-  clearEvImg();
+  clearEvImages();
   showModal('ov-evento');
 }
 function openEditEvento(id){
@@ -785,13 +806,12 @@ function openEditEvento(id){
   document.getElementById('ev-precio').value=ev.precio||'';
   document.getElementById('ev-aforo').value=ev.aforo||'';
   document.getElementById('ev-nota').value=ev.nota||'';
+  document.getElementById('ev-instagram').value=ev.instagram||'';
   document.getElementById('ev-tipo').value=ev.tipo||'evento';
   updateEvTipoIcon();
   fillEvZonaPills(ev.zonasIds||[]);
-  evImgBlob=null;
-  evImgPreviewUrl=ev.img||null;
-  if(evImgPreviewUrl){document.getElementById('ev-img-el').src=evImgPreviewUrl;document.getElementById('ev-img-preview').style.display='block';}
-  else{document.getElementById('ev-img-preview').style.display='none';}
+  evImages=(ev.imagenes||[]).map(function(url){return {url:url, blob:null};});
+  renderEvImages();
   showModal('ov-evento');
 }
 function openEditEventoFromDetail(){
@@ -810,10 +830,10 @@ async function saveEvento(){
     precio:parseFloat(document.getElementById('ev-precio').value)||0,
     aforo:parseInt(document.getElementById('ev-aforo').value)||0,
     zonasIds:getEvZonas(),
-    /* Si hay blob nuevo pendiente de subir, img queda null temporalmente hasta que sbUploadEventoImg lo actualice;
-       si no hay blob nuevo, conservamos la URL existente (o null si se borró) */
-    img:evImgBlob ? null : evImgPreviewUrl,
+    /* solo las ya subidas (blob:null) — las pendientes se suben y se añaden después de tener el UUID del evento */
+    imagenes:evImages.filter(function(img){return !img.blob;}).map(function(img){return img.url;}),
     nota:document.getElementById('ev-nota').value.trim(),
+    instagram:cleanInstagramInput(document.getElementById('ev-instagram').value),
     asistentes: editingEventoId ? eventos.find(x=>x.id===editingEventoId)?.asistentes||[] : [],
   };
   if(editingEventoId){
@@ -826,22 +846,31 @@ async function saveEvento(){
   var savedEv = editingEventoId
     ? eventos.find(function(e){return e.id===editingEventoId;})
     : eventos[eventos.length-1];
-  if(savedEv && typeof sbSaveEvento==='function') await sbSaveEvento(savedEv);
+  var saveOk = savedEv && typeof sbSaveEvento==='function' ? await sbSaveEvento(savedEv) : true;
+  if(!saveOk){
+    /* si es un evento nuevo, no dejar un evento "fantasma" en memoria sin fila real en Supabase */
+    if(!editingEventoId) eventos.pop();
+    toast('Error al guardar el evento — inténtalo de nuevo');
+    return;
+  }
   /* Alinear el id local con el UUID real — evita el mismatch numérico vs string
      que rompía abrir/editar el evento recién creado sin recargar */
   if(!editingEventoId && savedEv && savedEv._sbId) savedEv.id = savedEv._sbId;
-  /* Subir imagen al bucket 'eventos' si hay blob nuevo */
-  if(evImgBlob && savedEv && savedEv._sbId){
-    var imgResult = await sbUploadEventoImg(savedEv._sbId, evImgBlob);
-    if(imgResult.url){
-      savedEv.img = imgResult.url;
-    } else {
-      toast('El evento se guardó pero la imagen no se pudo subir');
+  /* Subir al bucket 'eventos' las imágenes nuevas pendientes (blob), preservando el orden */
+  var pending = evImages.filter(function(img){return img.blob;});
+  if(pending.length && savedEv && savedEv._sbId){
+    var uploaded = [];
+    for(var i=0;i<pending.length;i++){
+      var already = (savedEv.imagenes||[]).length + uploaded.length;
+      var imgResult = await sbUploadEventoImg(savedEv._sbId, pending[i].blob, already);
+      if(imgResult.url) uploaded.push(imgResult.url);
+      else toast('El evento se guardó pero alguna imagen no se pudo subir');
     }
-    if(evImgPreviewUrl&&evImgPreviewUrl.startsWith('blob:')) URL.revokeObjectURL(evImgPreviewUrl);
-    evImgBlob = null;
-    evImgPreviewUrl = savedEv.img || null;
+    savedEv.imagenes = (savedEv.imagenes||[]).concat(uploaded);
+    if(savedEv.imagenes.length) await _sb.from('eventos').update({imagenes:savedEv.imagenes, img_url:savedEv.imagenes[0]}).eq('id',savedEv._sbId);
+    pending.forEach(function(img){ if(img.url.startsWith('blob:')) URL.revokeObjectURL(img.url); });
   }
+  evImages = (savedEv.imagenes||[]).map(function(url){return {url:url, blob:null};});
   closeModal('ov-evento');
   renderEventos();
   rebuildZonaBar();
@@ -868,8 +897,9 @@ function confirmDelEvento(){
 
 /* ── EVENTO DETAIL ── */
 function renderEvStats(ev){
-  const totalPax=ev.asistentes.reduce((s,a)=>s+1+(Number(a.acomp)||0),0);
-  const pagados=ev.asistentes.filter(a=>a.pagado).reduce((s,a)=>s+1+(Number(a.acomp)||0),0);
+  /* dudoso no cuenta como confirmado en el total de personas de la cata */
+  const totalPax=ev.asistentes.filter(a=>!a.dudoso).reduce((s,a)=>s+1+(Number(a.acomp)||0),0);
+  const pagados=ev.asistentes.filter(a=>a.pago==='pagado').reduce((s,a)=>s+1+(Number(a.acomp)||0),0);
   const precio=parseFloat(ev.precio)||0;
   const totalEur=precio>0?(totalPax*precio).toFixed(0):null;
   const pagadoEur=precio>0?(pagados*precio).toFixed(0):null;
@@ -880,6 +910,17 @@ function renderEvStats(ev){
     ${totalEur?`<div class="info-box"><div class="info-val" style="font-size:14px">${pagadoEur}€<span style="font-size:11px;color:var(--dim)">/${totalEur}€</span></div><div class="info-lbl">cobrado</div></div>`:`<div class="info-box"><div class="info-val">—</div><div class="info-lbl">precio</div></div>`}
   `;
 }
+/* Instagram: si pegan una URL completa (perfil o post) se usa tal cual; si es solo el @handle,
+   se limpia la @ al guardar y se reconstruye como instagram.com/[handle] al mostrarlo/compartirlo. */
+function cleanInstagramInput(v){
+  v=(v||'').trim();
+  if(!v||/^https?:\/\//i.test(v)) return v;
+  return v.replace(/^@/,'');
+}
+function instagramUrl(handle){
+  if(!handle) return '';
+  return /^https?:\/\//i.test(handle) ? handle : 'https://instagram.com/'+handle;
+}
 function openEvDetail(id){
   const ev=eventos.find(x=>x.id===id);if(!ev)return;
   currentEventoId=id;
@@ -887,33 +928,79 @@ function openEvDetail(id){
   document.getElementById('evd-nombre').textContent=ev.nombre;
   document.getElementById('evd-sub').textContent=tipo.label+' · '+formatDayFull(ev.fecha)+(ev.hora?' · '+ev.hora:'');
   const imgWrap=document.getElementById('evd-img-wrap');
-  if(ev.img){document.getElementById('evd-img').src=ev.img;imgWrap.style.display='block';}
-  else{imgWrap.style.display='none';}
+  if(ev.imagenes&&ev.imagenes.length){
+    document.getElementById('evd-img').src=ev.imagenes[0];
+    imgWrap.style.display='block';
+  } else {
+    imgWrap.style.display='none';
+  }
+  const igRow=document.getElementById('evd-instagram-row');
+  if(ev.instagram){
+    const url=instagramUrl(ev.instagram);
+    document.getElementById('evd-instagram-handle').textContent=/^https?:\/\//i.test(ev.instagram)?ev.instagram:'@'+ev.instagram;
+    document.getElementById('evd-instagram-btn').href=url;
+    igRow.style.display='flex';
+  } else {
+    igRow.style.display='none';
+  }
   renderEvStats(ev);
   renderAsistentes(ev);
   showModal('ov-ev-detail');
+}
+async function shareEventoWhatsApp(){
+  const ev=eventos.find(x=>x.id===currentEventoId);if(!ev)return;
+  const tipo=TIPOS_EVENTO[ev.tipo]||TIPOS_EVENTO.evento;
+  const lines=[
+    `*${ev.nombre}*`,
+    `${tipo.label} · ${formatDayFull(ev.fecha)}${ev.hora?' · '+ev.hora:''}`,
+  ];
+  if(ev.instagram) lines.push(`📷 ${instagramUrl(ev.instagram)}`);
+  const text=lines.join('\n');
+
+  if(navigator.share){
+    try{
+      const shareData={title:ev.nombre, text};
+      if(ev.imagenes&&ev.imagenes.length){
+        shareData.files=await Promise.all(ev.imagenes.map(async function(url,i){
+          const res=await fetch(url);
+          const blob=await res.blob();
+          return new File([blob],'evento-'+(i+1)+'.jpg',{type:blob.type||'image/jpeg'});
+        }));
+        if(navigator.canShare&&!navigator.canShare(shareData)) delete shareData.files;
+      }
+      await navigator.share(shareData);
+      return;
+    }catch(e){
+      if(e&&e.name==='AbortError') return; // el usuario cerró el panel de compartir nativo
+      console.error('[shareEventoWhatsApp] navigator.share falló, uso wa.me como fallback',e);
+    }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`,'_blank');
 }
 function renderAsistentes(ev){
   const METODO_ICON={efectivo:'💵',visa:'💳',bizum:'📱',transferencia:'🏦'};
   document.getElementById('evd-asistentes').innerHTML=ev.asistentes.map(a=>{
     const acompStr=a.acomp?` +${a.acomp}`:'';
-    const metodo=a.pagado&&a.metodo?` · ${METODO_ICON[a.metodo]||''} ${a.metodo}`:'';
-    const pagStyle=a.pagado
+    const metodo=a.pago==='pagado'&&a.metodo?` · ${METODO_ICON[a.metodo]||''} ${a.metodo}`:'';
+    const pagStyle=a.pago==='pagado'
       ?'background:rgba(60,140,70,.15);color:#4a9a5a'
+      :a.pago==='invitado'
+      ?'background:rgba(155,127,212,.15);color:#9b7fd4'
       :'background:rgba(180,130,0,.15);color:#c89030';
+    const pagLabel=a.pago==='pagado'?'Pagado'+metodo:a.pago==='invitado'?'🎁 Invitado':'Pendiente';
     return`<div class="asi-row" onclick="openEditAsistente('${ev.id}','${a.id}')">
       <div class="asi-info">
-        <div class="asi-name">${a.nombre}${acompStr}</div>
+        <div class="asi-name${a.dudoso?' dudoso':''}">${a.nombre}${acompStr}${a.dudoso?' (Dudoso)':''}</div>
         ${a.nota?`<div class="asi-sub">${a.nota}</div>`:''}
       </div>
-      <span class="asi-pago" style="${pagStyle}">${a.pagado?'Pagado'+metodo:'Pendiente'}</span>
+      <span class="asi-pago" style="${pagStyle}">${pagLabel}</span>
     </div>`;
   }).join('')||`<div style="text-align:center;padding:16px;font-size:12px;color:var(--faint)">Sin asistentes aún</div>`;
 }
 function openImgFull(){
   const ev=eventos.find(x=>x.id===currentEventoId);
-  if(!ev||!ev.img)return;
-  document.getElementById('img-full-el').src=ev.img;
+  if(!ev||!ev.imagenes||!ev.imagenes.length)return;
+  document.getElementById('img-full-el').src=ev.imagenes[0];
   showModal('ov-img-full');
 }
 
@@ -934,7 +1021,9 @@ function openNewAsistente(){
   editingAsiId=null;
   document.getElementById('asi-modal-title').textContent='Nuevo asistente';
   document.getElementById('asi-nombre').value='';
+  document.getElementById('asi-tel').value='';
   document.getElementById('asi-acomp').value='0';
+  document.getElementById('asi-dudoso').checked=false;
   document.getElementById('btn-del-asi').style.display='none';
   document.querySelectorAll('#asi-pago-pills .zona-pill').forEach(p=>p.classList.remove('act'));
   document.querySelector('#asi-pago-pills [data-p="pendiente"]').classList.add('act');
@@ -949,11 +1038,13 @@ function openEditAsistente(evId,aId){
   editingAsiId=aId;
   document.getElementById('asi-modal-title').textContent=a.nombre;
   document.getElementById('asi-nombre').value=a.nombre;
+  document.getElementById('asi-tel').value=a.tel||'';
   document.getElementById('asi-acomp').value=a.acomp||0;
+  document.getElementById('asi-dudoso').checked=!!a.dudoso;
   document.getElementById('btn-del-asi').style.display='block';
   document.querySelectorAll('#asi-pago-pills .zona-pill').forEach(p=>p.classList.remove('act'));
-  document.querySelector(`#asi-pago-pills [data-p="${a.pagado?'pagado':'pendiente'}"]`).classList.add('act');
-  document.getElementById('asi-metodo-wrap').style.display=a.pagado?'block':'none';
+  document.querySelector(`#asi-pago-pills [data-p="${a.pago||'pendiente'}"]`).classList.add('act');
+  document.getElementById('asi-metodo-wrap').style.display=a.pago==='pagado'?'block':'none';
   document.querySelectorAll('#asi-metodo-pills .zona-pill').forEach(p=>p.classList.remove('act'));
   if(a.metodo) document.querySelector(`#asi-metodo-pills [data-m="${a.metodo}"]`)?.classList.add('act');
   document.getElementById('asi-nota').value=a.nota||'';
@@ -963,8 +1054,16 @@ async function saveAsistente(){
   const nombre=document.getElementById('asi-nombre').value.trim();
   if(!nombre){toast('Introduce un nombre');return;}
   const ev=eventos.find(x=>x.id===currentEventoId);if(!ev)return;
-  const pagado=getAsiPago()==='pagado';
-  const data={nombre,acomp:parseInt(document.getElementById('asi-acomp').value)||0,pagado,metodo:pagado?getAsiMetodo():null,nota:document.getElementById('asi-nota').value.trim()};
+  const pago=getAsiPago();
+  const data={
+    nombre,
+    tel:document.getElementById('asi-tel').value.trim(),
+    acomp:parseInt(document.getElementById('asi-acomp').value)||0,
+    dudoso:document.getElementById('asi-dudoso').checked,
+    pago,
+    metodo:pago==='pagado'?getAsiMetodo():null,
+    nota:document.getElementById('asi-nota').value.trim(),
+  };
 
   if(editingAsiId){
     /* EDITAR — actualiza memoria inmediatamente, sincroniza Supabase en segundo plano */
