@@ -279,15 +279,12 @@ tr.wr td:last-child{border-radius:0 8px 8px 0;border:1px solid var(--border);bor
 .unavail-day{border:1px solid var(--border2);border-radius:6px;padding:4px 2px;text-align:center;cursor:pointer;font-size:10px;color:var(--dim)}
 .unavail-day.active{background:rgba(200,60,60,.15);border-color:rgba(200,60,60,.4);color:#cc6060;font-weight:600}
 
-/* ── HORA ESPECIAL ── */
-.hora-list{display:flex;flex-direction:column;gap:5px;margin-top:4px}
-.hora-row{display:flex;align-items:center;gap:6px;background:var(--nav);border-radius:7px;padding:6px 10px}
-.hora-sel{background:var(--bg);border:1px solid var(--border2);border-radius:5px;padding:4px 6px;font-size:11px;color:var(--text);outline:none;cursor:pointer}
-.hora-display{background:var(--bg);border:1px solid var(--border2);border-radius:5px;padding:4px 10px;font-size:13px;font-weight:700;color:var(--acc);outline:none;cursor:pointer;min-width:52px;text-align:center;letter-spacing:.5px}
-.hora-display:active{border-color:var(--acc-bd)}
-.hora-del{background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:18px;padding:0 4px;line-height:1}
-.hora-del:hover{color:#cc6060}
-.hora-add-btn{background:transparent;border:1px dashed var(--border2);border-radius:7px;padding:7px 10px;font-size:11px;color:var(--dim);cursor:pointer;width:100%;text-align:left;margin-top:4px}
+/* ── NOTA ESPECIAL — fusión de la antigua "hora especial de entrada" + "notas" ── */
+.nota-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--nav);border-radius:7px;padding:6px 10px;margin-bottom:6px}
+.nota-input{flex:1 1 100%;min-width:0;background:var(--bg);border:1px solid var(--border2);border-radius:5px;color:var(--text);font-size:12px;padding:5px 8px;outline:none;order:2}
+.nota-sel{background:var(--bg);border:1px solid var(--border2);border-radius:5px;padding:4px 6px;font-size:11px;color:var(--text);outline:none;cursor:pointer;flex-shrink:0;order:0}
+.nota-del{background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:18px;padding:0 4px;line-height:1;flex-shrink:0;order:1;margin-left:auto}
+.nota-del:hover{color:#cc6060}
 .hora-add-btn:active{border-color:var(--acc);color:var(--acc)}
 
 #ov-confirm{z-index:300} /* por encima de #ov-preview (worker-modal.js) — mismo fix que admin.css */
@@ -450,8 +447,7 @@ input[type=file]{display:none}
 .prio-btns{display:flex;gap:4px;margin-top:4px}
 .prio-btn{flex:1;padding:7px;border-radius:7px;border:1px solid var(--border2);font-size:12px;font-weight:700;cursor:pointer;background:var(--bg);color:var(--faint);text-align:center;transition:all .15s}
 .prio-btn:active{opacity:.7}
-.prio-btn.prio-fijo{background:rgba(197,166,105,.15);color:var(--acc);border-color:var(--acc-bd)}
-.prio-btn.prio-eventual{background:var(--surface);color:var(--dim);border-color:var(--border2)}
+.prio-btn.prio-fijo,.prio-btn.prio-eventual{background:var(--acc);color:#1a1810;border-color:var(--acc)}
 /* modificador genérico "seleccionado" para grupos de .prio-btn con más de 2 opciones (ver #nt-sec-btns) */
 .prio-btn.act{background:rgba(197,166,105,.15);color:var(--acc);border-color:var(--acc-bd)}
 

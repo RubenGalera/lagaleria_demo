@@ -47,7 +47,7 @@ function cntT(name){var c=0;ROWS.forEach(function(r){L().data[r].forEach(functio
    guardadas en BD — parecía que nada se guardaba nunca, cuando el guardado sí funcionaba. */
 function _mapTrab(t, extra){
   extra = extra || {};
-  return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,archivado:t.archivado===true,pinHash:t.pin_hash||null,mustChangePin:t.must_change_pin!==false,rol:t.rol||'empleado',disponible:t.disponible!==false,visible:t.visible!==false,skills:extra.skills||{},unavailMed:(extra.dispo&&extra.dispo.med)||[],unavailNoch:(extra.dispo&&extra.dispo.noc)||[],vacaciones:extra.vacaciones||[],_sbId:t.id};
+  return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,archivado:t.archivado===true,pinHash:t.pin_hash||null,mustChangePin:t.must_change_pin!==false,rol:t.rol||'empleado',disponible:t.disponible!==false,visible:t.visible!==false,skills:extra.skills||{},unavailMed:(extra.dispo&&extra.dispo.med)||[],unavailNoch:(extra.dispo&&extra.dispo.noc)||[],vacaciones:extra.vacaciones||[],notas:extra.notas||[],_sbId:t.id};
 }
 
 /* Catálogo de skills (UUID en BD ↔ slug local ROLES_COCINA/ROLES_SALA) — mismo patrón
@@ -61,15 +61,16 @@ async function _syncTrab(){
   var ts=await sbLoadTrabajadores();
   if(!ts){ renderTrabajadores(); loadArchivados(); return; }
   var trabIds=ts.map(function(t){return t.id;});
-  var dispoByW={}, skillsByW={}, vacByW={};
+  var dispoByW={}, skillsByW={}, vacByW={}, notasByW={};
   if(trabIds.length&&_sb){
     var results=await Promise.all([
       _sb.from('disponibilidad').select('trabajador_id,dia_semana,turno').in('trabajador_id',trabIds),
       _sb.from('trabajadores_skills').select('id,nombre'),
       _sb.from('trabajador_skill').select('trabajador_id,skill_id,nivel').in('trabajador_id',trabIds),
       _sb.from('trabajadores_vacaciones').select('id,trabajador_id,desde,hasta,tipo').in('trabajador_id',trabIds),
+      _sb.from('trabajador_notas').select('id,trabajador_id,turno,nota,dia_semana').in('trabajador_id',trabIds),
     ]);
-    var dispoRes=results[0], catalogRes=results[1], skillsRes=results[2], vacRes=results[3];
+    var dispoRes=results[0], catalogRes=results[1], skillsRes=results[2], vacRes=results[3], notasRes=results[4];
     if(dispoRes.error) console.error('[SB] _syncTrab disponibilidad:',dispoRes.error.message);
     else (dispoRes.data||[]).forEach(function(r){
       if(!dispoByW[r.trabajador_id]) dispoByW[r.trabajador_id]={med:[],noc:[]};
@@ -79,6 +80,11 @@ async function _syncTrab(){
     if(catalogRes.error) console.error('[SB] _syncTrab trabajadores_skills:',catalogRes.error.message);
     if(skillsRes.error) console.error('[SB] _syncTrab trabajador_skill:',skillsRes.error.message);
     if(vacRes.error) console.error('[SB] _syncTrab trabajadores_vacaciones:',vacRes.error.message);
+    if(notasRes.error) console.error('[SB] _syncTrab trabajador_notas:',notasRes.error.message);
+    else (notasRes.data||[]).forEach(function(r){
+      if(!notasByW[r.trabajador_id]) notasByW[r.trabajador_id]=[];
+      notasByW[r.trabajador_id].push({d:r.dia_semana,turno:r.turno,nota:r.nota,_sbId:r.id});
+    });
 
     _skillLocalToUUID={}; _skillUUIDToLocal={};
     var ALL_ROLES_FLAT=(typeof ROLES_COCINA!=='undefined'&&typeof ROLES_SALA!=='undefined')?ROLES_COCINA.concat(ROLES_SALA):[];
@@ -99,7 +105,7 @@ async function _syncTrab(){
     });
   }
   _trabWorkers=ts.map(function(t){
-    return _mapTrab(t,{dispo:dispoByW[t.id],skills:skillsByW[t.id],vacaciones:vacByW[t.id]});
+    return _mapTrab(t,{dispo:dispoByW[t.id],skills:skillsByW[t.id],vacaciones:vacByW[t.id],notas:notasByW[t.id]});
   });
   renderTrabajadores();
   loadArchivados();

@@ -100,6 +100,32 @@
     </div>
   </div>
 
+  <div class="dash-divider"></div>
+
+  <div class="dash-sec-lbl">Accesos rápidos</div>
+
+  <div class="dash-card">
+    <div class="dash-row" onclick="openContactosPanel()">
+      <div class="dash-ic dash-ic-dim">📇</div>
+      <div class="dash-info">
+        <div class="dash-title">Contactos</div>
+        <div class="dash-sub" id="dash-contactos-sub">Cargando…</div>
+      </div>
+      <span class="dash-arr">›</span>
+    </div>
+  </div>
+
+  <div class="dash-card">
+    <div class="dash-row" onclick="openProveedoresPanel()">
+      <div class="dash-ic dash-ic-dim">🚚</div>
+      <div class="dash-info">
+        <div class="dash-title">Proveedores</div>
+        <div class="dash-sub" id="dash-proveedores-sub">Cargando…</div>
+      </div>
+      <span class="dash-arr">›</span>
+    </div>
+  </div>
+
   <!-- hidden data slots -->
   <span id="stat-reservas" style="display:none"></span>
   <span id="mod-reservas-sub" style="display:none"></span>
@@ -116,12 +142,35 @@
   letter-spacing:.4px;pointer-events:none;
 ">⬡ MOCK LOCAL</div>
 
+<!-- CONTACTOS (solo lectura) -->
+<div class="overlay" id="ov-contactos" onclick="if(event.target===this)closeModal('ov-contactos')">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div><div class="modal-title">Contactos</div><div class="modal-sub">Solo lectura</div></div>
+      <button class="mclose" onclick="closeModal('ov-contactos')">&#215;</button>
+    </div>
+    <div class="ct-list" id="contactos-list-body"></div>
+  </div>
+</div>
+
+<!-- PROVEEDORES (solo lectura) -->
+<div class="overlay" id="ov-proveedores" onclick="if(event.target===this)closeModal('ov-proveedores')">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div><div class="modal-title">Proveedores</div><div class="modal-sub">Solo lectura</div></div>
+      <button class="mclose" onclick="closeModal('ov-proveedores')">&#215;</button>
+    </div>
+    <div class="ct-list" id="proveedores-list-body"></div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div id="_toast" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a2f3a;border:1px solid var(--brd2);color:var(--txt);padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="assets/lib/supabase-client.js"></script>
 <script src="assets/lib/ui-helpers.js"></script>
+<script src="assets/lib/utils.js"></script>
 <script src="assets/js/inicio.js"></script>
 </body>
 </html>

@@ -63,3 +63,13 @@ body{display:flex;flex-direction:column}
 .dash-zona-full{color:var(--faint)}
 .dash-sep{height:1px;background:var(--brd);margin:8px 0}
 .dash-divider{height:1px;background:var(--brd);margin:4px 12px 4px}
+
+/* Contactos / Proveedores — listas de solo lectura dentro de .modal (ver components.css) */
+.ct-list{display:flex;flex-direction:column;gap:8px}
+.ct-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--nav);border:1px solid var(--brd);border-radius:10px}
+.ct-item-info{flex:1;min-width:0}
+.ct-item-name{font-size:13px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ct-item-nota{font-size:11px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ct-empty{text-align:center;padding:20px;font-size:12px;color:var(--dim)}
+.contact-btns{display:flex;gap:5px;flex-shrink:0}
+.contact-btn{width:30px;height:30px;border-radius:7px;border:1px solid var(--brd2);background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}

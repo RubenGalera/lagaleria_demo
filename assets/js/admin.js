@@ -313,17 +313,19 @@ function delVacaciones(idx){
   }
 }
 
-/* HORA ROWS */
-function addHoraRow(){_horaRows.push({d:0,h:""});renderHoraList();}
-
 const TP_MINS=[0,15,30,45];
 
-function renderHoraList(){
-  const list=document.getElementById("hora-list");list.innerHTML="";
-  _horaRows.forEach((hr,i)=>{
-    const row=document.createElement("div");row.className="hora-row";
-    const displayVal=hr.h||"--:--";
-    row.innerHTML=`<select class="hora-sel" onchange="_horaRows[${i}].d=parseInt(this.value)">${DAYS_S.map((d,di)=>`<option value="${di}" ${hr.d===di?"selected":""}>${d} ${18+di}</option>`).join("")}</select><span style="font-size:11px;color:var(--dim)">⏰</span><button class="hora-display" onclick="openTp('hora',this,${i})">${displayVal}</button><button class="hora-del" onclick="_horaRows.splice(${i},1);renderHoraList()">&#215;</button>`;
+/* NOTA ESPECIAL — fusión de la antigua "hora especial de entrada" + "notas":
+   una fila = día + turno + texto libre, los 3 obligatorios (ver saveProfile). */
+function addNotaRow(){_notaRows.push({d:0,turno:'med',nota:''});renderNotaList();}
+
+function renderNotaList(){
+  const list=document.getElementById("nota-list");if(!list)return;list.innerHTML="";
+  const DIAS_FULL=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+  _notaRows.forEach((nr,i)=>{
+    const row=document.createElement("div");row.className="nota-row";
+    const esc=s=>(s||"").replace(/"/g,"&quot;");
+    row.innerHTML=`<select class="nota-sel" onchange="_notaRows[${i}].d=parseInt(this.value)">${DIAS_FULL.map((d,di)=>`<option value="${di}" ${nr.d===di?"selected":""}>${d}</option>`).join("")}</select><select class="nota-sel" onchange="_notaRows[${i}].turno=this.value"><option value="med" ${nr.turno==="med"?"selected":""}>Mediodía</option><option value="noch" ${nr.turno==="noch"?"selected":""}>Noche</option></select><input class="nota-input" type="text" placeholder="Ej: 9:00, solo SALA, llega tarde..." value="${esc(nr.nota)}" oninput="_notaRows[${i}].nota=this.value"><button class="nota-del" onclick="_notaRows.splice(${i},1);renderNotaList()">&#215;</button>`;
     list.appendChild(row);
   });
 }
@@ -354,7 +356,7 @@ function closeTp(){document.getElementById("tp-popup").style.display="none";docu
 function confirmTp(){
   const val=String(_tpH).padStart(2,"0")+":"+String(_tpM).padStart(2,"0");
   if(_tpBtn)_tpBtn.textContent=val;
-  if(_tpCtx==="hora"&&_tpIdx>=0){_horaRows[_tpIdx].h=val;}else if(_tpCtx==="ev"){_evHora=val;}
+  if(_tpCtx==="ev"){_evHora=val;}
   closeTp();
 }
 

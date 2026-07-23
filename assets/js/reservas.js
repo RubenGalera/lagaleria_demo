@@ -121,6 +121,7 @@ async function sbLoadEventos(fecha){
               tel:     a.tel||'',
               acomp:   Number(a.acompanantes)||0,
               dudoso:  !!a.dudoso,
+              descuento: !!a.descuento,
               pago:    a.pago||'pendiente',
               metodo:  a.metodo||null,
               nota:    a.nota||'',
@@ -199,6 +200,7 @@ async function sbSaveAsistente(a, eventoId){
       tel:          a.tel||null,
       acompanantes: a.acomp||0,
       dudoso:       !!a.dudoso,
+      descuento:    !!a.descuento,
       pago:         a.pago||'pendiente',
       metodo:       a.pago==='pagado'?(a.metodo||null):null,
       nota:         a.nota||null,
@@ -899,9 +901,10 @@ function confirmDelEvento(){
 function renderEvStats(ev){
   /* dudoso no cuenta como confirmado en el total de personas de la cata */
   const totalPax=ev.asistentes.filter(a=>!a.dudoso).reduce((s,a)=>s+1+(Number(a.acomp)||0),0);
-  /* total económico: solo confirmados que pagan — ni dudosos ni invitados (pago='invitado') */
-  const totalPaxPago=ev.asistentes.filter(a=>!a.dudoso&&a.pago!=='invitado').reduce((s,a)=>s+1+(Number(a.acomp)||0),0);
-  const pagados=ev.asistentes.filter(a=>a.pago==='pagado').reduce((s,a)=>s+1+(Number(a.acomp)||0),0);
+  /* total económico: solo confirmados que pagan — ni dudosos ni invitados (pago='invitado').
+     Con descuento=true el propio asistente cuenta 0.5 en vez de 1 (los acompañantes no). */
+  const totalPaxPago=ev.asistentes.filter(a=>!a.dudoso&&a.pago!=='invitado').reduce((s,a)=>s+(a.descuento?0.5:1)+(Number(a.acomp)||0),0);
+  const pagados=ev.asistentes.filter(a=>a.pago==='pagado').reduce((s,a)=>s+(a.descuento?0.5:1)+(Number(a.acomp)||0),0);
   const precio=parseFloat(ev.precio)||0;
   const totalEur=precio>0?(totalPaxPago*precio).toFixed(0):null;
   const pagadoEur=precio>0?(pagados*precio).toFixed(0):null;
@@ -992,7 +995,7 @@ function renderAsistentes(ev){
     const pagLabel=a.pago==='pagado'?'Pagado'+metodo:a.pago==='invitado'?'🎁 Invitado':'Pendiente';
     return`<div class="asi-row" onclick="openEditAsistente('${ev.id}','${a.id}')">
       <div class="asi-info">
-        <div class="asi-name${a.dudoso?' dudoso':''}">${a.nombre}${acompStr}${a.dudoso?' (Dudoso)':''}</div>
+        <div class="asi-name${a.dudoso?' dudoso':''}">${a.nombre}${acompStr}${a.dudoso?' (Dudoso)':''}${a.descuento?' <span class="res-badge" style="background:rgba(197,166,105,.15);color:var(--acc)">50%</span>':''}</div>
         ${a.nota?`<div class="asi-sub">${a.nota}</div>`:''}
       </div>
       <span class="asi-pago" style="${pagStyle}">${pagLabel}</span>
@@ -1041,6 +1044,7 @@ function openNewAsistente(){
   document.getElementById('asi-tel').value='';
   document.getElementById('asi-acomp').value='0';
   document.getElementById('asi-dudoso').checked=false;
+  document.getElementById('asi-descuento').checked=false;
   document.getElementById('btn-del-asi').style.display='none';
   document.querySelectorAll('#asi-pago-pills .zona-pill').forEach(p=>p.classList.remove('act'));
   document.querySelector('#asi-pago-pills [data-p="pendiente"]').classList.add('act');
@@ -1059,6 +1063,7 @@ function openEditAsistente(evId,aId){
   document.getElementById('asi-tel').value=a.tel||'';
   document.getElementById('asi-acomp').value=a.acomp||0;
   document.getElementById('asi-dudoso').checked=!!a.dudoso;
+  document.getElementById('asi-descuento').checked=!!a.descuento;
   document.getElementById('btn-del-asi').style.display='block';
   document.querySelectorAll('#asi-pago-pills .zona-pill').forEach(p=>p.classList.remove('act'));
   document.querySelector(`#asi-pago-pills [data-p="${a.pago||'pendiente'}"]`).classList.add('act');
@@ -1079,6 +1084,7 @@ async function saveAsistente(){
     tel:document.getElementById('asi-tel').value.trim(),
     acomp:parseInt(document.getElementById('asi-acomp').value)||0,
     dudoso:document.getElementById('asi-dudoso').checked,
+    descuento:document.getElementById('asi-descuento').checked,
     pago,
     metodo:pago==='pagado'?getAsiMetodo():null,
     nota:document.getElementById('asi-nota').value.trim(),

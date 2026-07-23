@@ -3,15 +3,54 @@
    Inyecta automáticamente el markup de #ov-preview en el body al cargar el DOM.
    Requiere en el ámbito de página: getW, cntT, L, ROWS, CONFLICTS, parse, ini,
    isSafeImg, curLocal, curWeek, curYear, curMonday, showOv, closeOv, showToast, buildGrid, renderW,
-   updateStats, renderTrabajadores, renderHoraList, renderVacList, renderSkillsSummary,
+   updateStats, renderTrabajadores, renderNotaList, renderVacList, renderSkillsSummary,
    getDayVacacion, ensureWorkerExtras, _sb. Opcionales: scheduleAutosave,
    sbUploadFotoTrabajador, compressImage, saveWorker, showConfirm. */
 
 var _previewName = '';
-var _horaRows    = [];
+var _notaRows    = [];
+var _notaRowsOriginal = [];
 var _previewSnapshot = null;
 var ROL_LABELS = {empleado:'Empleado', encargado:'Encargado', admin:'Admin', superadmin:'Superadmin'};
 var SEC_LABELS = {sala:'Sala', cocina:'Cocina', ambos:'Ambos'};
+
+/* ── Textos de los botones (?) — ver showInfoTip() ── */
+var INFO_TEXTS = {
+  minmax: 'Número mínimo y máximo de turnos que este trabajador debe tener en una semana. El autogenerador respeta estos límites.',
+  unavail: 'Días y franjas en los que este trabajador nunca puede trabajar, independientemente de la semana.',
+  notaesp: 'Anotaciones específicas para un día y franja concretos. Se muestran junto al nombre en el grid de turnos. Útil para indicar horarios especiales, restricciones de zona, etc.',
+  prioridad: 'Fijo: trabajador habitual con prioridad alta en la asignación. Extra: trabajador de apoyo, se asigna cuando hay huecos disponibles.',
+  skills: 'Competencias especiales del trabajador (ej: jefe de cocina, barra, eventos). El autogenerador asegura que cada turno tenga las habilidades necesarias.',
+  vacaciones: 'Periodos en los que el trabajador no está disponible. Se excluye automáticamente de los turnos en esas fechas.',
+};
+function showInfoTip(ev, key) {
+  ev.stopPropagation();
+  var popup = document.getElementById('info-popup');
+  var backdrop = document.getElementById('info-popup-backdrop');
+  if (!popup) {
+    backdrop = document.createElement('div');
+    backdrop.id = 'info-popup-backdrop';
+    backdrop.style.cssText = 'position:fixed;inset:0;z-index:299;display:none';
+    backdrop.onclick = closeInfoTip;
+    document.body.appendChild(backdrop);
+    popup = document.createElement('div');
+    popup.id = 'info-popup';
+    popup.className = 'info-popup';
+    document.body.appendChild(popup);
+  }
+  popup.innerHTML = '<div class="info-popup-text">' + (INFO_TEXTS[key] || '') + '</div><button type="button" class="info-popup-close" onclick="closeInfoTip()">&#215;</button>';
+  var rect = ev.currentTarget.getBoundingClientRect();
+  var top = rect.bottom + 6;
+  var left = Math.min(Math.max(8, rect.left - 130), window.innerWidth - 268);
+  popup.style.top = top + 'px';
+  popup.style.left = left + 'px';
+  popup.style.display = 'block';
+  backdrop.style.display = 'block';
+}
+function closeInfoTip() {
+  var popup = document.getElementById('info-popup'); if (popup) popup.style.display = 'none';
+  var backdrop = document.getElementById('info-popup-backdrop'); if (backdrop) backdrop.style.display = 'none';
+}
 
 /* Avisa al shell (index.html) de que se guardó algo de un trabajador en Supabase —
    el shell marca el otro módulo (Admin↔Turnos) para refrescar sus datos la próxima
@@ -117,9 +156,9 @@ function openPreview(name) {
     el.classList.toggle('active', w.unavailNoch.includes(parseInt(el.dataset.d)));
   });
 
-  _horaRows = [];
-  for (let d = 0; d < 7; d++) { const h = getHour(name, d); if (h) _horaRows.push({d, h}); }
-  renderHoraList(); renderVacList(); updateAlert();
+  _notaRows = (w.notas || []).map(n => ({d: n.d, turno: n.turno, nota: n.nota, _sbId: n._sbId}));
+  _notaRowsOriginal = _notaRows.map(n => ({...n}));
+  renderNotaList(); renderVacList(); updateAlert();
 
   const accBody  = document.getElementById('acc-body-cfg');
   const accArrow = document.getElementById('acc-arrow-cfg');
@@ -250,7 +289,7 @@ function updateAlert() {
     }
   });
 
-  if (w.vacaciones && w.vacaciones.length) {
+  if (typeof curMonday !== 'undefined' && w.vacaciones && w.vacaciones.length) {
     for (let d = 0; d < 7; d++) {
       const dayDate = new Date(curMonday + 'T00:00:00Z');
       dayDate.setUTCDate(dayDate.getUTCDate() + d);
@@ -356,6 +395,10 @@ function renderPrioridad() {
 /* ── GUARDAR PERFIL ── */
 function saveProfile() {
   const w = getW(_previewName); if (!w) return;
+  if (_notaRows.some(n => !n.nota || !n.nota.trim())) {
+    if (typeof showToast === 'function') showToast('Completa el texto de cada nota especial o elimínala', 'error');
+    return;
+  }
   w.minT = parseInt(document.getElementById('prev-min').value) || 0;
   w.maxT = parseInt(document.getElementById('prev-max').value) || 0;
   /* rol: solo se toca si la fila era visible/editable (admin/superadmin) — para
@@ -365,15 +408,14 @@ function saveProfile() {
   if (isAdmin) w.sec = document.getElementById('prev-sect-select').value;
   w.unavailMed  = Array.from(document.querySelectorAll('#unavail-med .unavail-chip-h.active')).map(el => parseInt(el.dataset.d));
   w.unavailNoch = Array.from(document.querySelectorAll('#unavail-noch .unavail-chip-h.active')).map(el => parseInt(el.dataset.d));
+  w.notas = _notaRows.filter(n => n.nota && n.nota.trim()).map(n => ({...n}));
   ROWS.forEach(r => L().data[r].forEach((da, di) => { L().data[r][di] = da.filter(n => parse(n).name !== _previewName); }));
   document.querySelectorAll('#prof-sg .sg-cell').forEach(c => {
     ROWS.forEach(r => {
       if (c.dataset.row === r && c.classList.contains('on-'+r)) {
         const d = parseInt(c.dataset.col);
-        const hour = _horaRows.find(hr => hr.d === d);
-        const raw = _previewName + (hour && hour.h ? ':'+hour.h : '');
         if (!L().data[r][d]) L().data[r][d] = [];
-        if (!L().data[r][d].some(n => parse(n).name === _previewName)) L().data[r][d].push(raw);
+        if (!L().data[r][d].some(n => parse(n).name === _previewName)) L().data[r][d].push(_previewName);
       }
     });
   });
@@ -381,6 +423,7 @@ function saveProfile() {
   const scrollLeft = gs ? gs.scrollLeft : 0;
   const scrollTop = window.scrollY || document.documentElement.scrollTop;
   _syncUnavailToSupabase(w, _previewSnapshot);
+  _syncNotasToSupabase(w);
   _previewSnapshot = null;
   closeOv('ov-preview'); buildGrid(); renderW(); updateStats();
   if (gs) gs.scrollLeft = scrollLeft;
@@ -412,6 +455,39 @@ function _syncUnavailToSupabase(w, snapshot) {
       _sb?.from('disponibilidad').delete().eq('trabajador_id',w._sbId).eq('dia_semana',d).eq('turno',turno)
         .then(({error}) => { if (error) console.error('[SB] delete dispo:', error.message); });
     });
+  });
+}
+
+/* ── Persiste a Supabase solo las notas que cambiaron desde la apertura del modal
+   (diff contra _notaRowsOriginal, tomado en openPreview) — mismo patrón que
+   _syncUnavailToSupabase(). Una fila vaciada (nota="") se trata como eliminada. */
+function _syncNotasToSupabase(w) {
+  if (!w._sbId) return;
+  const origById = {};
+  _notaRowsOriginal.forEach(n => { if (n._sbId) origById[n._sbId] = n; });
+  const keptIds = new Set();
+  /* Se itera w.notas (no _notaRows) porque son los mismos objetos que se leerán
+     en la próxima apertura del modal — así, al insertar, el id real devuelto por
+     Supabase (n._sbId = data.id) queda escrito en el sitio correcto y una edición
+     posterior en la misma sesión (sin recargar) puede actualizar/borrar esa fila. */
+  w.notas.forEach(n => {
+    if (n._sbId) {
+      keptIds.add(n._sbId);
+      const orig = origById[n._sbId];
+      if (orig && (orig.nota !== n.nota || orig.turno !== n.turno || orig.d !== n.d)) {
+        _sb?.from('trabajador_notas').update({turno:n.turno, nota:n.nota, dia_semana:n.d}).eq('id', n._sbId)
+          .then(({error}) => { if (error) console.error('[SB] update trabajador_notas:', error.message); });
+      }
+    } else {
+      _sb?.from('trabajador_notas').insert({trabajador_id:w._sbId, turno:n.turno, nota:n.nota, dia_semana:n.d}).select('id').single()
+        .then(({data, error}) => { if (error) console.error('[SB] insert trabajador_notas:', error.message); else if (data) n._sbId = data.id; });
+    }
+  });
+  _notaRowsOriginal.forEach(n => {
+    if (n._sbId && !keptIds.has(n._sbId)) {
+      _sb?.from('trabajador_notas').delete().eq('id', n._sbId)
+        .then(({error}) => { if (error) console.error('[SB] delete trabajador_notas:', error.message); });
+    }
   });
 }
 
@@ -621,7 +697,11 @@ document.addEventListener('DOMContentLoaded', function() {
       '.w-disp-row .sw-track{position:absolute;inset:0;background:var(--border2);border-radius:12px;transition:.2s;cursor:pointer}' +
       '.w-disp-row .sw-track::before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}' +
       '.w-disp-row .sw input:checked + .sw-track{background:var(--acc)}' +
-      '.w-disp-row .sw input:checked + .sw-track::before{transform:translateX(16px)}';
+      '.w-disp-row .sw input:checked + .sw-track::before{transform:translateX(16px)}' +
+      '.info-btn{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--dim);color:var(--dim);font-size:9px;font-weight:700;line-height:1;margin-left:5px;padding:0;cursor:pointer;background:transparent;vertical-align:middle;flex-shrink:0}' +
+      '.info-popup{position:fixed;z-index:300;display:none;width:260px;max-width:calc(100vw - 16px);background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:11px 13px;box-shadow:0 8px 28px rgba(0,0,0,.45)}' +
+      '.info-popup-text{font-size:12px;line-height:1.45;color:var(--text)}' +
+      '.info-popup-close{display:block;margin:8px 0 0 auto;background:transparent;border:none;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer;padding:2px 4px}';
     document.head.appendChild(st);
   }
   if (document.getElementById('ov-preview')) return;
@@ -707,12 +787,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     <div class="acc-body" id="acc-body-cfg">
       <div class="acc-block">
-        <div class="acc-block-title">Hora especial de entrada</div>
-        <div class="hora-list" id="hora-list"></div>
-        <button class="btn-add" onclick="addHoraRow()">+ Añadir hora especial</button>
-      </div>
-      <div class="acc-block">
-        <div class="acc-block-title">Min / Max turnos semana</div>
+        <div class="acc-block-title"><span>Min / Max turnos semana<button type="button" class="info-btn" onclick="showInfoTip(event,'minmax')">?</button></span></div>
         <div class="minmax-row">
           <div class="minmax-field">
             <span class="minmax-lbl">Mínimo</span>
@@ -729,7 +804,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       </div>
       <div class="acc-block">
-        <div class="acc-block-title">Días no disponibles</div>
+        <div class="acc-block-title"><span>Días no disponibles<button type="button" class="info-btn" onclick="showInfoTip(event,'unavail')">?</button></span></div>
         <div style="display:flex;flex-direction:column;gap:5px">
           <div class="unavail-row-wrap">
             <span class="unavail-row-label">Mediodía</span>
@@ -758,19 +833,24 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       </div>
       <div class="acc-block">
-        <div class="acc-block-title">Prioridad de asignación</div>
+        <div class="acc-block-title"><span>Nota especial<button type="button" class="info-btn" onclick="showInfoTip(event,'notaesp')">?</button></span></div>
+        <div class="nota-list" id="nota-list"></div>
+        <button class="btn-add" onclick="addNotaRow()">+ Añadir nota especial</button>
+      </div>
+      <div class="acc-block">
+        <div class="acc-block-title"><span>Prioridad de asignación<button type="button" class="info-btn" onclick="showInfoTip(event,'prioridad')">?</button></span></div>
         <div class="prio-btns" id="prio-btns">
           <button class="prio-btn" onclick="setPrioridad('fijo')">⭐ Fijo</button>
-          <button class="prio-btn" onclick="setPrioridad('eventual')">— Eventual</button>
+          <button class="prio-btn" onclick="setPrioridad('eventual')">— Extra</button>
         </div>
       </div>
       <div class="acc-block">
-        <div class="acc-block-title">Skills</div>
+        <div class="acc-block-title"><span>Habilidades<button type="button" class="info-btn" onclick="showInfoTip(event,'skills')">?</button></span></div>
         <div id="skills-body"></div>
         <button class="btn-add" onclick="openSkillsModal()">✏ Añadir / Quitar Skills</button>
       </div>
       <div class="acc-block">
-        <div class="acc-block-title">Vacaciones 🌴<span id="vac-days-total" class="badge" style="margin-left:6px">0 días</span></div>
+        <div class="acc-block-title"><span>Vacaciones / Ausencias 🌴<button type="button" class="info-btn" onclick="showInfoTip(event,'vacaciones')">?</button></span><span id="vac-days-total" class="badge">0 días</span></div>
         <div class="vac-section" id="vac-list"></div>
         <button class="btn-add" onclick="openVacPopup()">+ Añadir periodo</button>
       </div>

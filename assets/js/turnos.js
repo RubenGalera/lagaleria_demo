@@ -88,16 +88,19 @@ async function sbInitTrabajadores() {
     {data: skillsData,   error: skillsErr},
     {data: dispoData,    error: dispoErr},
     {data: vacData,      error: vacErr},
+    {data: notasData,    error: notasErr},
   ] = await Promise.all([
     _sb.from('trabajadores_skills').select('id, nombre'),
     _sb.from('trabajador_skill').select('trabajador_id, skill_id, nivel').in('trabajador_id', trabIds),
     _sb.from('disponibilidad').select('trabajador_id, dia_semana, turno').in('trabajador_id', trabIds),
     _sb.from('trabajadores_vacaciones').select('id, trabajador_id, desde, hasta, tipo').in('trabajador_id', trabIds),
+    _sb.from('trabajador_notas').select('id, trabajador_id, turno, nota, dia_semana').in('trabajador_id', trabIds),
   ]);
   if (catalogErr) console.warn('[SB] skills catalog:', catalogErr.message);
   if (skillsErr)  console.warn('[SB] trabajador_skill:', skillsErr.message);
   if (dispoErr)   console.warn('[SB] disponibilidad:', dispoErr.message);
   if (vacErr)     console.warn('[SB] vacaciones:', vacErr.message);
+  if (notasErr)   console.warn('[SB] trabajador_notas:', notasErr.message);
 
   /* 3 — Mapa catálogo UUID ↔ slug local */
   _skillLocalToUUID = {};
@@ -116,7 +119,7 @@ async function sbInitTrabajadores() {
   console.log(`[SB] ✅ skill catalog: ${Object.keys(_skillLocalToUUID).length}/${ALL_ROLES_FLAT.length} roles mapeados`);
 
   /* 4 — Agrupar por trabajador_id */
-  const skillsByW = {}, dispoByW = {}, vacByW = {};
+  const skillsByW = {}, dispoByW = {}, vacByW = {}, notasByW = {};
   (skillsData || []).forEach(r => {
     const localId = _skillUUIDToLocal[r.skill_id];
     if (!localId) return;
@@ -131,6 +134,10 @@ async function sbInitTrabajadores() {
   (vacData || []).forEach(r => {
     if (!vacByW[r.trabajador_id]) vacByW[r.trabajador_id] = [];
     vacByW[r.trabajador_id].push({desde: r.desde, hasta: r.hasta, tipo: r.tipo || 'vacaciones', _sbId: r.id});
+  });
+  (notasData || []).forEach(r => {
+    if (!notasByW[r.trabajador_id]) notasByW[r.trabajador_id] = [];
+    notasByW[r.trabajador_id].push({d: r.dia_semana, turno: r.turno, nota: r.nota, _sbId: r.id});
   });
 
   /* 5 — Poblar locals.galeria.staff — el roster real excluye archivados (aquí sí, no en la
@@ -151,6 +158,7 @@ async function sbInitTrabajadores() {
     unavailMed:  dispoByW[t.id]?.med  || [],
     unavailNoch: dispoByW[t.id]?.noc  || [],
     vacaciones:  vacByW[t.id]         || [],
+    notas:       notasByW[t.id]       || [],
     _sbId:       t.id,
   }));
   buildGrid(); renderW(); updateStats();
@@ -490,7 +498,9 @@ function buildGrid(){
         const warnIcon=alertMsg?`<span style="font-size:9px;color:#cc4444;margin-left:auto" title="⚠ ${alertMsg}">⚠</span>`:"";
         const archivedTag=archived?`<span class="chip-tag" title="Trabajador archivado — histórico, solo lectura">📁</span>`:"";
         const chipAv=isSafeImg(w&&w.photo)?`<img class="chip-av" src="${w.photo}" alt="">`:"";
-        chip.innerHTML=`<div class="dh"><span></span><span></span><span></span></div>${chipAv}<span class="chip-name">${name}</span>${hour?`<span class="chip-tag">${hour}</span>`:""}${archivedTag}${warnIcon}`;
+        const notaMatch=w&&w.notas&&w.notas.find(n=>n.d===d&&n.turno===(isMed?'med':'noch'));
+        const notaIcon=notaMatch?`<span class="chip-tag" title="📝 ${(notaMatch.nota||'').replace(/"/g,'&quot;')}">📝</span>`:"";
+        chip.innerHTML=`<div class="dh"><span></span><span></span><span></span></div>${chipAv}<span class="chip-name">${name}</span>${hour?`<span class="chip-tag">${hour}</span>`:""}${archivedTag}${notaIcon}${warnIcon}`;
         if(archived){
           chip.title='Trabajador archivado — turno histórico, solo lectura';
           chip.onclick=()=>{ if(typeof showToast==='function') showToast(name+' está archivado — este turno es histórico, solo lectura'); };
@@ -531,17 +541,19 @@ function setupDrag(chip,cell){
 
 
 
-/* ── HORA ESPECIAL ── */
-function renderHoraList(){
-  const list=document.getElementById("hora-list");list.innerHTML="";
-  _horaRows.forEach((hr,i)=>{
-    const row=document.createElement("div");row.className="hora-row";
-    const displayVal=hr.h||"--:--";
-    row.innerHTML=`<select class="hora-sel" onchange="_horaRows[${i}].d=parseInt(this.value)">${DAYS_S.map((d,di)=>`<option value="${di}" ${hr.d===di?"selected":""}>${d} ${18+di}</option>`).join("")}</select><span style="font-size:11px;color:var(--dim)">⏰</span><button class="hora-display" onclick="openTp('hora',this,${i})">${displayVal}</button><button class="hora-del" onclick="_horaRows.splice(${i},1);renderHoraList()">&#215;</button>`;
+/* ── NOTA ESPECIAL — fusión de la antigua "hora especial de entrada" + "notas":
+   una fila = día + turno + texto libre, los 3 obligatorios (ver saveProfile). ── */
+function renderNotaList(){
+  const list=document.getElementById("nota-list");if(!list)return;list.innerHTML="";
+  const DIAS_FULL=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+  _notaRows.forEach((nr,i)=>{
+    const row=document.createElement("div");row.className="nota-row";
+    const esc=s=>(s||"").replace(/"/g,"&quot;");
+    row.innerHTML=`<select class="nota-sel" onchange="_notaRows[${i}].d=parseInt(this.value)">${DIAS_FULL.map((d,di)=>`<option value="${di}" ${nr.d===di?"selected":""}>${d}</option>`).join("")}</select><select class="nota-sel" onchange="_notaRows[${i}].turno=this.value"><option value="med" ${nr.turno==="med"?"selected":""}>Mediodía</option><option value="noch" ${nr.turno==="noch"?"selected":""}>Noche</option></select><input class="nota-input" type="text" placeholder="Ej: 9:00, solo SALA, llega tarde..." value="${esc(nr.nota)}" oninput="_notaRows[${i}].nota=this.value"><button class="nota-del" onclick="_notaRows.splice(${i},1);renderNotaList()">&#215;</button>`;
     list.appendChild(row);
   });
 }
-function addHoraRow(){_horaRows.push({d:0,h:""});renderHoraList();}
+function addNotaRow(){_notaRows.push({d:0,turno:'med',nota:''});renderNotaList();}
 
 /* ── TIME PICKER (reutilizable) ── */
 let _tpIdx=-1,_tpH=8,_tpM=0,_tpBtn=null,_tpCtx=null,_tpCb=null;
@@ -603,9 +615,7 @@ function closeTp(){
 function confirmTp(){
   const val=String(_tpH).padStart(2,"0")+":"+String(_tpM).padStart(2,"0");
   if(_tpBtn)_tpBtn.textContent=val;
-  if(_tpCtx==="hora"&&_tpIdx>=0){
-    _horaRows[_tpIdx].h=val;
-  } else if(_tpCtx==="ev"){
+  if(_tpCtx==="ev"){
     // el botón ya muestra el valor; addEvento lo leerá de _evHora
     _evHora=val;
   }
