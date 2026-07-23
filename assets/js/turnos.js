@@ -126,7 +126,7 @@ async function sbInitTrabajadores() {
   (dispoData || []).forEach(r => {
     if (!dispoByW[r.trabajador_id]) dispoByW[r.trabajador_id] = {med: [], noc: []};
     if (r.turno === 'med')      dispoByW[r.trabajador_id].med.push(r.dia_semana);
-    else if (r.turno === 'noc') dispoByW[r.trabajador_id].noc.push(r.dia_semana);
+    else if (r.turno === 'noch') dispoByW[r.trabajador_id].noc.push(r.dia_semana);
   });
   (vacData || []).forEach(r => {
     if (!vacByW[r.trabajador_id]) vacByW[r.trabajador_id] = [];
@@ -1311,6 +1311,7 @@ function addVacaciones(){
       .then(({data,error})=>{
         if(error){console.error('[SB] insert vac:',error.message); return;}
         if(data) newVac._sbId=data.id;
+        _notifyWorkerUpdated();
       });
   }
 }
@@ -1329,7 +1330,7 @@ function delVacaciones(idx){
   updateAlert();
   if(w._sbId && item?._sbId){
     _sb?.from('trabajadores_vacaciones').delete().eq('id',item._sbId)
-      .then(({error})=>{if(error) console.error('[SB] delete vac:',error.message);});
+      .then(({error})=>{if(error) console.error('[SB] delete vac:',error.message); else _notifyWorkerUpdated();});
   }
 }
 
@@ -1427,10 +1428,10 @@ function setSkillLive(roleId,level,btn){
     if(!skillUUID){ console.warn('[SB] setSkillLive: sin UUID para',roleId); return; }
     if(level==='none'){
       _sb?.from('trabajador_skill').delete().eq('trabajador_id',w._sbId).eq('skill_id',skillUUID)
-        .then(({error})=>{if(error) console.error('[SB] delete skill:',error.message);});
+        .then(({error})=>{if(error) console.error('[SB] delete skill:',error.message); else _notifyWorkerUpdated();});
     } else {
       _sb?.from('trabajador_skill').upsert({trabajador_id:w._sbId,skill_id:skillUUID,nivel:level},{onConflict:'trabajador_id,skill_id'})
-        .then(({error})=>{if(error) console.error('[SB] upsert skill:',error.message);});
+        .then(({error})=>{if(error) console.error('[SB] upsert skill:',error.message); else _notifyWorkerUpdated();});
     }
   }
 }

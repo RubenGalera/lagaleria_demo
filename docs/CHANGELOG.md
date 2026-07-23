@@ -1,14 +1,15 @@
 # CHANGELOG — La Galería Neotaberna
 
 ## v0.2.17 — Sincronización Admin↔Turnos + fixes post-lanzamiento (julio 2026)
-- Fix crítico: restricciones de disponibilidad por día ahora leen y escriben desde tabla disponibilidad — antes hardcodeadas a vacío en Admin
-- Fix crítico: Admin/Trabajadores y Turnos leen de la misma fuente (Supabase)
+- Fix crítico: disponibilidad noche no se guardaba — 'noc' corregido a 'noch' en worker-modal.js, turnos.js y adminWorkers.js. 48 filas de disponibilidad nocturna ahora reconocidas correctamente
+- Fix crítico: skills y vacaciones no escribían en Supabase desde Admin — solo mutaban memoria con toast falso
+- Fix crítico: sincronización bidireccional Admin↔Turnos via postMessage — cambios en cualquier módulo se reflejan al cambiar de pestaña
+- Grid de días en Admin: vacío (sin turnos de semana concreta), solo lectura con toast informativo al pulsar
 - Trabajadores archivados con turnos: aparecen en grid solo lectura, excluidos del roster activo
-- Grid de días en Admin: modo solo lectura con toast informativo
-- Ubicaciones de stock desde BD (Bodega añadida), constraint de categoría eliminado
-- Crear producto con categoría Vinos y ubicación Bodega sin error
-- PIN escribible con teclado físico
-- Exportación de imagen en Turnos: botones añadir ocultos
+- Ubicaciones de stock desde BD — eliminado hardcoding, Bodega añadida
+- Constraint de categoría eliminado — Vinos funciona correctamente
+- PIN escribible con teclado físico (dígitos 0-9, Backspace, Enter)
+- Exportación imagen Turnos: botones añadir ocultos
 - Fuente del grid de Turnos aumentada (13px, altura mínima 26px)
 
 ## v0.2.16 — Eventos, trabajadores y fixes de roles (julio 2026)

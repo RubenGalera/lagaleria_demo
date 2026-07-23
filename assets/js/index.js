@@ -277,6 +277,20 @@ document.addEventListener('keydown', function(e){
 ══════════════════════════════ */
 var PAGES = ['inicio','turnos','reservas','stock','admin'];
 
+/* Admin y Turnos son iframes hermanos que quedan vivos en memoria mientras dura la
+   sesión — goTo() solo cambia cuál se ve, no los recarga. Cada módulo (turnos.js,
+   worker-modal.js, adminSkills.js, admin.js) avisa al shell por postMessage justo
+   después de guardar algo de un trabajador en Supabase; el shell solo marca que hace
+   falta refrescar — el refresco real (sin recargar el iframe entero) se dispara al
+   activar la pestaña correspondiente, y solo si de verdad hay algo pendiente. */
+var pendingWorkerReload = { admin:false, turnos:false };
+window.addEventListener('message', function(e){
+  if(e.data && e.data.type === 'worker_updated'){
+    pendingWorkerReload.admin = true;
+    pendingWorkerReload.turnos = true;
+  }
+});
+
 function goTo(page){
   PAGES.forEach(function(p){
     var fr = document.getElementById('fr-'+p);
@@ -291,6 +305,18 @@ function goTo(page){
   if(fr) fr.classList.add('active');
   if(bn) bn.classList.add('active');
   try{ if(fr && fr.contentWindow && fr.contentWindow.resetView) fr.contentWindow.resetView(); }catch(e){}
+  try{
+    if(page==='admin' && pendingWorkerReload.admin && fr && fr.contentWindow && typeof fr.contentWindow._syncTrab==='function'){
+      fr.contentWindow._syncTrab();
+      pendingWorkerReload.admin = false;
+    }
+  }catch(e){}
+  try{
+    if(page==='turnos' && pendingWorkerReload.turnos && fr && fr.contentWindow && typeof fr.contentWindow.sbInitTrabajadores==='function'){
+      fr.contentWindow.sbInitTrabajadores();
+      pendingWorkerReload.turnos = false;
+    }
+  }catch(e){}
 }
 
 var _hsiDimTimer = null;

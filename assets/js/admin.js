@@ -269,6 +269,9 @@ function openVacPopup(){
   showOv("ov-vac-popup");
 }
 
+/* addVacaciones()/delVacaciones() nunca llamaban a _sb — solo mutaban w.vacaciones en
+   memoria (se perdía al recargar). Mismo patrón que turnos.js: insert/delete en
+   trabajadores_vacaciones, con console.error explícito si falla. */
 function addVacaciones(){
   const w=getW(_previewName);if(!w)return;
   const desde=document.getElementById("vac-desde").value,hasta=document.getElementById("vac-hasta").value,tipo=document.getElementById("vac-tipo").value;
@@ -276,7 +279,8 @@ function addVacaciones(){
   if(desde>hasta){showToast("La fecha de inicio debe ser anterior al fin","error");return;}
   if(!w.vacaciones)w.vacaciones=[];
   const overlap=vacDatesOverlap(w.vacaciones,desde,hasta,-1);
-  w.vacaciones.push({desde,hasta,tipo});w.vacaciones.sort((a,b)=>a.desde.localeCompare(b.desde));
+  const newVac={desde,hasta,tipo};
+  w.vacaciones.push(newVac);w.vacaciones.sort((a,b)=>a.desde.localeCompare(b.desde));
   closeOv("ov-vac-popup");renderVacList();
   document.querySelectorAll("#prof-sg .sg-cell").forEach(c=>{
     c.classList.remove("on-vac");c.removeAttribute("data-vac-icon");
@@ -284,16 +288,29 @@ function addVacaciones(){
     if(vacIcon){c.classList.add("on-vac");c.setAttribute("data-vac-icon",vacIcon);}
   });
   showToast(overlap?"⚠️ Solapamiento detectado — revisa las fechas":"Periodo añadido ✓", overlap?"error":"success");
+  if(w._sbId){
+    _sb?.from('trabajadores_vacaciones').insert({trabajador_id:w._sbId,desde,hasta,tipo}).select('id').single()
+      .then(function(res){
+        if(res.error){ console.error('[SB] insert trabajadores_vacaciones:',res.error.message); return; }
+        if(res.data) newVac._sbId=res.data.id;
+        _notifyWorkerUpdated();
+      });
+  }
 }
 
 function delVacaciones(idx){
   const w=getW(_previewName);if(!w)return;
+  const item=w.vacaciones[idx];
   w.vacaciones.splice(idx,1);renderVacList();
   document.querySelectorAll("#prof-sg .sg-cell").forEach(c=>{
     c.classList.remove("on-vac");c.removeAttribute("data-vac-icon");
     const col=parseInt(c.dataset.col),vacIcon=getDayVacacion(_previewName,col);
     if(vacIcon){c.classList.add("on-vac");c.setAttribute("data-vac-icon",vacIcon);}
   });
+  if(w._sbId&&item&&item._sbId){
+    _sb?.from('trabajadores_vacaciones').delete().eq('id',item._sbId)
+      .then(function(res){ if(res.error) console.error('[SB] delete trabajadores_vacaciones:',res.error.message); else _notifyWorkerUpdated(); });
+  }
 }
 
 /* HORA ROWS */

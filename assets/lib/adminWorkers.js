@@ -14,15 +14,14 @@ var _trabWorkers = [];
 var curWeek  = 1;
 var curLocal = 'galeria';
 
-/* Turnos de la semana ACTUAL — SOLO LECTURA, cargados de verdad desde Supabase para que
-   el grid del modal de trabajador (y cntT()) no muestren siempre "0 turnos". Admin nunca
-   asigna turnos (eso vive en Turnos): scheduleAutosave()/saveWeekSnapshot() no existen en
-   esta página, así que aunque el grid fuera clicable no hay forma de que un cambio
-   persista — y además toggleSg() (worker-modal.js) ahora bloquea el click aquí con un
-   toast en vez de tocar esto. Se recarga cada vez que se abre el panel Trabajadores. */
-var _adminTurnosData = {sm:[[],[],[],[],[],[],[]],sn:[[],[],[],[],[],[],[]],cm:[[],[],[],[],[],[],[]],cn:[[],[],[],[],[],[],[]]};
-
-/* Stubs — worker-modal.js provides the real implementations when in Turnos */
+/* Stubs — worker-modal.js provides the real implementations when in Turnos.
+   L().data se queda SIEMPRE vacío a propósito: el grid de días de #prof-sg en Admin
+   es solo para restricciones genéricas, nunca debe mostrar ni cargar turnos asignados
+   de ninguna semana (eso vive exclusivamente en Turnos — tabla 'turnos'). Las celdas
+   marcadas que sí debe mostrar el modal son las de disponibilidad habitual
+   (unavailMed/unavailNoch, cargadas en _syncTrab() desde la tabla 'disponibilidad'),
+   que viven en una sección aparte del modal (#unavail-med/#unavail-noch), no en
+   #prof-sg. toggleSg() (worker-modal.js) sigue bloqueando el click aquí con un toast. */
 function buildGrid(){}
 function renderW(){}
 function updateStats(){}
@@ -30,38 +29,9 @@ function updateStats(){}
 function L(){
   return {
     staff: _trabWorkers,
-    data:  _adminTurnosData,
+    data:  {sm:[[],[],[],[],[],[],[]],sn:[[],[],[],[],[],[],[]],cm:[[],[],[],[],[],[],[]],cn:[[],[],[],[],[],[],[]]},
     eventos: [],
   };
-}
-
-function _mondayOfToday(){
-  var d=new Date();
-  var dow=d.getDay()||7;
-  d.setDate(d.getDate()-(dow-1));
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-}
-async function _loadAdminTurnosReadOnly(){
-  if(!_sb) return;
-  var semana=_mondayOfToday();
-  var res=await _sb.from('turnos').select('slot,dia,trabajador_id,hora_especial').eq('local_id',LOCAL_ID).eq('semana_inicio',semana);
-  if(res.error){ console.warn('[SB] _loadAdminTurnosReadOnly:',res.error.message); return; }
-  var data={sm:[[],[],[],[],[],[],[]],sn:[[],[],[],[],[],[],[]],cm:[[],[],[],[],[],[],[]],cn:[[],[],[],[],[],[],[]]};
-  if(!res.data||!res.data.length){ _adminTurnosData=data; return; }
-  /* idToName: TODOS los trabajadores del turno (incluidos archivados) — no solo
-     _trabWorkers (el roster activo, sin archivados). Un archivado puede seguir
-     teniendo turnos asignados esta semana y deben mostrarse igual, solo lectura. */
-  var ids=[...new Set(res.data.map(function(t){return t.trabajador_id;}))];
-  var namesRes=await _sb.from('trabajadores').select('id,nombre').in('id',ids);
-  if(namesRes.error){ console.warn('[SB] _loadAdminTurnosReadOnly (nombres):',namesRes.error.message); return; }
-  var idToName={};
-  (namesRes.data||[]).forEach(function(t){ idToName[t.id]=t.nombre; });
-  res.data.forEach(function(t){
-    var nombre=idToName[t.trabajador_id];
-    if(!nombre||!data[t.slot]) return;
-    data[t.slot][t.dia].push(nombre+(t.hora_especial?':'+t.hora_especial:''));
-  });
-  _adminTurnosData=data;
 }
 
 /* Helpers required by worker-modal.js */
@@ -70,35 +40,67 @@ function parse(raw){var p=raw.split(":");return{name:p[0].trim(),hour:p.length>1
 function getW(n){return L().staff.find(function(w){return w.name===n;})||null;}
 function cntT(name){var c=0;ROWS.forEach(function(r){L().data[r].forEach(function(d){if(d.some(function(n){return parse(n).name===name;}))c++;});});return c;}
 
-/* dispo: {med:[0,2,...], noc:[...]} para ESTE trabajador, ya agrupado desde la tabla
-   'disponibilidad' — ver _syncTrab(). Antes unavailMed/unavailNoch quedaban siempre
-   [] (nunca se cargaban), así que Admin mostraba "sin restricciones" aunque el
-   trabajador sí las tuviera guardadas en BD. */
-function _mapTrab(t, dispo){
-  return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,archivado:t.archivado===true,pinHash:t.pin_hash||null,mustChangePin:t.must_change_pin!==false,rol:t.rol||'empleado',disponible:t.disponible!==false,visible:t.visible!==false,skills:{},unavailMed:(dispo&&dispo.med)||[],unavailNoch:(dispo&&dispo.noc)||[],vacaciones:[],_sbId:t.id};
+/* extra: {dispo:{med:[],noc:[]}, skills:{roleId:nivel}, vacaciones:[{desde,hasta,tipo,_sbId}]}
+   para ESTE trabajador, ya agrupado desde las tablas reales — ver _syncTrab(). Antes las
+   tres quedaban siempre vacías (nunca se cargaban), así que Admin mostraba "sin
+   restricciones"/"sin skills"/"sin vacaciones" aunque el trabajador sí las tuviera
+   guardadas en BD — parecía que nada se guardaba nunca, cuando el guardado sí funcionaba. */
+function _mapTrab(t, extra){
+  extra = extra || {};
+  return {id:t.id,name:t.nombre,sec:t.seccion,tel:t.tel||'',email:t.email||'',photo:t.foto_url||null,prioridad:t.prioridad,minT:t.min_turnos||3,maxT:t.max_turnos||6,activo:t.activo,archivado:t.archivado===true,pinHash:t.pin_hash||null,mustChangePin:t.must_change_pin!==false,rol:t.rol||'empleado',disponible:t.disponible!==false,visible:t.visible!==false,skills:extra.skills||{},unavailMed:(extra.dispo&&extra.dispo.med)||[],unavailNoch:(extra.dispo&&extra.dispo.noc)||[],vacaciones:extra.vacaciones||[],_sbId:t.id};
 }
 
+/* Catálogo de skills (UUID en BD ↔ slug local ROLES_COCINA/ROLES_SALA) — mismo patrón
+   de fuzzy-match por label que usa turnos.js (sbInitTrabajadores), independiente de él
+   porque cada página tiene su propia copia de ROLES_COCINA/ROLES_SALA (mismos valores). */
+var _skillLocalToUUID = {};
+var _skillUUIDToLocal = {};
+
 async function _syncTrab(){
-  if(typeof sbLoadTrabajadores==='function'){
-    var ts=await sbLoadTrabajadores();
-    if(ts){
-      var dispoByW={};
-      var trabIds=ts.map(function(t){return t.id;});
-      if(trabIds.length&&_sb){
-        var dispoRes=await _sb.from('disponibilidad').select('trabajador_id,dia_semana,turno').in('trabajador_id',trabIds);
-        if(dispoRes.error){
-          console.warn('[SB] disponibilidad:',dispoRes.error.message);
-        } else {
-          (dispoRes.data||[]).forEach(function(r){
-            if(!dispoByW[r.trabajador_id]) dispoByW[r.trabajador_id]={med:[],noc:[]};
-            if(r.turno==='med') dispoByW[r.trabajador_id].med.push(r.dia_semana);
-            else if(r.turno==='noc') dispoByW[r.trabajador_id].noc.push(r.dia_semana);
-          });
-        }
-      }
-      _trabWorkers=ts.map(function(t){ return _mapTrab(t,dispoByW[t.id]); });
-    }
+  if(typeof sbLoadTrabajadores!=='function'){ renderTrabajadores(); loadArchivados(); return; }
+  var ts=await sbLoadTrabajadores();
+  if(!ts){ renderTrabajadores(); loadArchivados(); return; }
+  var trabIds=ts.map(function(t){return t.id;});
+  var dispoByW={}, skillsByW={}, vacByW={};
+  if(trabIds.length&&_sb){
+    var results=await Promise.all([
+      _sb.from('disponibilidad').select('trabajador_id,dia_semana,turno').in('trabajador_id',trabIds),
+      _sb.from('trabajadores_skills').select('id,nombre'),
+      _sb.from('trabajador_skill').select('trabajador_id,skill_id,nivel').in('trabajador_id',trabIds),
+      _sb.from('trabajadores_vacaciones').select('id,trabajador_id,desde,hasta,tipo').in('trabajador_id',trabIds),
+    ]);
+    var dispoRes=results[0], catalogRes=results[1], skillsRes=results[2], vacRes=results[3];
+    if(dispoRes.error) console.error('[SB] _syncTrab disponibilidad:',dispoRes.error.message);
+    else (dispoRes.data||[]).forEach(function(r){
+      if(!dispoByW[r.trabajador_id]) dispoByW[r.trabajador_id]={med:[],noc:[]};
+      if(r.turno==='med') dispoByW[r.trabajador_id].med.push(r.dia_semana);
+      else if(r.turno==='noch') dispoByW[r.trabajador_id].noc.push(r.dia_semana);
+    });
+    if(catalogRes.error) console.error('[SB] _syncTrab trabajadores_skills:',catalogRes.error.message);
+    if(skillsRes.error) console.error('[SB] _syncTrab trabajador_skill:',skillsRes.error.message);
+    if(vacRes.error) console.error('[SB] _syncTrab trabajadores_vacaciones:',vacRes.error.message);
+
+    _skillLocalToUUID={}; _skillUUIDToLocal={};
+    var ALL_ROLES_FLAT=(typeof ROLES_COCINA!=='undefined'&&typeof ROLES_SALA!=='undefined')?ROLES_COCINA.concat(ROLES_SALA):[];
+    (catalogRes.data||[]).forEach(function(s){
+      var sn=s.nombre.toLowerCase();
+      var role=ALL_ROLES_FLAT.find(function(r){ var rl=r.label.toLowerCase(); return rl===sn||rl.indexOf(sn)!==-1||sn.indexOf(rl)!==-1; });
+      if(role){ _skillLocalToUUID[role.id]=s.id; _skillUUIDToLocal[s.id]=role.id; }
+    });
+    (skillsRes.data||[]).forEach(function(r){
+      var localId=_skillUUIDToLocal[r.skill_id];
+      if(!localId) return;
+      if(!skillsByW[r.trabajador_id]) skillsByW[r.trabajador_id]={};
+      skillsByW[r.trabajador_id][localId]=r.nivel;
+    });
+    (vacRes.data||[]).forEach(function(r){
+      if(!vacByW[r.trabajador_id]) vacByW[r.trabajador_id]=[];
+      vacByW[r.trabajador_id].push({desde:r.desde,hasta:r.hasta,tipo:r.tipo||'vacaciones',_sbId:r.id});
+    });
   }
+  _trabWorkers=ts.map(function(t){
+    return _mapTrab(t,{dispo:dispoByW[t.id],skills:skillsByW[t.id],vacaciones:vacByW[t.id]});
+  });
   renderTrabajadores();
   loadArchivados();
 }
@@ -107,7 +109,6 @@ function openTrabajadores(){
   document.getElementById('view-editar-list').style.display='none';
   document.getElementById('view-trabajadores').classList.add('active');
   renderTrabajadores();
-  _loadAdminTurnosReadOnly();
 }
 function closeTrabajadores(){
   document.getElementById('view-trabajadores').classList.remove('active');

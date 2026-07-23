@@ -12,6 +12,14 @@ var _horaRows    = [];
 var _previewSnapshot = null;
 var ROL_LABELS = {empleado:'Empleado', encargado:'Encargado', admin:'Admin', superadmin:'Superadmin'};
 
+/* Avisa al shell (index.html) de que se guardó algo de un trabajador en Supabase —
+   el shell marca el otro módulo (Admin↔Turnos) para refrescar sus datos la próxima
+   vez que se active esa pestaña, sin recargar el iframe entero. No hace nada si la
+   página se abre suelta (sin shell / window.parent === window). */
+function _notifyWorkerUpdated() {
+  try { if (window.parent !== window) window.parent.postMessage({ type: 'worker_updated' }, '*'); } catch (e) {}
+}
+
 function getHour(name, d) {
   var h = '';
   ROWS.forEach(function(r) {
@@ -173,7 +181,7 @@ function toggleDisponible(el) {
   const w = getW(_previewName); if (!w) return;
   const val = !!el.checked;
   w.disponible = val;
-  if (w._sbId) sbUpdateTrabajador(w._sbId, { disponible: val });
+  if (w._sbId) { sbUpdateTrabajador(w._sbId, { disponible: val }); _notifyWorkerUpdated(); }
   _refreshInviteUI(w);
   if (typeof buildGrid === 'function') buildGrid();
   if (typeof renderW === 'function') renderW();
@@ -258,8 +266,9 @@ function updateAlert() {
 function toggleSg(cell) {
   /* Solo lectura fuera de Turnos (Admin/Inicio) — scheduleAutosave() solo existe en
      turnos.js, así que es la señal ya establecida en este archivo para "¿soy la página
-     real del grid?" (ver saveProfile()). El grid aquí muestra los turnos actuales de la
-     semana en curso (_adminTurnosData en adminWorkers.js) pero no se editan desde aquí. */
+     real del grid?" (ver saveProfile()). Fuera de Turnos este grid se queda siempre
+     vacío a propósito (L().data en adminWorkers.js) — no debe mostrar ni cargar turnos
+     asignados de ninguna semana, solo sirve para bloquear el click con este aviso. */
   if (typeof scheduleAutosave !== 'function') {
     if (typeof showToast === 'function') showToast('Los turnos se asignan desde el módulo Turnos, dentro de la semana correspondiente. Aquí solo puedes configurar restricciones generales.', 'info');
     return;
@@ -368,7 +377,11 @@ function saveProfile() {
   if (w._sbId) {
     var patch = { min_turnos: w.minT, max_turnos: w.maxT, prioridad: w.prioridad || 'eventual' };
     if (isAdmin) patch.rol = w.rol;
+    console.log('[DEBUG saveProfile] enviando a Supabase → id:', w._sbId, 'patch:', JSON.stringify(patch));
     sbUpdateTrabajador(w._sbId, patch);
+    _notifyWorkerUpdated();
+  } else {
+    console.warn('[DEBUG saveProfile] w._sbId es falsy — NO se llama a Supabase. w:', JSON.stringify(w));
   }
   if (typeof showToast === 'function') showToast('Perfil guardado ✓', 'success');
   if (typeof scheduleAutosave === 'function') scheduleAutosave();
@@ -377,7 +390,7 @@ function saveProfile() {
 /* ── Persiste a Supabase solo los días que realmente cambiaron desde la apertura del modal ── */
 function _syncUnavailToSupabase(w, snapshot) {
   if (!w._sbId || !snapshot) return;
-  [['unavailMed','med'], ['unavailNoch','noc']].forEach(([key, turno]) => {
+  [['unavailMed','med'], ['unavailNoch','noch']].forEach(([key, turno]) => {
     const before = snapshot[key] || [];
     const after = w[key] || [];
     after.filter(d => !before.includes(d)).forEach(d => {

@@ -155,6 +155,11 @@ function openSkillsModal(){
   document.getElementById('skills-modal-body').innerHTML=h;
   showOv('ov-skills');
 }
+/* Guardado inmediato en Supabase al pulsar un nivel — antes esta función solo mutaba
+   w.skills en memoria y no llamaba a _sb en absoluto, así que ningún cambio de skill
+   se guardaba nunca (el toast "Skills actualizados" de applySkills() mentía). Mismo
+   patrón que setSkillLive() en turnos.js: upsert/delete en trabajador_skill vía el
+   UUID del catálogo (_skillLocalToUUID, cargado en _syncTrab()). */
 function setSkillLive(roleId,level,btn){
   var w=getW(_previewName);if(!w)return;
   if(!w.skills)w.skills={};
@@ -162,6 +167,17 @@ function setSkillLive(roleId,level,btn){
   var row=btn.closest('.skill-row');
   if(row)row.querySelectorAll('.skill-pill').forEach(function(b){b.style.opacity='.5';});
   btn.style.opacity='1';
+  if(w._sbId){
+    var skillUUID=(typeof _skillLocalToUUID!=='undefined')?_skillLocalToUUID[roleId]:null;
+    if(!skillUUID){ console.error('[SB] setSkillLive: sin UUID de catálogo para',roleId); return; }
+    if(level==='none'){
+      _sb?.from('trabajador_skill').delete().eq('trabajador_id',w._sbId).eq('skill_id',skillUUID)
+        .then(function(res){ if(res.error) console.error('[SB] delete trabajador_skill:',res.error.message); else if(typeof _notifyWorkerUpdated==='function') _notifyWorkerUpdated(); });
+    } else {
+      _sb?.from('trabajador_skill').upsert({trabajador_id:w._sbId,skill_id:skillUUID,nivel:level},{onConflict:'trabajador_id,skill_id'})
+        .then(function(res){ if(res.error) console.error('[SB] upsert trabajador_skill:',res.error.message); else if(typeof _notifyWorkerUpdated==='function') _notifyWorkerUpdated(); });
+    }
+  }
 }
 function applySkills(){
   var w=getW(_previewName);
@@ -173,6 +189,8 @@ function applySkills(){
     var sub=document.getElementById('prev-sub');
     if(sub)sub.textContent=(w.sec==='sala'?'Sala':w.sec==='cocina'?'Cocina':'Ambos')+' · '+(curLocal==='galeria'?'La Galería':'La Sala');
     if(typeof _refreshInviteUI==='function')_refreshInviteUI(w);
+    /* sbUpdateTrabajador() (worker-modal.js) ya hace console.error internamente si falla */
+    if(w._sbId&&typeof sbUpdateTrabajador==='function') sbUpdateTrabajador(w._sbId,{seccion:w.sec});
   }
   renderSkillsSummary();closeOv('ov-skills');showToast('Skills actualizados');
 }
