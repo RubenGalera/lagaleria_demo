@@ -176,3 +176,37 @@ añade en mejoras, que la ubicacion del trabajador deberia ser mas determinante,
 
 
 añade tb en mejoras que actualemnte en el modal de trabajadores, en hora especial de entrada, se añade una etiqueta sobre el trabajador indicadndo la hora extra que le corresponde ese turno, hay dos cosas que quiero tener en cuenta para esta etiqueta, La primera esq actualmente se ve doble en el grid, si pones a las 14:00, se ve tambien en el turno de noche, que debe entrar a esa hora, cuando deberia interpretar que ese texto deberia salir solo en el turno de medio dia por logia horaria. como segundo es que en algunos casos a los trabajadores no solo se les pone hora en el grid, sino tb algun texto tipo (sala) para dar indicaciones adicionales de donde va en ese turno, deberiamosa añadir un boton de + Añadir nota especial con un texto para ese turno
+
+---
+
+## Modelo de negocio — SaaS para hostelería
+
+### Planes de suscripción
+Cuando la app esté madura y migrada a React, plantear lanzamiento como producto SaaS:
+
+- **Básico**: ~29€/mes — hasta 10 empleados, sin módulo de stock
+- **Profesional**: ~59€/mes — hasta 25 empleados, todos los módulos
+- **Multi-local**: ~99€/mes — varios locales desde un mismo panel
+
+**Estrategia de lanzamiento:**
+- La Galería Neotaberna como caso de éxito real y gratuito (6 meses mínimo)
+- Documentar ahorro de tiempo y mejoras operativas para usarlo como argumento de venta
+- Lanzar tras la migración a React con Supabase Auth real
+
+**Referentes:** TheFork (reservas), Factorial (RRHH/turnos), Sésame HR (3-5€/empleado/mes)
+
+**Ventaja competitiva:** combina en una sola app lo que normalmente requiere 3-4 herramientas distintas (turnos + reservas + stock/pedidos + eventos + contactos).
+
+### Portal para comerciales (B2B)
+Nuevo rol 'comercial' con acceso a un panel de solo lectura que muestra
+el stock de los productos de su proveedor asignado en cada local cliente.
+
+**Beneficios:**
+- Para el bar: el comercial ve proactivamente qué falta y propone el pedido
+- Para el comercial: fideliza al cliente, anticipa necesidades, vende más
+- Para el producto: línea de negocio B2B — distribuidores pagan por acceso a datos de stock de sus clientes hosteleros
+
+**Técnicamente:**
+- Rol 'comercial' con proveedor_id asignado
+- RLS en Supabase filtrando por proveedor_id — solo ve sus productos
+- Implementar con Supabase Auth en la migración a React

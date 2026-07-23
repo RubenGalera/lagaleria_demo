@@ -500,8 +500,10 @@ function buildGrid(){
         const archivedTag=archived?`<span class="chip-tag" title="Trabajador archivado — histórico, solo lectura">📁</span>`:"";
         const chipAv=isSafeImg(w&&w.photo)?`<img class="chip-av" src="${w.photo}" alt="">`:"";
         const notaMatch=w&&w.notas&&w.notas.find(n=>n.d===d&&n.turno===(isMed?'med':'noch'));
-        const notaIcon=notaMatch?`<span class="chip-tag" title="📝 ${(notaMatch.nota||'').replace(/"/g,'&quot;')}">📝</span>`:"";
-        chip.innerHTML=`<div class="dh"><span></span><span></span><span></span></div>${chipAv}<span class="chip-name">${name}</span>${hour?`<span class="chip-tag">${hour}</span>`:""}${archivedTag}${notaIcon}${warnIcon}`;
+        const notaText=notaMatch?(notaMatch.nota||''):'';
+        const notaTrunc=notaText.length>10?notaText.slice(0,10)+'…':notaText;
+        const notaTag=notaMatch?`<span class="chip-tag chip-nota" title="${notaText.replace(/"/g,'&quot;')}">${notaTrunc}</span>`:"";
+        chip.innerHTML=`<div class="dh"><span></span><span></span><span></span></div>${chipAv}<span class="chip-name">${name}</span>${hour?`<span class="chip-tag">${hour}</span>`:""}${archivedTag}${notaTag}${warnIcon}`;
         if(archived){
           chip.title='Trabajador archivado — turno histórico, solo lectura';
           chip.onclick=()=>{ if(typeof showToast==='function') showToast(name+' está archivado — este turno es histórico, solo lectura'); };
@@ -544,17 +546,47 @@ function setupDrag(chip,cell){
 
 /* ── NOTA ESPECIAL — fusión de la antigua "hora especial de entrada" + "notas":
    una fila = día + turno + texto libre, los 3 obligatorios (ver saveProfile). ── */
+/* Días/turnos donde el trabajador tiene turno asignado esta semana — {d: ['med','noch']} */
+function _notaAvailSlots(name){
+  const out={};
+  for(let d=0;d<7;d++){
+    const med=["sm","cm"].some(r=>(L().data[r][d]||[]).some(n=>parse(n).name===name));
+    const noch=["sn","cn"].some(r=>(L().data[r][d]||[]).some(n=>parse(n).name===name));
+    if(med||noch) out[d]=[...(med?["med"]:[]),...(noch?["noch"]:[])];
+  }
+  return out;
+}
+function _notaSetDay(i,d){
+  _notaRows[i].d=d;
+  const avail=_notaAvailSlots(_previewName)[d]||[];
+  if(!avail.includes(_notaRows[i].turno)) _notaRows[i].turno=avail[0]||'med';
+  renderNotaList();
+}
 function renderNotaList(){
   const list=document.getElementById("nota-list");if(!list)return;list.innerHTML="";
-  const DIAS_FULL=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+  const btn=document.getElementById("btn-add-nota");
+  const emptyMsg=document.getElementById("nota-empty-msg");
+  const slots=_notaAvailSlots(_previewName);
+  const availDays=Object.keys(slots).map(Number).sort((a,b)=>a-b);
+  if(btn) btn.disabled=availDays.length===0;
+  if(emptyMsg) emptyMsg.style.display=availDays.length===0?"":"none";
   _notaRows.forEach((nr,i)=>{
     const row=document.createElement("div");row.className="nota-row";
     const esc=s=>(s||"").replace(/"/g,"&quot;");
-    row.innerHTML=`<select class="nota-sel" onchange="_notaRows[${i}].d=parseInt(this.value)">${DIAS_FULL.map((d,di)=>`<option value="${di}" ${nr.d===di?"selected":""}>${d}</option>`).join("")}</select><select class="nota-sel" onchange="_notaRows[${i}].turno=this.value"><option value="med" ${nr.turno==="med"?"selected":""}>Mediodía</option><option value="noch" ${nr.turno==="noch"?"selected":""}>Noche</option></select><input class="nota-input" type="text" placeholder="Ej: 9:00, solo SALA, llega tarde..." value="${esc(nr.nota)}" oninput="_notaRows[${i}].nota=this.value"><button class="nota-del" onclick="_notaRows.splice(${i},1);renderNotaList()">&#215;</button>`;
+    const dayOpts=(availDays.includes(nr.d)?availDays:[...availDays,nr.d]).slice().sort((a,b)=>a-b);
+    const turnoBase=slots[nr.d]||[];
+    const turnoOpts=turnoBase.includes(nr.turno)?turnoBase:[...turnoBase,nr.turno];
+    row.innerHTML=`<select class="nota-sel" onchange="_notaSetDay(${i},parseInt(this.value))">${dayOpts.map(di=>`<option value="${di}" ${nr.d===di?"selected":""}>${DAYS_S[di]}</option>`).join("")}</select><select class="nota-sel" onchange="_notaRows[${i}].turno=this.value">${turnoOpts.map(t=>`<option value="${t}" ${nr.turno===t?"selected":""}>${t==="med"?"Mediodía":"Noche"}</option>`).join("")}</select><input class="nota-input" type="text" placeholder="9:00, SALA... (máx. 15)" value="${esc(nr.nota)}" oninput="_notaRows[${i}].nota=this.value"><button class="nota-del" onclick="_notaRows.splice(${i},1);renderNotaList()">&#215;</button>`;
     list.appendChild(row);
   });
 }
-function addNotaRow(){_notaRows.push({d:0,turno:'med',nota:''});renderNotaList();}
+function addNotaRow(){
+  const slots=_notaAvailSlots(_previewName);
+  const days=Object.keys(slots).map(Number).sort((a,b)=>a-b);
+  if(!days.length){ if(typeof showToast==='function') showToast('Este trabajador no tiene turnos asignados esta semana','error'); return; }
+  _notaRows.push({d:days[0],turno:slots[days[0]][0],nota:''});
+  renderNotaList();
+}
 
 /* ── TIME PICKER (reutilizable) ── */
 let _tpIdx=-1,_tpH=8,_tpM=0,_tpBtn=null,_tpCtx=null,_tpCb=null;

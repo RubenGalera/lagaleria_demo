@@ -18,7 +18,7 @@ var SEC_LABELS = {sala:'Sala', cocina:'Cocina', ambos:'Ambos'};
 var INFO_TEXTS = {
   minmax: 'Número mínimo y máximo de turnos que este trabajador debe tener en una semana. El autogenerador respeta estos límites.',
   unavail: 'Días y franjas en los que este trabajador nunca puede trabajar, independientemente de la semana.',
-  notaesp: 'Anotaciones específicas para un día y franja concretos. Se muestran junto al nombre en el grid de turnos. Útil para indicar horarios especiales, restricciones de zona, etc.',
+  notaesp: 'Añade una anotación para un día y turno concreto — aparecerá visible en el cuadrante junto al nombre del trabajador. Útil para indicar hora de entrada, zona de trabajo, etc. Solo puedes añadir notas en días donde el trabajador tenga turno asignado esta semana.',
   prioridad: 'Fijo: trabajador habitual con prioridad alta en la asignación. Extra: trabajador de apoyo, se asigna cuando hay huecos disponibles.',
   skills: 'Competencias especiales del trabajador (ej: jefe de cocina, barra, eventos). El autogenerador asegura que cada turno tenga las habilidades necesarias.',
   vacaciones: 'Periodos en los que el trabajador no está disponible. Se excluye automáticamente de los turnos en esas fechas.',
@@ -835,7 +835,8 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="acc-block">
         <div class="acc-block-title"><span>Nota especial<button type="button" class="info-btn" onclick="showInfoTip(event,'notaesp')">?</button></span></div>
         <div class="nota-list" id="nota-list"></div>
-        <button class="btn-add" onclick="addNotaRow()">+ Añadir nota especial</button>
+        <div class="nota-empty-msg" id="nota-empty-msg" style="display:none">No hay turnos asignados esta semana</div>
+        <button class="btn-add" id="btn-add-nota" onclick="addNotaRow()">+ Añadir nota especial</button>
       </div>
       <div class="acc-block">
         <div class="acc-block-title"><span>Prioridad de asignación<button type="button" class="info-btn" onclick="showInfoTip(event,'prioridad')">?</button></span></div>
