@@ -244,50 +244,6 @@
   </div>
 </div>
 
-<!-- MODAL: Añadir trabajador -->
-<div class="modal-overlay" id="ov-invite-trab" onclick="if(event.target===this)closeOv('ov-invite-trab')">
-  <div class="modal">
-    <div class="modal-hdr">
-      <span class="modal-title">Nuevo trabajador</span>
-      <button class="mclose" onclick="closeOv('ov-invite-trab')">&#215;</button>
-    </div>
-    <div class="modal-body">
-      <div class="fgroup" style="margin-bottom:12px">
-        <label class="flbl">Nombre completo</label>
-        <input class="inp" id="inv-nombre" placeholder="Lorenzo García..." type="text">
-      </div>
-      <div style="margin-bottom:12px">
-        <label class="flbl">Sección</label>
-        <div class="inv-sec-group">
-          <button class="inv-sec-btn active" data-sec="sala" onclick="inv_setSec(this)">🍺 Sala</button>
-          <button class="inv-sec-btn" data-sec="cocina" onclick="inv_setSec(this)">🍳 Cocina</button>
-          <button class="inv-sec-btn" data-sec="ambos" onclick="inv_setSec(this)">✦ Ambos</button>
-        </div>
-      </div>
-      <div class="fgroup" style="margin-bottom:12px">
-        <label class="flbl">Rol</label>
-        <select class="inp" id="inv-rol">
-          <option value="empleado">Empleado</option>
-          <option value="encargado">Encargado</option>
-          <option value="admin">Admin</option>
-        </select>
-      </div>
-      <div class="fgroup" style="margin-bottom:16px">
-        <label class="flbl">Teléfono <span style="font-size:10px;color:var(--dim);font-weight:400">opcional</span></label>
-        <input class="inp" id="inv-tel" placeholder="+34 600 000 000" type="tel">
-        <span style="font-size:11px;color:var(--dim);margin-top:4px;display:block">Necesario para el acceso a la app</span>
-      </div>
-      <div class="inv-access-row">
-        <div class="inv-access-icon">⚫</div>
-        <div>
-          <div style="font-size:12px;font-weight:600;color:var(--dim)">Sin acceso</div>
-          <div style="font-size:11px;color:var(--dim);margin-top:1px">Puedes invitarle desde su ficha cuando tengas su teléfono</div>
-        </div>
-      </div>
-      <button class="btn-guardar" onclick="inv_send()">Crear trabajador</button>
-    </div>
-  </div>
-</div>
 
 <input type="file" id="photo-input" accept="image/*" style="display:none">
 <input type="file" id="ev-photo-new-input" accept="image/*" style="display:none">
@@ -298,6 +254,7 @@
 <script src="assets/lib/ui-helpers.js"></script>
 <script src="assets/lib/utils.js"></script>
 <script src="assets/lib/toast.js"></script>
+<script src="assets/lib/workerCreateModal.js"></script>
 <script src="assets/lib/admin-entity-modal.js"></script>
 <script src="assets/lib/adminZones.js"></script>
 <script src="assets/lib/adminSkills.js"></script>

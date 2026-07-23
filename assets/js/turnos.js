@@ -192,10 +192,11 @@ async function sbUploadFotoTrabajador(id, file) {
 }
 
 async function sbArchivarTrabajador(id) {
-  if (!_sb || !id) return;
-  const { error } = await _sb.from('trabajadores').update({ activo: false }).eq('id', id);
-  if (error) console.error('[SB] sbArchivarTrabajador:', error.message);
-  else console.log('[SB] ✅ trabajador archivado:', id);
+  if (!_sb || !id) return false;
+  const { error } = await _sb.from('trabajadores').update({ archivado: true }).eq('id', id);
+  if (error) { console.error('[SB] sbArchivarTrabajador:', error.message); return false; }
+  console.log('[SB] ✅ trabajador archivado:', id);
+  return true;
 }
 
 async function sbRestaurarTrabajador(id) {
@@ -672,11 +673,14 @@ function confirmDelete(){
     () => { closeOv('ov-confirm'); showOv('ov-preview'); }
   );
 }
-function doDeleteWorker(){
+async function doDeleteWorker(){
   const w = getW(_previewName); if (!w) return;
   w.activo = false;
-  if (w._sbId) sbArchivarTrabajador(w._sbId);
   closeOv('ov-confirm');
+  const ok = w._sbId ? await sbArchivarTrabajador(w._sbId) : false;
+  if (!ok) { showToast('Error al archivar el trabajador'); return; }
+  const idx = L().staff.indexOf(w);
+  if (idx !== -1) L().staff.splice(idx, 1);
   buildGrid(); renderTrabajadores(); renderW(); updateStats();
   showToast('El trabajador ha sido archivado. Puedes borrarlo en Trabajadores archivados.');
 }
@@ -751,7 +755,12 @@ function openAddModal(row,col){
   document.getElementById("add-sub").textContent=`${ROW_LBL[row]} · ${DAYS_L[col]}`;
   const assigned=(L().data[row][col]||[]).map(n=>parse(n).name);
   const list=document.getElementById("add-worker-list");list.innerHTML="";
-  L().staff.filter(w=>w.activo!==false).forEach(w=>{
+  /* Sin filtro por w.activo: los archivados ya se excluyen de L().staff al
+     cargar (filtrados por la columna real `archivado`, ver sbInitTrabajadores).
+     Filtrar aquí también por activo!==false ocultaba a los trabajadores recién
+     creados (activo=false hasta que aceptan la invitación) del propio módulo
+     donde se acaban de crear — ver workerCreateModal.js. */
+  L().staff.forEach(w=>{
     const isAssigned=assigned.includes(w.name);
     const item=document.createElement("div");item.className="aw-item"+(isAssigned?" assigned":"");
     item.innerHTML=`<div class="aw-av">${isSafeImg(w.photo)?`<img src="${w.photo}">`:`${ini(w.name)}`}</div><div class="aw-name">${w.name}</div><span class="aw-tag">${w.sec}</span>${isAssigned?`<span class="aw-assigned-badge">ya asignado</span>`:""}`;
@@ -769,42 +778,19 @@ function openAddModal(row,col){
   showOv("ov-add");
 }
 
-/* ── NUEVO TRABAJADOR COMPLETO (solo admin/superadmin) — mismos campos que el modal de Admin:
-   nombre, sección, rol, teléfono. Ver openNuevoTrabajador()/inv_send() en adminWorkers.js. ── */
+/* ── NUEVO TRABAJADOR COMPLETO (solo admin/superadmin) ──
+   El modal en sí (campos, validación, INSERT) vive en assets/lib/workerCreateModal.js
+   — componente compartido con Admin (openNuevoTrabajador en adminWorkers.js).
+   Aquí solo se decide qué hacer con el trabajador una vez creado: añadirlo
+   al roster de esta semana y a los mapas nombre↔id que usa saveWeekSnapshot(). */
 function openNuevoTrabajadorCompleto(){
   closeOv("ov-add");
-  document.getElementById("nt-nombre").value="";
-  document.getElementById("nt-tel").value="";
-  document.getElementById("nt-rol").value="empleado";
-  document.querySelectorAll("#nt-sec-btns .prio-btn").forEach(b=>b.classList.toggle("act",b.dataset.sec==="sala"));
-  showOv("ov-nuevo-trabajador");
-}
-function nt_setSec(btn){
-  document.querySelectorAll("#nt-sec-btns .prio-btn").forEach(b=>b.classList.remove("act"));
-  btn.classList.add("act");
-}
-async function nt_send(){
-  const nombre=document.getElementById("nt-nombre").value.trim();
-  if(!nombre){showToast("Introduce el nombre");return;}
-  const dup=L().staff.find(w=>w.name.toLowerCase()===nombre.toLowerCase());
-  if(dup){showToast("Ya existe un trabajador con ese nombre");return;}
-  const secBtn=document.querySelector("#nt-sec-btns .prio-btn.act");
-  const sec=secBtn?secBtn.dataset.sec:"sala";
-  const rol=document.getElementById("nt-rol").value;
-  const tel=document.getElementById("nt-tel").value.trim();
-  if(!_sb){showToast("Sin conexión a Supabase");return;}
-  const {data,error}=await _sb.from('trabajadores').insert({
-    nombre, local_id:LOCAL_ID, seccion:sec, rol, tel:tel||null, activo:true, prioridad:'eventual', min_turnos:0, max_turnos:0
-  }).select('id').single();
-  if(error){showToast('Error al crear trabajador');console.error('[SB] nt_send:',error.message);return;}
-  const newW={name:nombre,sec,rol,photo:null,tel,minT:0,maxT:0,unavailMed:[],unavailNoch:[],vacaciones:[],skills:{},activo:true,prioridad:'eventual',_sbId:data.id};
-  L().staff.push(newW);
-  _nombreToId[nombre]=data.id;
-  _idToNombre[data.id]=nombre;
-  closeOv("ov-nuevo-trabajador");
-  buildGrid();renderW();updateStats();
-  showToast(nombre+' creado ✓');
-  openPreview(nombre);
+  openWorkerCreateModal(function(w){
+    L().staff.push(w);
+    _nombreToId[w.name]=w._sbId;
+    _idToNombre[w._sbId]=w.name;
+    buildGrid();renderW();updateStats();
+  });
 }
 
 /* ── PANEL TRABAJADORES ── */
@@ -814,7 +800,8 @@ function openTrabajadores(){
 }
 function renderTrabajadores(){
   updateStats();
-  document.getElementById("plist").innerHTML=L().staff.filter(w=>w.activo!==false).map(w=>`
+  /* Sin filtro por w.activo — ver comentario en openAddModal(). */
+  document.getElementById("plist").innerHTML=L().staff.map(w=>`
     <div class="pitem" onclick="closeOv('ov-trabajadores');openPreview('${w.name}')">
       <div class="p-av">${isSafeImg(w.photo)?`<img src="${w.photo}" alt="${w.name}">`:`${ini(w.name)}`}</div>
       <div class="p-info"><div class="p-name">${w.name}</div><div class="p-sect">${w.sec==="sala"?"Sala":w.sec==="cocina"?"Cocina":"Ambos"} · ${cntT(w.name)} turnos</div></div>
@@ -1563,14 +1550,16 @@ function getNeedsFromConfig(slot, day){
   return result;
 }
 
-/* ── AUTOGENERADOR ── */
-function openAutoModal(){
-  const res = document.getElementById('auto-result');
-  if(res){ res.style.display='none'; res.innerHTML=''; }
-  document.getElementById('auto-sub').textContent =
+/* ── GENERAR (plantilla / automático / guardar plantilla) ──
+   La lógica del autogenerador vive en assets/lib/turnoAutogen.js
+   (runTurnoAutogenCore) y la de plantillas en assets/lib/turnoPlantilla.js
+   (savePlantilla/loadPlantilla) — aquí solo se orquesta: abrir/cerrar el
+   modal, llamar a esas funciones y refrescar grid/stats/autosave/toast. */
+function openGenerarModal(){
+  document.getElementById('generar-sub').textContent =
     document.getElementById('wlabel').textContent + ' · ' +
     (curLocal==='galeria'?'La Galería':'La Sala');
-  showOv('ov-auto');
+  showOv('ov-generar');
 }
 
 function limpiarSemana(){
@@ -1581,157 +1570,61 @@ function limpiarSemana(){
   scheduleAutosave();
 }
 
-function runAutoGen(){
-  // Show loading
+/* "Cargar plantilla" — superpone sobre lo que ya haya en el grid (no borra),
+   filtrando trabajadores archivados/de vacaciones/no-disponibles ese día. */
+async function handleCargarPlantilla(){
+  if(typeof _sb==='undefined'||!_sb){ showToast('Sin conexión'); return; }
+  const res = await loadPlantilla(LOCAL_ID, curMonday, L().staff);
+  if(!res || !res.ok){ showToast('Error al cargar la plantilla'); closeOv('ov-generar'); return; }
+  if(res.empty){ showToast('No hay plantilla guardada todavía'); closeOv('ov-generar'); return; }
+  let addedCount=0, dupSkipped=0;
+  res.added.forEach(a=>{
+    if(!L().data[a.slot][a.dia]) L().data[a.slot][a.dia]=[];
+    if(L().data[a.slot][a.dia].some(n=>parse(n).name===a.name)){ dupSkipped++; return; }
+    L().data[a.slot][a.dia].push(a.name);
+    addedCount++;
+  });
+  buildGrid(); renderW(); updateStats();
+  if(addedCount) scheduleAutosave();
+  showToast('Plantilla cargada — '+addedCount+' añadidos, '+(res.ignored+dupSkipped)+' ignorados');
+  closeOv('ov-generar');
+}
+
+/* "Automático" — ejecuta el autogenerador existente sin cambios de lógica
+   (runTurnoAutogenCore, en turnoAutogen.js) y cierra el modal al terminar. */
+function handleAutomatico(){
   const loadEl = document.getElementById('autogen-loading');
   if(loadEl) loadEl.classList.add('show');
   setTimeout(()=>{
-  _runAutoGenCore();
-  if(loadEl) loadEl.classList.remove('show');
+    const result = runTurnoAutogenCore();
+    buildGrid(); renderW(); updateStats();
+    scheduleAutosave();
+    if(loadEl) loadEl.classList.remove('show');
+    const msg = (!result.assigned.length && !result.alerts.length)
+      ? 'La semana ya cumple todos los requisitos ✓'
+      : 'Generado ✓ — '+result.assigned.length+' asignaciones'+(result.alerts.length?', '+result.alerts.length+' sin cobertura':'');
+    showToast(msg);
+    closeOv('ov-generar');
   }, 50);
 }
-function _runAutoGenCore(){
-  const z = L();
-  const DAYS7 = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-  const SLOT_LBL = {sm:'Sala med',sn:'Sala noche',cm:'Cocina med',cn:'Cocina noche'};
-  const isMed = {sm:true,sn:false,cm:true,cn:false};
-  const assigned = [];
-  const alerts = [];
-  const runMap = {}; // slot-day → [names assigned this run]
 
-  function alreadyIn(slot,day){
-    return (z.data[slot][day]||[]).map(n=>parse(n).name);
-  }
-  function alreadyInRun(name,slot,day){
-    return ((runMap[slot+'-'+day])||[]).includes(name);
-  }
-  function markAssign(w,slot,day){
-    const key=slot+'-'+day;
-    if(!runMap[key]) runMap[key]=[];
-    runMap[key].push(w.name);
-    if(!z.data[slot][day]) z.data[slot][day]=[];
-    z.data[slot][day].push(w.name);
-    assigned.push({name:w.name,slot,day});
-  }
-  function isAvail(w,slot,day){
-    if(w.activo===false) return false;
-    if(w.disponible===false||w.visible===false) return false;
-    if(alreadyIn(slot,day).includes(w.name)) return false;
-    if(alreadyInRun(w.name,slot,day)) return false;
-    const med=isMed[slot];
-    const unavail=med?(w.unavailMed||[]):(w.unavailNoch||[]);
-    if(unavail.includes(day)) return false;
-    if(getDayVacacion(w.name,day)) return false;
-    if(w.maxT && cntT(w.name)>=w.maxT) return false;
-    return true;
-  }
-  function skillLv(w,roleId){
-    return (w.skills&&w.skills[roleId])||'none';
-  }
-  function workerSatisfies(w,entry){
-    const lv=skillLv(w,entry.roleId);
-    if(lv==='none') return false;
-    if(entry.level==='domina') return lv==='domina';
-    return true;
-  }
-
-  // Count how many workers CAN satisfy an entry for a given slot+day
-  // (used to sort entries by scarcity — rarest first)
-  function countCandidates(entry,slot,day){
-    return z.staff.filter(w=>isAvail(w,slot,day)&&workerSatisfies(w,entry)).length;
-  }
-
-  // Get ordered candidate list: fijo+domina → fijo+puede → eventual+domina → eventual+puede
-  function getCandidates(entry,slot,day){
-    const passes=[
-      w=>(w.prioridad||'eventual')==='fijo'    && skillLv(w,entry.roleId)==='domina',
-      w=>(w.prioridad||'eventual')==='fijo'    && skillLv(w,entry.roleId)==='puede' && entry.level==='puede',
-      w=>(w.prioridad||'eventual')==='eventual' && skillLv(w,entry.roleId)==='domina',
-      w=>(w.prioridad||'eventual')==='eventual' && skillLv(w,entry.roleId)==='puede' && entry.level==='puede',
-    ];
-    const result=[];
-    passes.forEach(pass=>{
-      z.staff.filter(w=>pass(w)&&isAvail(w,slot,day)&&!result.includes(w))
-             .forEach(w=>result.push(w));
-    });
-    return result;
-  }
-
+/* "Guardar plantilla" — no cierra el modal, para poder encadenar con
+   "Cargar plantilla"/"Automático" sin tener que reabrirlo. */
+async function handleGuardarPlantilla(){
+  if(typeof _sb==='undefined'||!_sb){ showToast('Sin conexión'); return; }
+  const gridData=[];
   ROWS.forEach(slot=>{
     for(let day=0;day<7;day++){
-      const entries=(weekConfig[day]||{})[slot]||[];
-      if(!entries.length) return;
-
-      // ── MARK ALREADY SATISFIED ──
-      const satisfied=new Array(entries.length).fill(false);
-      alreadyIn(slot,day).forEach(name=>{
-        const w=z.staff.find(x=>x.name===name); if(!w) return;
-        for(let i=0;i<entries.length;i++){
-          if(!satisfied[i]&&workerSatisfies(w,entries[i])){
-            satisfied[i]=true; break;
-          }
-        }
-      });
-
-      // ── SORT UNSATISFIED BY SCARCITY (fewest candidates first) ──
-      // Build index array of unsatisfied entries, sorted by candidate count asc
-      const unsatisfiedIdx = entries
-        .map((e,i)=>({i,e,count:satisfied[i]?Infinity:countCandidates(e,slot,day)}))
-        .filter(x=>!satisfied[x.i])
-        .sort((a,b)=>a.count-b.count)
-        .map(x=>x.i);
-
-      // ── FILL IN SCARCITY ORDER ──
-      unsatisfiedIdx.forEach(i=>{
-        const entry=entries[i];
-        const candidates=getCandidates(entry,slot,day);
-        let found=false;
-        for(const w of candidates){
-          if(!isAvail(w,slot,day)) continue; // re-check after previous assignments
-          markAssign(w,slot,day);
-          satisfied[i]=true;
-          found=true;
-          break;
-        }
-        if(!found){
-          const role=SLOT_ROLES[slot].find(r=>r.id===entry.roleId);
-          alerts.push('⚠ '+DAYS7[day]+' '+SLOT_LBL[slot]+
-            ' — '+(role?(role.icon||'')+' '+role.label:entry.roleId)+
-            ' ('+entry.level+'): sin candidato disponible');
-        }
+      (L().data[slot][day]||[]).forEach(raw=>{
+        const {name}=parse(raw);
+        const w=getW(name);
+        if(w&&w._sbId) gridData.push({slot,dia:day,trabajadorId:w._sbId});
       });
     }
   });
-
-  // ── SHOW RESULT ──
-  const res=document.getElementById('auto-result');
-  res.style.display='block';
-  let h='';
-  if(!assigned.length&&!alerts.length){
-    h='<div style="color:var(--acc);font-size:13px;font-weight:600">✓ La semana ya cumple todos los requisitos</div>';
-  } else {
-    if(assigned.length){
-      const groups={};
-      assigned.forEach(a=>{
-        const k=a.slot+'-'+a.day;
-        if(!groups[k]) groups[k]={slot:a.slot,day:a.day,names:[]};
-        groups[k].names.push(a.name);
-      });
-      h+='<div style="color:#5ab870;font-size:12px;font-weight:700;margin-bottom:6px">✓ '+assigned.length+' asignaciones realizadas</div>';
-      Object.values(groups).forEach(g=>{
-        h+='<div style="font-size:11px;color:var(--muted);padding:2px 0">'+
-          SLOT_LBL[g.slot]+' '+DAYS7[g.day]+': '+g.names.join(', ')+'</div>';
-      });
-    }
-    if(alerts.length){
-      h+='<div style="color:#cc6060;font-size:12px;font-weight:700;margin-top:8px;margin-bottom:4px">Sin cobertura:</div>';
-      alerts.forEach(a=>{h+='<div style="font-size:11px;color:#cc8080;padding:2px 0">'+a+'</div>';});
-    }
-  }
-  res.innerHTML=h;
-  buildGrid(); renderW(); updateStats();
-  scheduleAutosave();
-} // end _runAutoGenCore
+  const res = await savePlantilla(LOCAL_ID, gridData);
+  showToast(res&&res.ok ? 'Plantilla guardada ✓' : 'Error al guardar la plantilla');
+}
 
 
 /* ── FUNCIONES WEEK CONFIG ── */

@@ -151,49 +151,14 @@ function renderTrabajadores(){
   });
 }
 
+/* El modal en sí (campos, validación, INSERT) vive en assets/lib/workerCreateModal.js
+   — componente compartido con Turnos (openNuevoTrabajadorCompleto en turnos.js).
+   Aquí solo se decide qué hacer con el trabajador una vez creado. */
 function openNuevoTrabajador(){
-  ['inv-nombre','inv-tel'].forEach(function(id){
-    var el=document.getElementById(id);
-    if(el){el.value='';el.style.borderColor='';}
-    var hint=el&&el.parentNode.querySelector('.inv-error');if(hint)hint.textContent='';
+  openWorkerCreateModal(function(w){
+    _trabWorkers.push(w);
+    if(typeof renderTrabajadores==='function')renderTrabajadores();
   });
-  var rolSel=document.getElementById('inv-rol');if(rolSel)rolSel.value='empleado';
-  document.querySelectorAll('.inv-sec-btn').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-sec')==='sala');});
-  showOv('ov-invite-trab');
-}
-function inv_setSec(btn){document.querySelectorAll('.inv-sec-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');}
-function inv_send(){
-  var nombreEl=document.getElementById('inv-nombre'),telEl=document.getElementById('inv-tel'),rolEl=document.getElementById('inv-rol');
-  var nombre=(nombreEl.value||'').trim(),tel=(telEl.value||'').trim();
-  var rol=rolEl?rolEl.value:'empleado';
-  var secBtn=document.querySelector('.inv-sec-btn.active'),sec=secBtn?secBtn.getAttribute('data-sec'):'sala';
-  if(!nombre){inv_fieldError(nombreEl,'Introduce el nombre completo');return;}
-  var dupNombre=_trabWorkers.find(function(w){return w.name.toLowerCase()===nombre.toLowerCase();});
-  if(dupNombre){inv_fieldError(nombreEl,'Ya existe un trabajador llamado '+nombre+' en este local');return;}
-  if(tel){
-    if(!/^[+\d\s]{6,}$/.test(tel)){inv_fieldError(telEl,'El formato del teléfono no es válido');return;}
-    var dupTel=_trabWorkers.find(function(w){return(w.tel||'').replace(/\s/g,'')===(tel.replace(/\s/g,''));});
-    if(dupTel){inv_fieldError(telEl,'Este teléfono ya pertenece a '+dupTel.name);return;}
-  }
-  var newWorker={name:nombre,sec:sec,tel:tel,rol:rol,email:'',photo:null,minT:3,maxT:6,unavailMed:[],unavailNoch:[],vacaciones:[],prioridad:'eventual',skills:{},activo:false,pinHash:null,mustChangePin:true};
-  _trabWorkers.push(newWorker);
-  /* Capturamos el id real que devuelve Supabase — sin él, newWorker no tiene _sbId
-     y no se podría, por ejemplo, enviarle la invitación hasta el próximo resync. */
-  sbSaveTrabajador(newWorker).then(function(result){
-    if(result&&result.id){newWorker._sbId=result.id;newWorker.id=result.id;}
-  }).catch(function(e){console.warn('[SB] create worker failed:',e);});
-  if(typeof renderTrabajadores==='function')renderTrabajadores();
-  closeOv('ov-invite-trab');
-  var msg=nombre+' añadido a la plantilla';if(!tel)msg+=' — recuerda añadir su teléfono para darle acceso';
-  if(typeof showToast==='function')showToast(msg);
-}
-function inv_fieldError(el,msg){
-  if(!el)return;
-  el.focus();el.style.borderColor='var(--red,#fc8181)';
-  var hint=el.parentNode.querySelector('.inv-error');
-  if(!hint){hint=document.createElement('span');hint.className='inv-error';hint.style.cssText='font-size:11px;color:var(--red,#fc8181);margin-top:4px;display:block';el.parentNode.appendChild(hint);}
-  hint.textContent=msg;
-  el.oninput=function(){el.style.borderColor='';if(hint)hint.textContent='';};
 }
 
 function saveWorker(name){

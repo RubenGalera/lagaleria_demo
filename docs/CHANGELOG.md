@@ -1,5 +1,32 @@
 # CHANGELOG — La Galería Neotaberna
 
+
+Añadir al inicio de docs/CHANGELOG.md (después del título, antes de v0.2.18):
+
+## v0.2.19 — Plantillas de turno + componente unificado de trabajador (julio 2026)
+- Sistema de plantillas de turno: modal "Generar" ampliado con Cargar plantilla / Automático / Guardar plantilla. Cargar respeta vacaciones, días no disponibles y trabajadores archivados
+- turnoPlantilla.js y turnoAutogen.js extraídos a assets/lib/ con JSDoc
+- Barra de Turnos reducida a 2 botones: Generar y Limpiar
+- workerCreateModal.js — componente compartido para crear trabajador. Admin y Turnos usan el mismo modal (mismos campos, mismo guardado en BD)
+- Fix: archivar trabajador desde Turnos ahora actualiza columna archivado=true en BD
+- Fix: trabajador archivado desaparece al instante de la lista en Turnos sin recargar
+
+
+## v0.2.18 — Mejoras modal trabajador, eventos y accesos rápidos (julio 2026)
+- Modal trabajador: secciones reorganizadas (Min/Max → Días no disponibles → Nota especial → Prioridad → Habilidades → Vacaciones)
+- Fusión "Hora especial" + "Notas" en una única sección "Nota especial" (día + turno + texto, los 3 obligatorios). Las notas aparecen como 📝 en el chip del día/turno correcto en el grid de Turnos
+- Botones (?) informativos junto a cada sección del modal de trabajador
+- Rename "Eventual" → "Extra" con botón seleccionado resaltado
+- Toggle "Descuento 50%" en asistentes de evento (cuenta 0.5 en total económico)
+- Botones 📞 💬 en modal de asistente de evento
+- Visor de Contactos y Proveedores en Inicio — acceso rápido con llamada/WhatsApp, solo lectura
+- Fix: eventos.descripcion corregido (antes buscaba columna nombre inexistente → error 400)
+- Cards de trabajador en Admin muestran rol en vez de sección
+- Foto de perfil sustituye inicial en header, cards Admin, modal y chips de Turnos
+- Sección editable desde modal de trabajador (admin)
+- Dudosos no cuentan en total económico del evento
+- Vinos y ubicación Bodega funcionando en Stock
+
 ## v0.2.17 — Sincronización Admin↔Turnos + fixes post-lanzamiento (julio 2026)
 - Fix crítico: disponibilidad noche no se guardaba — 'noc' corregido a 'noch' en worker-modal.js, turnos.js y adminWorkers.js. 48 filas de disponibilidad nocturna ahora reconocidas correctamente
 - Fix crítico: skills y vacaciones no escribían en Supabase desde Admin — solo mutaban memoria con toast falso

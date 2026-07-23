@@ -34,12 +34,12 @@
       <button class="wbtn tt-arrow" onclick="changeWeek(1)">&#8250;</button>
     </div>
     <div class="tp-actions">
-      <button class="tpill tpill-accent" onclick="openAutoModal()">
-        <span class="tpill-icon">✨</span>
-        <span class="tpill-txt">Autogenerar</span>
+      <button class="tpill tpill-accent" onclick="openGenerarModal()">
+        <span class="tpill-icon">✦</span>
+        <span class="tpill-txt">Generar</span>
       </button>
       <button class="tpill tpill-danger" onclick="limpiarSemana()">
-        <span class="tpill-icon">🗑</span>
+        <span class="tpill-icon">🧹</span>
         <span class="tpill-txt">Limpiar</span>
       </button>
     </div>
@@ -119,32 +119,6 @@
   </div>
 </div>
 
-<!-- NUEVO TRABAJADOR COMPLETO (solo admin/superadmin) — mismos campos que Admin: nombre, sección, rol, teléfono -->
-<div class="overlay" id="ov-nuevo-trabajador">
-  <div class="modal">
-    <div class="modal-hdr">
-      <div><div class="modal-title">Nuevo trabajador</div></div>
-      <button class="mclose" onclick="closeOv('ov-nuevo-trabajador')">&#215;</button>
-    </div>
-    <div class="msec" style="margin-top:0">Nombre completo</div>
-    <input class="pnew-input" id="nt-nombre" type="text" placeholder="Nombre..." style="width:100%">
-    <div class="msec">Sección</div>
-    <div class="prio-btns" id="nt-sec-btns">
-      <button class="prio-btn act" data-sec="sala" onclick="nt_setSec(this)">🍺 Sala</button>
-      <button class="prio-btn" data-sec="cocina" onclick="nt_setSec(this)">🍳 Cocina</button>
-      <button class="prio-btn" data-sec="ambos" onclick="nt_setSec(this)">✦ Ambos</button>
-    </div>
-    <div class="msec">Rol</div>
-    <select class="pnew-input" id="nt-rol" style="width:100%">
-      <option value="empleado">Empleado</option>
-      <option value="encargado">Encargado</option>
-      <option value="admin">Admin</option>
-    </select>
-    <div class="msec">Teléfono <span style="font-size:10px;color:var(--faint);font-weight:400">opcional</span></div>
-    <input class="pnew-input" id="nt-tel" type="tel" placeholder="+34 600 000 000" style="width:100%">
-    <button class="btn-add" style="margin-top:14px" onclick="nt_send()">Crear trabajador</button>
-  </div>
-</div>
 
 <!-- TRABAJADORES -->
 <div class="overlay" id="ov-trabajadores">
@@ -309,19 +283,22 @@
 
 
 
-<!-- AUTOGENERATE MODAL -->
-<div class="overlay" id="ov-auto">
+<!-- GENERAR MODAL (plantilla / automático / guardar plantilla) -->
+<div class="overlay" id="ov-generar">
   <div class="modal" style="max-height:88vh;overflow-y:auto">
     <div class="modal-hdr">
       <div>
-        <div class="modal-title">✨ Autogenerar turnos</div>
-        <div class="modal-sub" id="auto-sub"></div>
+        <div class="modal-title">Planificación de turnos</div>
+        <div class="modal-sub" id="generar-sub"></div>
       </div>
-      <button class="mclose" onclick="closeOv('ov-auto')">&#215;</button>
+      <button class="mclose" onclick="closeOv('ov-generar')">&#215;</button>
     </div>
-    <div id="auto-result" style="display:none;margin-bottom:12px;padding:10px;background:var(--nav);border-radius:8px;border:1px solid var(--border)"></div>
-    <button class="btn-confirm" style="width:100%" onclick="runAutoGen()">✨ Generar ahora</button>
-    <button class="btn-add" style="margin-top:6px;width:100%" onclick="closeOv('ov-auto')">Cancelar</button>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn-confirm" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px" onclick="handleCargarPlantilla()"><span>📂</span>Cargar plantilla</button>
+      <button class="btn-add" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px" onclick="handleAutomatico()"><span>✦</span>Automático</button>
+      <button class="btn-add" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px" onclick="handleGuardarPlantilla()"><span>💾</span>Guardar plantilla</button>
+      <button style="width:100%;background:transparent;border:none;color:var(--dim);font-size:13px;font-weight:600;cursor:pointer;padding:8px;text-align:center" onclick="closeOv('ov-generar')">Cancelar</button>
+    </div>
   </div>
 </div>
 <!-- WEEK CONFIG MODAL -->
@@ -368,6 +345,9 @@
 <script src="assets/lib/supabase-client.js"></script>
 <script src="assets/lib/worker-modal.js"></script>
 <script src="assets/lib/date-picker.js"></script>
+<script src="assets/lib/turnoAutogen.js"></script>
+<script src="assets/lib/turnoPlantilla.js"></script>
+<script src="assets/lib/workerCreateModal.js"></script>
 <script src="assets/js/turnos.js"></script>
 
 </body>

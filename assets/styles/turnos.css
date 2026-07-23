@@ -448,8 +448,6 @@ input[type=file]{display:none}
 .prio-btn{flex:1;padding:7px;border-radius:7px;border:1px solid var(--border2);font-size:12px;font-weight:700;cursor:pointer;background:var(--bg);color:var(--faint);text-align:center;transition:all .15s}
 .prio-btn:active{opacity:.7}
 .prio-btn.prio-fijo,.prio-btn.prio-eventual{background:var(--acc);color:#1a1810;border-color:var(--acc)}
-/* modificador genérico "seleccionado" para grupos de .prio-btn con más de 2 opciones (ver #nt-sec-btns) */
-.prio-btn.act{background:rgba(197,166,105,.15);color:var(--acc);border-color:var(--acc-bd)}
 
 /* ── SKILLS / HABILIDADES ── */
 .skill-dept-lbl{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.8px;padding:8px 0 4px;display:flex;align-items:center;gap:6px}
