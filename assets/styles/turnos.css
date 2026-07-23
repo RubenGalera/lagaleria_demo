@@ -135,6 +135,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .chip-cm{background:var(--cm-bg);border:1px solid var(--cm-bd)}
 .chip-cn{background:var(--cn-bg);border:1px solid var(--cn-bd)}
 .chip-name{font-size:13px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#d0dde2}
+.chip-av{width:16px;height:16px;border-radius:50%;object-fit:cover;flex-shrink:0}
 .chip-tag{font-size:9px;padding:1px 5px;border-radius:3px;white-space:nowrap;flex-shrink:0;background:var(--acc-bg);color:var(--acc);border:1px solid var(--acc-bd)}
 /* Trabajador archivado con turno histórico esta semana — solo lectura (ver isArchivedName() en turnos.js) */
 .chip-archived{opacity:.5;cursor:default}

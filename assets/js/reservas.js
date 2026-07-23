@@ -899,9 +899,11 @@ function confirmDelEvento(){
 function renderEvStats(ev){
   /* dudoso no cuenta como confirmado en el total de personas de la cata */
   const totalPax=ev.asistentes.filter(a=>!a.dudoso).reduce((s,a)=>s+1+(Number(a.acomp)||0),0);
+  /* total económico: solo confirmados que pagan — ni dudosos ni invitados (pago='invitado') */
+  const totalPaxPago=ev.asistentes.filter(a=>!a.dudoso&&a.pago!=='invitado').reduce((s,a)=>s+1+(Number(a.acomp)||0),0);
   const pagados=ev.asistentes.filter(a=>a.pago==='pagado').reduce((s,a)=>s+1+(Number(a.acomp)||0),0);
   const precio=parseFloat(ev.precio)||0;
-  const totalEur=precio>0?(totalPax*precio).toFixed(0):null;
+  const totalEur=precio>0?(totalPaxPago*precio).toFixed(0):null;
   const pagadoEur=precio>0?(pagados*precio).toFixed(0):null;
   const aforoWarn=ev.aforo&&totalPax>ev.aforo;
   document.getElementById('evd-stats').innerHTML=`
@@ -1017,6 +1019,21 @@ function selectAsiMetodo(m,el){
 function getAsiPago(){return document.querySelector('#asi-pago-pills .zona-pill.act')?.dataset.p||'pendiente';}
 function getAsiMetodo(){return document.querySelector('#asi-metodo-pills .zona-pill.act')?.dataset.m||null;}
 
+/* ── Botones llamar/WhatsApp del asistente — mismo patrón que _callTelField/
+   _waTelField en adminStock.js (proveedores), cleanTel() viene de utils.js ── */
+function _updateAsiContactBtns(){
+  const wrap=document.getElementById('asi-contact-btns');if(!wrap)return;
+  wrap.style.display=cleanTel(document.getElementById('asi-tel').value)?'flex':'none';
+}
+function callAsistente(){
+  const v=cleanTel(document.getElementById('asi-tel').value);
+  if(v) window.location.href='tel:'+v;
+}
+function waAsistente(){
+  const v=cleanTel(document.getElementById('asi-tel').value);
+  if(v) window.open('https://wa.me/34'+v,'_blank');
+}
+
 function openNewAsistente(){
   editingAsiId=null;
   document.getElementById('asi-modal-title').textContent='Nuevo asistente';
@@ -1030,6 +1047,7 @@ function openNewAsistente(){
   document.querySelectorAll('#asi-metodo-pills .zona-pill').forEach(p=>p.classList.remove('act'));
   document.getElementById('asi-metodo-wrap').style.display='none';
   document.getElementById('asi-nota').value='';
+  _updateAsiContactBtns();
   showModal('ov-asistente');
 }
 function openEditAsistente(evId,aId){
@@ -1048,6 +1066,7 @@ function openEditAsistente(evId,aId){
   document.querySelectorAll('#asi-metodo-pills .zona-pill').forEach(p=>p.classList.remove('act'));
   if(a.metodo) document.querySelector(`#asi-metodo-pills [data-m="${a.metodo}"]`)?.classList.add('act');
   document.getElementById('asi-nota').value=a.nota||'';
+  _updateAsiContactBtns();
   showModal('ov-asistente');
 }
 async function saveAsistente(){

@@ -11,6 +11,7 @@ var _previewName = '';
 var _horaRows    = [];
 var _previewSnapshot = null;
 var ROL_LABELS = {empleado:'Empleado', encargado:'Encargado', admin:'Admin', superadmin:'Superadmin'};
+var SEC_LABELS = {sala:'Sala', cocina:'Cocina', ambos:'Ambos'};
 
 /* Avisa al shell (index.html) de que se guardó algo de un trabajador en Supabase —
    el shell marca el otro módulo (Admin↔Turnos) para refrescar sus datos la próxima
@@ -75,6 +76,10 @@ function openPreview(name) {
   document.getElementById('prev-rol-select').value = (w.rol === 'admin' || w.rol === 'encargado') ? w.rol : 'empleado';
   document.getElementById('prev-rol-select').style.display = 'none';
   document.getElementById('prev-rol-display').style.display = '';
+  document.getElementById('prev-sect-text').textContent = SEC_LABELS[w.sec] || 'Ambos';
+  document.getElementById('prev-sect-select').value = (w.sec === 'sala' || w.sec === 'cocina') ? w.sec : 'ambos';
+  document.getElementById('prev-sect-select').style.display = 'none';
+  document.getElementById('prev-sect-display').style.display = '';
   document.getElementById('prev-min').value = w.minT != null ? String(w.minT) : '';
   document.getElementById('prev-max').value = w.maxT != null ? String(w.maxT) : '';
   document.getElementById('prev-turnos-count').textContent = t + ' turno' + (t !== 1 ? 's' : '');
@@ -132,6 +137,11 @@ function openPreview(name) {
 
   var rolRow = document.getElementById('prev-rol-row');
   if (rolRow) rolRow.style.display = isAdmin ? 'flex' : 'none';
+
+  var sectStatic = document.getElementById('prev-sect');
+  var sectRow = document.getElementById('prev-sect-row');
+  if (sectStatic) sectStatic.style.display = isAdmin ? 'none' : '';
+  if (sectRow) sectRow.style.display = isAdmin ? 'flex' : 'none';
 
   _refreshInviteUI(w);
 
@@ -352,6 +362,7 @@ function saveProfile() {
      otros roles ni siquiera se lee el <select>, así que w.rol nunca cambia sin querer */
   const isAdmin = _isAdmin();
   if (isAdmin) w.rol = document.getElementById('prev-rol-select').value;
+  if (isAdmin) w.sec = document.getElementById('prev-sect-select').value;
   w.unavailMed  = Array.from(document.querySelectorAll('#unavail-med .unavail-chip-h.active')).map(el => parseInt(el.dataset.d));
   w.unavailNoch = Array.from(document.querySelectorAll('#unavail-noch .unavail-chip-h.active')).map(el => parseInt(el.dataset.d));
   ROWS.forEach(r => L().data[r].forEach((da, di) => { L().data[r][di] = da.filter(n => parse(n).name !== _previewName); }));
@@ -376,7 +387,7 @@ function saveProfile() {
   window.scrollTo(0, scrollTop);
   if (w._sbId) {
     var patch = { min_turnos: w.minT, max_turnos: w.maxT, prioridad: w.prioridad || 'eventual' };
-    if (isAdmin) patch.rol = w.rol;
+    if (isAdmin) { patch.rol = w.rol; patch.seccion = w.sec; }
     console.log('[DEBUG saveProfile] enviando a Supabase → id:', w._sbId, 'patch:', JSON.stringify(patch));
     sbUpdateTrabajador(w._sbId, patch);
     _notifyWorkerUpdated();
@@ -441,6 +452,22 @@ function _syncRolDisplay() {
   document.getElementById('prev-rol-text').textContent = ROL_LABELS[sel.value] || 'Empleado';
   sel.style.display = 'none';
   document.getElementById('prev-rol-display').style.display = '';
+}
+
+/* ── SECCIÓN (solo admin/superadmin, ver _isAdmin() y prev-sect-row) ──
+   Mismo patrón que ROL: el <select> solo actualiza el texto mostrado;
+   el UPDATE real a Supabase ocurre en saveProfile(), al pulsar "Guardar y cerrar". */
+function startEditSec() {
+  document.getElementById('prev-sect-display').style.display = 'none';
+  const sel = document.getElementById('prev-sect-select');
+  sel.style.display = '';
+  sel.focus();
+}
+function _syncSecDisplay() {
+  const sel = document.getElementById('prev-sect-select');
+  document.getElementById('prev-sect-text').textContent = SEC_LABELS[sel.value] || 'Ambos';
+  sel.style.display = 'none';
+  document.getElementById('prev-sect-display').style.display = '';
 }
 
 /* cleanTel() vive en assets/lib/utils.js. */
@@ -625,6 +652,14 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="w-info">
           <div class="w-name" id="prev-name">—</div>
           <div class="w-sect" id="prev-sect">—</div>
+          <div class="w-rol-row" id="prev-sect-row" style="display:none">
+            <span class="w-rol-display" id="prev-sect-display" onclick="startEditSec()">Sección: <b id="prev-sect-text">Sala</b> <span class="w-rol-caret">&#9662;</span></span>
+            <select class="w-rol-select" id="prev-sect-select" style="display:none" onchange="_syncSecDisplay()">
+              <option value="sala">Sala</option>
+              <option value="cocina">Cocina</option>
+              <option value="ambos">Ambos</option>
+            </select>
+          </div>
           <div class="w-rol-row" id="prev-rol-row" style="display:none">
             <span class="w-rol-display" id="prev-rol-display" onclick="startEditRol()">Rol: <b id="prev-rol-text">Empleado</b> <span class="w-rol-caret">&#9662;</span></span>
             <select class="w-rol-select" id="prev-rol-select" style="display:none" onchange="_syncRolDisplay()">

@@ -82,6 +82,8 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .field label{display:block;font-size:11px;font-weight:600;color:var(--dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
 .inp{width:100%;background:var(--bg);border:1px solid var(--brd2);border-radius:8px;padding:9px 12px;color:var(--txt);font-size:13px;outline:none;appearance:none;-webkit-appearance:none}
 .inp:focus{border-color:var(--acc-bd)}
+.contact-btns{display:flex;gap:5px}
+.contact-btn{width:30px;height:30px;border-radius:7px;border:1px solid var(--brd2);background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
 select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237a8f96' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 /* revisar: posible duplicado de .btn-confirm en components.css (border-radius 8px vs var(--rad-md)=10px, margin-top:8px extra, sin transition) */

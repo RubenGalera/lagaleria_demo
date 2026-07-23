@@ -489,7 +489,8 @@ function buildGrid(){
         if(unavail)chip.style.cssText="border-color:rgba(200,60,60,.5);background:rgba(200,60,60,.08)";
         const warnIcon=alertMsg?`<span style="font-size:9px;color:#cc4444;margin-left:auto" title="⚠ ${alertMsg}">⚠</span>`:"";
         const archivedTag=archived?`<span class="chip-tag" title="Trabajador archivado — histórico, solo lectura">📁</span>`:"";
-        chip.innerHTML=`<div class="dh"><span></span><span></span><span></span></div><span class="chip-name">${name}</span>${hour?`<span class="chip-tag">${hour}</span>`:""}${archivedTag}${warnIcon}`;
+        const chipAv=isSafeImg(w&&w.photo)?`<img class="chip-av" src="${w.photo}" alt="">`:"";
+        chip.innerHTML=`<div class="dh"><span></span><span></span><span></span></div>${chipAv}<span class="chip-name">${name}</span>${hour?`<span class="chip-tag">${hour}</span>`:""}${archivedTag}${warnIcon}`;
         if(archived){
           chip.title='Trabajador archivado — turno histórico, solo lectura';
           chip.onclick=()=>{ if(typeof showToast==='function') showToast(name+' está archivado — este turno es histórico, solo lectura'); };

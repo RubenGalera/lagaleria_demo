@@ -122,17 +122,20 @@ function renderTrabajadores(){
   var staff = _trabWorkers.filter(function(w){ return w.visible !== false; });
   var h='';
   staff.forEach(function(w){
-    var sec=w.sec==='sala'?'Sala':w.sec==='cocina'?'Cocina':'Ambos';
+    var rolTxt=(typeof ROL_LABELS!=='undefined'&&ROL_LABELS[w.rol])||'Empleado';
     /* Sigue pendiente aunque ya se le haya enviado el PIN temporal (pinHash relleno)
        mientras no haya entrado a cambiarlo por el suyo — ver prev_sendInvite. */
     var pending=w.pinHash==null||w.mustChangePin!==false;
     var estadoBadge=pending
       ?'<span class="trab-estado pendiente">&#9203; Pendiente</span>'
       :'<span class="trab-estado activo">&#9679; Activo</span>';
+    var avatarHtml=(typeof isSafeImg==='function'&&isSafeImg(w.photo))
+      ?'<img src="'+w.photo+'" alt="'+w.name.replace(/"/g,'&quot;')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover">'
+      :w.name.charAt(0).toUpperCase();
     h+='<div class="zona-row trab-item" data-name="'+w.name.replace(/"/g,'&quot;')+'">'+
-       '<div class="trab-avatar">'+w.name.charAt(0).toUpperCase()+'</div>'+
+       '<div class="trab-avatar">'+avatarHtml+'</div>'+
        '<div class="zona-info"><div class="zona-name">'+w.name+'</div>'+
-       '<div class="zona-sub">'+sec+' &middot; '+estadoBadge+'</div></div>'+
+       '<div class="zona-sub">'+rolTxt+' &middot; '+estadoBadge+'</div></div>'+
        '<span class="zona-arrow">&#x203a;</span></div>';
   });
   h+='<div style="padding:8px 0 4px"><button onclick="openNuevoTrabajador()" style="width:100%;padding:13px;border-radius:11px;border:1.5px dashed var(--acc-bd);background:transparent;color:var(--acc);font-size:13px;font-weight:600;cursor:pointer">+ A&#241;adir trabajador</button></div>';

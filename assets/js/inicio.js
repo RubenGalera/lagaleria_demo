@@ -150,7 +150,7 @@ async function initDashboard(){
       var _sun=new Date(_mon);_sun.setDate(_mon.getDate()+6);
       var _monStr=_mon.toISOString().split('T')[0],_sunStr=_sun.toISOString().split('T')[0];
       console.log('[dash] Supabase query eventos: gte',hoyStr,'lte',_sunStr,'local_id',LOCAL_ID);
-      var _qEv   = (eventos&&eventos.length) ? null : _sb.from('eventos').select('id,nombre,fecha,hora').eq('local_id',LOCAL_ID).gte('fecha',hoyStr).lte('fecha',_sunStr).order('fecha').order('hora');
+      var _qEv   = (eventos&&eventos.length) ? null : _sb.from('eventos').select('id,descripcion,fecha,hora').eq('local_id',LOCAL_ID).gte('fecha',hoyStr).lte('fecha',_sunStr).order('fecha').order('hora');
       var _qRes  = reservas ? null : _sb.from('reservas').select('*').eq('local_id',LOCAL_ID).eq('fecha',hoyStr).order('hora');
       var _qProd = prods    ? null : _sb.from('stock_productos').select('nombre,cantidad,minimo').eq('local_id',LOCAL_ID).eq('activo',true);
       var _qZona = reservas ? null : _sb.from('zonas').select('id,emoji').eq('local_id',LOCAL_ID);
@@ -163,7 +163,7 @@ async function initDashboard(){
       ]);
       var _evData=_rs[0].data,_resData=_rs[1].data,_prodData=_rs[2].data,_zonaData=_rs[3].data;
       console.log('[dash] _evData completo:',JSON.stringify(_rs[0]));
-      if(!(eventos&&eventos.length)&&_evData)eventos=_evData.map(function(e){return{nombre:e.nombre||'',fecha:e.fecha,hora:e.hora?e.hora.slice(0,5):''};});
+      if(!(eventos&&eventos.length)&&_evData)eventos=_evData.map(function(e){return{nombre:e.descripcion||'',fecha:e.fecha,hora:e.hora?e.hora.slice(0,5):''};});
       if(!reservas&&_resData){var _zm={};(_zonaData||[]).forEach(function(z){_zm[z.id]=z.emoji;});reservas=_resData.map(function(r){return{nombre:r.nombre,fecha:r.fecha,hora:r.hora?r.hora.slice(0,5):'',pax:r.pax,mesas:r.mesas,estado:r.estado,zonaId:r.zona_id,emoji:_zm[r.zona_id]||'📍',nota:r.nota||''};});}
       if(!prods&&_prodData)prods=_prodData.map(function(p){return{name:p.nombre,qty:p.cantidad,min:p.minimo};});
     }catch(e){console.error('[dash] sbFallback:',e);}

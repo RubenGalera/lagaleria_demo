@@ -3,6 +3,15 @@
    Expone funciones/variables globales (goTo, applySession, sbVerifyLogin, ls_init, currentUser, etc.) en window — sin IIFE/module — para que los iframes (fr-turnos, fr-reservas, fr-admin, fr-inicio) puedan llamarlas via window.parent.*  */
 
 
+function isSafeImg(u){return typeof u==='string'&&u.trim()!==''&&!u.includes('${');}
+/* Avatar del header (esquina superior derecha) — foto si existe, si no las iniciales. */
+function _renderHeaderAvatar(){
+  var av=document.getElementById('header-avatar');if(!av||!currentUser)return;
+  av.innerHTML=isSafeImg(currentUser.foto_url)
+    ?'<img src="'+currentUser.foto_url+'" alt="'+(currentUser.initials||'')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover">'
+    :currentUser.initials;
+}
+
 /* ── LOAD LOCAL CONFIG desde Supabase ──
    Lee nombre, colores del local y los aplica al header
    TODO: cuando tengamos auth real, leer el local del usuario */
@@ -185,7 +194,7 @@ function applySession(profile, remember){
 
   var avatarBtn = document.getElementById('header-avatar');
   var saBtn     = document.getElementById('header-sa');
-  avatarBtn.textContent = currentUser.initials;
+  _renderHeaderAvatar();
   /* Superadmin: muestra botón LG gestión + oculta perfil */
   if(currentUser.rol === 'superadmin'){
     if(saBtn)     saBtn.style.display = '';
@@ -580,6 +589,7 @@ async function prf_deletePhoto(){
       if(res.error)throw res.error;
       currentUser.foto_url=null;
       _prf_syncSession();
+      _renderHeaderAvatar();
     }catch(e){
       toast('Error al quitar foto: '+(e.message||String(e)));
     }
@@ -650,7 +660,7 @@ async function prf_saveProfile(){
   if(_prf_dirtyFields.email) currentUser.email=email;
   _prf_dirtyFields={};
   _prf_syncSession();
-  var av=document.getElementById('header-avatar');if(av)av.textContent=currentUser.initials;
+  _renderHeaderAvatar();
   prf_markDirty(false);
   closeModal('ov-miperfil');
   toast('Perfil actualizado ✓');
