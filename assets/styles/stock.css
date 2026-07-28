@@ -54,8 +54,16 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .sec-line{flex:1;height:1px;background:var(--brd)}
 .sec-hdr.alert{padding:14px 0 0}
 .sec-hdr.alert .sec-line{background:rgba(180,130,0,.25)}
+/* Separador de subcategoría (ej. Ribera/Rioja/Otros dentro de Vinos) — mismo
+   patrón que .sec-hdr pero más pequeño e indentado, para marcar que es un
+   nivel inferior a las secciones de categoría. */
+.sec-hdr-sub{padding-left:14px;padding-top:6px;padding-bottom:6px}
+.sec-hdr-sub .sec-lbl{font-size:9px;letter-spacing:1px;color:var(--faint)}
+.sec-hdr-sub .sec-line{opacity:.6}
 .prod{display:flex;align-items:center;gap:10px;background:var(--surf);border:1px solid var(--brd);border-radius:10px;padding:10px 12px;margin-bottom:8px;position:relative;overflow:hidden;transition:border-color .2s;cursor:pointer}
 .prod:hover{border-color:var(--acc-bd)}
+.prod-readonly{cursor:default}
+.prod-readonly:hover{border-color:var(--brd)}
 .prod::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
 .prod.red::before{background:var(--red)}
 .prod.amb::before{background:var(--amb)}
@@ -211,6 +219,20 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .content{padding:0 14px}
 .content .sec-hdr:first-child{padding-top:12px}
 .sticky-header{position:sticky;top:46px;z-index:89;background:var(--bg)}
+
+/* ─── Caret de chip principal con subcategorías (ej. Vinos ▾) ─── */
+.cpill-caret{font-size:8px;margin-left:1px;opacity:.8}
+
+/* ─── Dropdown de subcategorías — flota bajo el chip padre pulsado ───
+   Ancla en .sticky-header (position:sticky cuenta como "positioned" para
+   hijos absolutos), así no lo recorta el overflow-x:auto de #cat-bar. */
+#cat-dropdown{display:none;position:absolute;z-index:95;min-width:170px;background:var(--surf);border:1px solid var(--brd);border-radius:10px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#cat-dropdown.show{display:block}
+.cat-dd-item{display:flex;align-items:center;gap:8px;padding:10px 13px;font-size:12px;font-weight:600;color:var(--txt);cursor:pointer;border-bottom:1px solid var(--brd);transition:background .15s}
+.cat-dd-item:last-child{border-bottom:none}
+.cat-dd-item:hover{background:var(--bg)}
+.cat-dd-item:active{background:var(--acc-bg)}
+.cat-dd-item.act{color:var(--acc);background:var(--acc-bg)}
 
 /* ─── Buscador en tiempo real (tab Productos) ─── */
 .search-bar{display:flex;align-items:center;gap:8px;padding:8px var(--sp-md);background:var(--bg);border-bottom:1px solid var(--brd)}

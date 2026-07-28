@@ -404,4 +404,40 @@
    color, la base (posición/fondo/forma) es la de .toast de arriba. */
 .toast-success { border-color: rgba(85, 187, 85, .45); color: #7fd67f }
 .toast-error   { border-color: rgba(220, 80, 80, .45); color: #e88080 }
+
+
+/* ═══════════════════════════════════════════════════════════
+   VALIDACIÓN DE CAMPOS OBLIGATORIOS
+   Piloto en el modal de producto de Stock — replicar en todos los modales.
+   Marca el campo obligatorio en el label con .required-mark; al fallar la
+   validación, el input/select recibe .field-error (borde rojo) y se muestra
+   el .field-error-msg asociado. Quitar .field-error en el listener
+   input/change del propio campo para que el borde desaparezca en tiempo real.
+   ═══════════════════════════════════════════════════════════ */
+
+.required-mark {
+  color: var(--red);
+}
+
+.inp.field-error,
+.sel.field-error {
+  border-color: var(--red);
+}
+
+.field-error-msg {
+  display: none;
+  font-size: 11px;
+  color: var(--red);
+  margin-top: -2px;
+}
+.field-error-msg.show {
+  display: block;
+}
+
+.field-required-legend {
+  font-size: 11px;
+  color: var(--dim);
+  text-align: left;
+  margin: 4px 0 10px;
+}
 .toast-info    { border-color: var(--acc-bd); color: var(--acc) }

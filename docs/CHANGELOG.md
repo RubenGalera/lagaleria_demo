@@ -1,7 +1,13 @@
 # CHANGELOG — La Galería Neotaberna
 
-
-Añadir al inicio de docs/CHANGELOG.md (después del título, antes de v0.2.18):
+## v0.2.20 — Fixes post-lanzamiento y nuevos productos (julio 2026)
+- Fix: notas especiales en chips de Turnos muestran texto visible en badge dorado (antes icono 📝 con tooltip)
+- Fix: selects de nota especial filtrados por días/turnos asignados del trabajador
+- Fix: modal de nota especial con campos en una sola línea compacta
+- Texto informativo (?) de Nota especial actualizado con descripción del comportamiento
+- 38 productos nuevos insertados: El Pozo (6), Indalques (11), Divina Pastora (3), Elias Ortiz (18 verduras)
+- Proveedores El Pozo, Indalques, Divina Pastora y Elias Ortiz actualizados con teléfono y comercial
+- Total catálogo: 274 productos
 
 ## v0.2.19 — Plantillas de turno + componente unificado de trabajador (julio 2026)
 - Sistema de plantillas de turno: modal "Generar" ampliado con Cargar plantilla / Automático / Guardar plantilla. Cargar respeta vacaciones, días no disponibles y trabajadores archivados

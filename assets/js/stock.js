@@ -10,6 +10,13 @@ function getStockUser() {
   if (window.parent && window.parent.currentUser) return window.parent.currentUser
   return null
 }
+/* Se recalcula en cada llamada (no cachea el rol) — window.parent.currentUser puede
+   cambiar sin que este iframe se recargue (login/logout, cambio de usuario), así que
+   cachear el resultado dejaría el botón/modal desincronizados del rol real. */
+function canManageProducts() {
+  const rol = getStockUser()?.rol
+  return rol === 'encargado' || rol === 'admin' || rol === 'superadmin'
+}
 
 function normCat(v) {
   if (!v) return ''
@@ -28,6 +35,7 @@ function normLoc(v) {
 
 let activeTab      = 'inv'
 let activeCat      = 'all'
+let activeSubCat   = null // slug de subcategoría activa dentro de activeCat (null = agregado del padre)
 let editProdId     = null
 let invMode        = false
 let regFilter      = 'all'
@@ -98,6 +106,7 @@ const el = {
 const inputs = {
   pmName: document.getElementById('pm-n'),
   pmCat:  document.getElementById('pm-c'),
+  pmSubCat: document.getElementById('pm-c-sub'),
   pmProv: document.getElementById('pm-p'),
   pmLoc:  document.getElementById('pm-l'),
   pmQty:  document.getElementById('pm-q'),
@@ -156,36 +165,142 @@ async function fetchStockCategorias() {
   }
 }
 
+/* Categorías hijas de `slug` (stock_categorias.parent_slug) — independiente de si
+   tienen productos, ya que el dropdown de subcategorías se basa en la estructura de BD. */
+function childrenOfCat(slug) {
+  return stockCatsAll.filter(c => c.parent_slug === slug)
+    .slice().sort((a, b) => (a.orden || 0) - (b.orden || 0))
+}
+/* Slugs a comparar al filtrar por `slug` cuando NO hay subcategoría concreta
+   seleccionada: si es una categoría padre con hijas, incluye también las
+   hijas (agregado) — así el chip "Vinos" sigue mostrando productos aunque
+   estén re-etiquetados en sus subcategorías. Esto solo se usa para el
+   agregado del padre; una subcategoría activa siempre filtra con
+   producto.categoria === activeSubCat, sin pasar por aquí. */
+function catSlugsForFilter(slug) {
+  const children = childrenOfCat(slug).map(c => c.slug)
+  return children.length ? [slug, ...children] : [slug]
+}
+function catHasProducts(slug) {
+  const slugs = catSlugsForFilter(slug)
+  return prods.some(p => slugs.includes(p.cat))
+}
+/* "Ribera del Duero" → "Ribera" — nombre corto para el label del chip padre
+   cuando hay una subcategoría activa (ej. "🍷 Vinos · Ribera"). */
+function catShortLabel(nombre) {
+  return (nombre || '').split(' ')[0]
+}
+
 function renderCatBar() {
   const bar = document.getElementById('cat-bar')
   if (!bar) return
   const repPill = bar.querySelector('.cpill-rep')
   bar.querySelectorAll('.cpill-dyn').forEach(p => p.remove())
-  stockCatsWithProds = stockCatsAll.filter(c => prods.some(p => p.cat === c.slug))
-  stockCatsWithProds.forEach(c => {
+  stockCatsWithProds = stockCatsAll.filter(c => catHasProducts(c.slug))
+  stockCatsWithProds.filter(c => !c.parent_slug).forEach(c => {
+    const children = childrenOfCat(c.slug)
+    const isThisActive = activeCat === c.slug
+    const activeChild = isThisActive && activeSubCat ? children.find(ch => ch.slug === activeSubCat) : null
     const pill = document.createElement('div')
-    pill.className = 'cpill cpill-dyn'
-    pill.innerHTML = `${c.icono} <span class="cpill-lbl">${c.nombre}</span>`
-    pill.addEventListener('click', () => setCat(c.slug, pill))
+    pill.className = 'cpill cpill-dyn' + (isThisActive ? ' act' : '')
+    pill.dataset.cat = c.slug
+    const label = activeChild ? `${c.nombre} · ${catShortLabel(activeChild.nombre)}` : c.nombre
+    const caret = children.length ? '<span class="cpill-caret">▾</span>' : ''
+    pill.innerHTML = `${c.icono} <span class="cpill-lbl">${label}</span>${caret}`
+    pill.addEventListener('click', () => onCatPillClick(c, pill))
     bar.insertBefore(pill, repPill)
   })
+  bar.querySelector('.cpill-all')?.classList.toggle('act', activeCat === 'all')
+  bar.querySelector('.cpill-rep')?.classList.toggle('act', activeCat === 'rep')
+
   const activeCatGone = activeCat !== 'all' && activeCat !== 'rep' && activeCat !== 'sin-cat'
     && !stockCatsWithProds.some(c => c.slug === activeCat)
   if (activeCatGone) {
     activeCat = 'all'
-    bar.querySelectorAll('.cpill').forEach(el => el.classList.remove('act'))
-    bar.querySelector('.cpill-all')?.classList.add('act')
+    activeSubCat = null
+    closeCatDropdown()
+    renderCatBar()
     renderInventory()
   }
 }
 
+/* Click en un chip principal (Vinos, Alimentación...). Si no tiene subcategorías
+   en BD, filtra directo. Si las tiene: primer toque (el chip no estaba activo
+   todavía) → filtra el agregado del padre sin abrir el dropdown; segundo
+   toque (el chip ya estaba activo, con o sin subcategoría) → abre/cierra el
+   dropdown para elegir/cambiar de subcategoría. Resetear se hace con "Todo". */
+function onCatPillClick(c, pill) {
+  const children = childrenOfCat(c.slug)
+  if (!children.length) { setCat(c.slug); return }
+  if (activeCat !== c.slug) { setCat(c.slug); return }
+  if (openDropdownCat === c.slug) closeCatDropdown()
+  else openCatDropdown(c, pill)
+}
+
+/* ── Dropdown de subcategorías (sustituye a la antigua fila de subchips) ── */
+let openDropdownCat = null
+function openCatDropdown(c, pill) {
+  const dd = document.getElementById('cat-dropdown')
+  const header = document.querySelector('.sticky-header')
+  if (!dd || !header) return
+  openDropdownCat = c.slug
+  const children = childrenOfCat(c.slug)
+  const items = [{ slug: '', nombre: 'Todas', icono: c.icono }, ...children]
+  dd.innerHTML = items.map(it =>
+    `<div class="cat-dd-item${it.slug === (activeSubCat || '') ? ' act' : ''}" data-cat="${it.slug}">${it.icono} <span>${it.nombre}</span></div>`
+  ).join('')
+  dd.querySelectorAll('.cat-dd-item').forEach(item => {
+    item.addEventListener('click', e => { e.stopPropagation(); setCat(c.slug, item.dataset.cat || null) })
+  })
+  const pr = pill.getBoundingClientRect()
+  const hr = header.getBoundingClientRect()
+  dd.style.left = `${pr.left - hr.left}px`
+  dd.style.top = `${pr.bottom - hr.top + 4}px`
+  dd.classList.add('show')
+}
+function closeCatDropdown() {
+  openDropdownCat = null
+  const dd = document.getElementById('cat-dropdown')
+  if (dd) { dd.classList.remove('show'); dd.innerHTML = '' }
+}
+document.addEventListener('click', e => {
+  const dd = document.getElementById('cat-dropdown')
+  if (!dd || !dd.classList.contains('show')) return
+  if (dd.contains(e.target)) return
+  if (e.target.closest && e.target.closest('.cpill-dyn')) return // gestionado por onCatPillClick
+  closeCatDropdown()
+})
+
 function fillCatSelect() {
   if (!inputs.pmCat) return
   /* 'default' ("Sin categoría") es el fallback automático de productos huérfanos —
-     no debe poder elegirse a mano en el modal. */
-  inputs.pmCat.innerHTML = stockCatsAll
-    .filter(c => c.slug !== 'default')
+     no debe poder elegirse a mano en el modal. Solo categorías de primer nivel:
+     las subcategorías se eligen aparte en el select 2 (ver fillSubCatSelect). */
+  inputs.pmCat.innerHTML = '<option value="">Selecciona una categoría...</option>' + stockCatsAll
+    .filter(c => c.slug !== 'default' && !c.parent_slug)
+    .slice().sort((a, b) => (a.orden || 0) - (b.orden || 0))
     .map(c => `<option value="${c.slug}">${c.icono} ${c.nombre}</option>`).join('')
+}
+
+/* Select 2 (subcategoría) — solo visible si `parentSlug` tiene hijas en BD.
+   Incluye siempre "Sin subcategoría" para poder guardar el producto con el
+   slug del padre aunque la categoría tenga subcategorías configuradas. */
+function fillSubCatSelect(parentSlug, selectedChildSlug) {
+  const wrap = document.getElementById('pm-subcat-field')
+  if (!inputs.pmSubCat || !wrap) return
+  const children = childrenOfCat(parentSlug)
+  if (!children.length) {
+    wrap.style.display = 'none'
+    inputs.pmSubCat.innerHTML = ''
+    return
+  }
+  inputs.pmSubCat.innerHTML = '<option value="">Sin subcategoría</option>'
+    + children.map(c => `<option value="${c.slug}">${c.icono} ${c.nombre}</option>`).join('')
+  inputs.pmSubCat.value = selectedChildSlug || ''
+  wrap.style.display = ''
+}
+function onPmCatChange() {
+  fillSubCatSelect(inputs.pmCat.value, '')
 }
 
 /* ─── Proveedores (Supabase, gestionados desde Admin) ─── */
@@ -268,10 +383,10 @@ async function initStock() {
 /* ─── Permisos por rol ─── */
 function applyRolePermissions() {
   const rol = getStockUser()?.rol
-  if (rol === 'empleado') {
-    const tabReg = document.getElementById('tab-reg')
-    if (tabReg) tabReg.style.display = 'none'
-  }
+  const btnAddProd = document.getElementById('btn-add-prod')
+  if (btnAddProd) btnAddProd.style.display = canManageProducts() ? '' : 'none'
+  const tabReg = document.getElementById('tab-reg')
+  if (tabReg) tabReg.style.display = rol === 'empleado' ? 'none' : ''
   if (el.btnClearReg) {
     el.btnClearReg.style.display = (rol === 'admin' || rol === 'superadmin') ? '' : 'none'
   }
@@ -293,12 +408,17 @@ function renderTab(tab) {
 
 function setTab(tab) { renderTab(tab) }
 function goToSection(section){ if(typeof setTab==='function') setTab(section); }
-function resetView(){ setTab('inv'); }
+function resetView(){
+  applyRolePermissions() // el shell llama a resetView() cada vez que se activa esta pestaña — re-evalúa el rol por si cambió sin recargar el iframe
+  setTab('inv')
+}
 
-function setCat(cat, button) {
+function setCat(cat, subCat) {
+  closeCatDropdown()
   activeCat = cat
-  document.querySelectorAll('.cpill').forEach(el => el.classList.remove('act'))
-  if (button) button.classList.add('act')
+  activeSubCat = subCat || null
+  renderCatBar()
+  updateSinCatChip()
   renderInventory()
 }
 
@@ -374,6 +494,11 @@ document.addEventListener('click', (e) => {
 
 /* ─── Inventory render ─── */
 function renderInventory() {
+  _paintInventory()
+  document.querySelector('#prod-list, #prod-content')?.scrollTo(0, 0)
+  window.scrollTo(0, 0) // #prod-list no tiene scroll propio en esta página — el scroll real es el del body del iframe
+}
+function _paintInventory() {
   const EMPTY = searchQuery
     ? `<div class="ped-empty"><div class="ped-empty-icon">🔍</div><div class="ped-empty-title">Sin resultados para "${escapeHtml(searchQuery)}"</div></div>`
     : '<div class="ped-empty"><div class="ped-empty-icon">📦</div><div class="ped-empty-title">No hay productos</div><div class="ped-empty-sub">Usa el botón + para agregar un producto.</div></div>'
@@ -395,24 +520,82 @@ function renderInventory() {
     return
   }
 
+  const sortByName = (a, b) => a.name.localeCompare(b.name, 'es')
+  const catHeader = c => `<div class="sec-hdr"><div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div><div class="sec-line"></div></div>`
+  const subHeader = c => `<div class="sec-hdr sec-hdr-sub"><div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div><div class="sec-line"></div></div>`
+
   if (activeCat !== 'all') {
+    if (activeSubCat) {
+      // Subcategoría concreta activa (ej. Rioja) — match exacto, nunca el padre ni otras hermanas.
+      const childRow = stockCatsAll.find(c => c.slug === activeSubCat)
+      const items = prods.filter(p => p.cat === activeSubCat).filter(matchesFilters)
+        .slice().sort(sortByName)
+      const html = (childRow ? catHeader(childRow) : '') + (items.length ? items.map(renderProduct).join('') : EMPTY)
+      el.prodList.innerHTML = html
+      updateReorderCount()
+      return
+    }
+    const children = childrenOfCat(activeCat)
+    const catRow = stockCatsAll.find(c => c.slug === activeCat)
+    if (children.length) {
+      // Agregado del padre (ej. Vinos sin subcategoría) — header del padre + separadores por subcategoría.
+      let groups = ''
+      children.forEach(ch => {
+        const items = prods.filter(p => p.cat === ch.slug).filter(matchesFilters)
+          .slice().sort(sortByName)
+        if (!items.length) return
+        groups += subHeader(ch) + items.map(renderProduct).join('')
+      })
+      const parentItems = prods.filter(p => p.cat === activeCat).filter(matchesFilters)
+        .slice().sort(sortByName)
+      if (parentItems.length) {
+        groups += `<div class="sec-hdr sec-hdr-sub"><div class="sec-lbl">❓ SIN SUBCATEGORÍA</div><div class="sec-line"></div></div>`
+        groups += parentItems.map(renderProduct).join('')
+      }
+      const html = (catRow ? catHeader(catRow) : '') + (groups || EMPTY)
+      el.prodList.innerHTML = html
+      updateReorderCount()
+      return
+    }
     const items = prods.filter(p => p.cat === activeCat).filter(matchesFilters)
-      .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
-    el.prodList.innerHTML = items.map(renderProduct).join('') || EMPTY
+      .slice().sort(sortByName)
+    const html = (catRow ? catHeader(catRow) : '') + (items.length ? items.map(renderProduct).join('') : EMPTY)
+    el.prodList.innerHTML = html
     updateReorderCount()
     return
   }
 
+  // Vista "Todo" — solo categorías de primer nivel como secciones; las que tienen
+  // subcategorías anidan sus hijas indentadas debajo, nunca al mismo nivel.
   let html = ''
-  for (const c of stockCatsAll) {
-    const items = prods.filter(p => p.cat === c.slug).filter(matchesFilters)
-      .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
-    if (!items.length) continue
-    html += `<div class="sec-hdr"><div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div><div class="sec-line"></div></div>`
-    html += items.map(renderProduct).join('')
-  }
+  const topCats = stockCatsAll.filter(c => !c.parent_slug)
+    .slice().sort((a, b) => (a.orden || 0) - (b.orden || 0))
+  topCats.forEach(c => {
+    const children = childrenOfCat(c.slug)
+    if (children.length) {
+      let groups = ''
+      children.forEach(ch => {
+        const items = prods.filter(p => p.cat === ch.slug).filter(matchesFilters)
+          .slice().sort(sortByName)
+        if (!items.length) return
+        groups += subHeader(ch) + items.map(renderProduct).join('')
+      })
+      const parentItems = prods.filter(p => p.cat === c.slug).filter(matchesFilters)
+        .slice().sort(sortByName)
+      if (parentItems.length) {
+        groups += `<div class="sec-hdr sec-hdr-sub"><div class="sec-lbl">❓ SIN SUBCATEGORÍA</div><div class="sec-line"></div></div>`
+        groups += parentItems.map(renderProduct).join('')
+      }
+      if (groups) html += catHeader(c) + groups
+    } else {
+      const items = prods.filter(p => p.cat === c.slug).filter(matchesFilters)
+        .slice().sort(sortByName)
+      if (!items.length) return
+      html += catHeader(c) + items.map(renderProduct).join('')
+    }
+  })
   const sinCatItems = prods.filter(p => !knownCats.has(p.cat)).filter(matchesFilters)
-    .slice().sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    .slice().sort(sortByName)
   if (sinCatItems.length) {
     html += `<div class="sec-hdr"><div class="sec-lbl">❓ SIN CATEGORÍA</div><div class="sec-line"></div></div>`
     html += sinCatItems.map(renderProduct).join('')
@@ -425,8 +608,10 @@ function renderProduct(prod) {
   const location    = getLocInfo(prod.loc)
   const statusClass = getStockStatus(prod.qty, prod.min)
   const prov        = provName(prod.provId)
+  const canManage   = canManageProducts() // se lee en vivo — el rol puede cambiar sin recargar el iframe
+  const clickAttr   = canManage ? ` onclick="openProdModal('${prod.id}')"` : ''
   return `
-    <div class="prod ${statusClass}" onclick="openProdModal('${prod.id}')">
+    <div class="prod ${statusClass}${canManage ? '' : ' prod-readonly'}"${clickAttr}>
       <div class="prod-sema-col">
         <span class="sema ${statusClass}"></span>
       </div>
@@ -508,18 +693,20 @@ function updateSinCatChip() {
     chip.className = 'cpill cpill-dyn'
     chip.dataset.cat = 'sin-cat'
     chip.innerHTML = '❓ <span class="cpill-lbl">Sin categoría</span>'
-    chip.addEventListener('click', () => setCat('sin-cat', chip))
+    chip.addEventListener('click', () => setCat('sin-cat'))
     const repChip = bar.querySelector('.cpill-rep')
     if (repChip) bar.insertBefore(chip, repChip)
     else bar.appendChild(chip)
   } else if (!hasSinCat && chip) {
     chip.remove()
+    chip = null
     if (activeCat === 'sin-cat') {
       activeCat = 'all'
       bar.querySelector('.cpill-all')?.classList.add('act')
       renderInventory()
     }
   }
+  if (chip) chip.classList.toggle('act', activeCat === 'sin-cat')
 }
 
 function updateReorderCount() {
@@ -537,6 +724,8 @@ function updateInventoryStatus() {
 
 /* ─── Product modal (crear / editar — mismo modal, mismo patrón que adminStock.js) ─── */
 async function openProdModal(id) {
+  if (getStockUser()?.rol === 'empleado') return // solo +/- de cantidad; sin acceso al modal
+
   /* Admin y Stock son iframes con estado JS independiente — una categoría o proveedor creado
      en Admin mientras Stock ya estaba cargado no aparecería en el select sin este refetch. */
   await Promise.all([fetchStockCategorias(), fetchStockProveedores()])
@@ -545,11 +734,18 @@ async function openProdModal(id) {
 
   editProdId = id || null
   const prod = editProdId ? prods.find(item => item.id === editProdId) : null
+  /* Si categoria es una subcategoría (ej. vin-ribera), el select 1 debe mostrar
+     su padre (Vinos) y el select 2 la propia subcategoría. */
+  const prodCatRow  = prod ? stockCatsAll.find(c => c.slug === prod.cat) : null
+  const prodParent   = prodCatRow?.parent_slug || ''
+  // Producto nuevo: sin categoría preseleccionada — el usuario debe elegirla explícitamente (campo obligatorio).
+  const topCatSlug   = prod ? (prodParent || prod.cat) : ''
   document.getElementById('prod-modal-title').textContent = prod ? prod.name : 'Nuevo producto'
   document.getElementById('prod-modal-btn').textContent = prod ? 'Guardar cambios' : 'Añadir producto'
   document.getElementById('prod-modal-del').style.display = prod ? 'block' : 'none'
   inputs.pmName.value = prod ? prod.name : ''
-  inputs.pmCat.value  = prod ? prod.cat  : (stockCatsAll.find(c => c.slug !== 'default')?.slug || '')
+  inputs.pmCat.value  = topCatSlug
+  fillSubCatSelect(topCatSlug, prodParent ? prod.cat : '')
   inputs.pmProv.value = prod ? (prod.provId || '') : ''
   inputs.pmLoc.value  = prod ? prod.loc  : (stockUbicaciones[0]?.nombre || '')
   inputs.pmQty.value  = prod ? prod.qty  : ''
@@ -557,9 +753,25 @@ async function openProdModal(id) {
   inputs.pmMin.value  = prod ? prod.min  : ''
   inputs.pmNote.value = prod ? prod.note : ''
   inputs.pmActivo.checked = prod ? prod.activo !== false : true
+  clearFieldError(inputs.pmName)
+  clearFieldError(inputs.pmCat)
+  clearFieldError(inputs.pmUnit)
   el.modalBg.classList.add('show')
 }
 function closeProdModal() { editProdId = null; el.modalBg.classList.remove('show') }
+
+/* ─── Validación de campos obligatorios (.field-error / .field-error-msg
+   viven en components.css — patrón a replicar en el resto de modales) ─── */
+function setFieldError(inputEl) {
+  if (!inputEl) return
+  inputEl.classList.add('field-error')
+  document.getElementById(inputEl.id + '-err')?.classList.add('show')
+}
+function clearFieldError(inputEl) {
+  if (!inputEl) return
+  inputEl.classList.remove('field-error')
+  document.getElementById(inputEl.id + '-err')?.classList.remove('show')
+}
 
 async function saveProdModal() {
   const name = inputs.pmName.value.trim()
@@ -567,10 +779,22 @@ async function saveProdModal() {
   const min  = Number(inputs.pmMin.value)
   const unit = inputs.pmUnit.value.trim()
   const activo = inputs.pmActivo.checked
-  if (!name || !unit || Number.isNaN(qty)) { showToast('Completa nombre, cantidad y unidad','error'); return }
+
+  clearFieldError(inputs.pmName)
+  clearFieldError(inputs.pmCat)
+  clearFieldError(inputs.pmUnit)
+  let hasRequiredError = false
+  if (!name) { setFieldError(inputs.pmName); hasRequiredError = true }
+  if (!inputs.pmCat.value) { setFieldError(inputs.pmCat); hasRequiredError = true }
+  if (!unit) { setFieldError(inputs.pmUnit); hasRequiredError = true }
+  if (hasRequiredError) { showToast('Completa los campos obligatorios antes de guardar','error'); return }
+
+  if (Number.isNaN(qty)) { showToast('Completa la cantidad','error'); return }
+  const subCatVisible = document.getElementById('pm-subcat-field')?.style.display !== 'none'
+  const subCatVal = subCatVisible ? (inputs.pmSubCat?.value || '') : ''
   const payload = {
     nombre:       name,
-    categoria:    inputs.pmCat.value,
+    categoria:    subCatVal || inputs.pmCat.value,
     proveedor_id: inputs.pmProv.value || null,
     ubicacion:    inputs.pmLoc.value,
     cantidad:     qty,

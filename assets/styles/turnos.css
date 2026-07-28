@@ -102,10 +102,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .t-time{font-size:12px;color:var(--txt,#f0ece4);font-weight:500;line-height:1;text-align:left;cursor:pointer}
 .t-sect{font-size:8px;color:var(--dim);font-weight:700;letter-spacing:.8px;text-transform:uppercase;line-height:1;text-align:left}
 /* grid-cols removed */
-.ev-row{display:grid;grid-template-columns:repeat(7,minmax(100px,1fr));gap:4px;margin-bottom:4px}
+.ev-row{display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));gap:4px;margin-bottom:4px}
 .ev-row:empty{display:none;margin:0}
 .ev-day{display:flex;flex-direction:column;flex-wrap:wrap;align-items:center;gap:3px;overflow:hidden;min-width:0}
-.day-headers{display:grid;grid-template-columns:repeat(7,minmax(100px,1fr));gap:4px;height:43px}
+.day-headers{display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));gap:4px;height:43px}
 .day-head{text-align:center;padding:0 2px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
 .dname{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.3px;font-weight:500}
 .dnum{font-size:18px;font-weight:700;color:var(--text);line-height:1.2}
@@ -114,7 +114,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .ev-badge{font-size:9px;border-radius:4px;padding:2px 4px;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;flex-shrink:0;overflow:hidden;max-width:100%;background:var(--color-event-bg);color:var(--color-event);border:1px solid var(--color-event-bd)}
 .ev-badge span{overflow:hidden;text-overflow:ellipsis}
 .ev-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;background:var(--color-event)}
-.turno-hdr{display:grid;grid-template-columns:repeat(7,minmax(100px,1fr));gap:4px;min-height:16px;margin-bottom:0;align-items:center}
+.turno-hdr{display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));gap:4px;min-height:16px;margin-bottom:0;align-items:center}
 .hdr-cell{display:flex;align-items:center;justify-content:flex-end;gap:2px;overflow:hidden;min-width:0}
 .hdr-cell-mon{justify-content:space-between}
 .band-label{font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0;margin-top:2px;align-self:center}
@@ -122,7 +122,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .band-label-sn{color:var(--sn-text)}
 .band-label-cm{color:var(--cm-text)}
 .band-label-cn{color:var(--cn-text)}
-.turno-row{display:grid;grid-template-columns:repeat(7,minmax(100px,1fr));gap:4px}
+.turno-row{display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));gap:4px}
 .cell{border-radius:7px;padding:5px;display:flex;flex-direction:column;gap:3px;min-height:72px}
 .cell-sm{background:var(--sm-bg);border:1px solid #2a4a5a;border-top:2px solid var(--sm-bd)}
 .cell-sn{background:var(--sn-bg);border:1px solid #2a4a2a;border-top:2px solid var(--sn-bd)}
@@ -135,7 +135,6 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .chip-cm{background:var(--cm-bg);border:1px solid var(--cm-bd)}
 .chip-cn{background:var(--cn-bg);border:1px solid var(--cn-bd)}
 .chip-name{font-size:13px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#d0dde2}
-.chip-av{width:16px;height:16px;border-radius:50%;object-fit:cover;flex-shrink:0}
 .chip-tag{font-size:9px;padding:1px 5px;border-radius:3px;white-space:nowrap;flex-shrink:0;background:var(--acc-bg);color:var(--acc);border:1px solid var(--acc-bd)}
 .chip-tag.chip-nota{max-width:52px;overflow:hidden;text-overflow:ellipsis}
 /* Trabajador archivado con turno histórico esta semana — solo lectura (ver isArchivedName() en turnos.js) */

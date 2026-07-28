@@ -54,12 +54,34 @@ function closeStockPanel(){
   document.getElementById('view-editar-list').style.display='';
 }
 
+/* Orden jerárquico para el listado: cada categoría de primer nivel seguida
+   de sus subcategorías (independiente de su `orden` relativo entre sí) —
+   así las subcategorías siempre aparecen indentadas bajo su padre. */
+function _catsHierOrder(){
+  var byParent = {};
+  stockCats.forEach(function(c){
+    if(c.slug===STOCK_CAT_DEFAULT_SLUG) return;
+    var key = c.parent_slug || '';
+    (byParent[key]=byParent[key]||[]).push(c);
+  });
+  var out = [];
+  (byParent['']||[]).forEach(function(c){
+    out.push(c);
+    (byParent[c.slug]||[]).forEach(function(ch){ out.push(ch); });
+  });
+  var def = stockCats.find(function(c){ return c.slug===STOCK_CAT_DEFAULT_SLUG; });
+  if(def) out.push(def);
+  return out;
+}
+
 function renderCatList(){
   var list=document.getElementById('cat-list'); if(!list) return;
+  var ordered = _catsHierOrder();
   var rows = !stockCats.length
     ? '<div class="zona-empty">Sin categorías todavía.<br>Crea la primera con el botón de abajo.</div>'
-    : stockCats.map(function(c){
+    : ordered.map(function(c){
         var isDefault = c.slug===STOCK_CAT_DEFAULT_SLUG;
+        var isChild = !!c.parent_slug;
         var count = stockCatCounts[c.slug]||0;
         var countLabel = count+' producto'+(count!==1?'s':'');
         if(isDefault){
@@ -70,7 +92,7 @@ function renderCatList(){
         }
         var color = c.color||'#5599cc';
         var inactiva = c.activa===false;
-        return '<div class="zona-row cat-row" data-id="'+c.id+'" style="opacity:'+(inactiva?.55:1)+'">'+
+        return '<div class="zona-row cat-row'+(isChild?' cat-row-child':'')+'" data-id="'+c.id+'" style="opacity:'+(inactiva?.55:1)+'">'+
           '<span class="cat-drag-handle" draggable="true" title="Arrastrar para reordenar">≡</span>'+
           '<span class="zona-emoji" style="border-radius:50%;background:'+color+'33;border:1px solid '+color+'">'+(c.icono||'📦')+'</span>'+
           '<div class="zona-info"><div class="zona-name">'+escHtml(c.nombre)+(inactiva?'<span class="zona-inactiva">INACTIVA</span>':'')+'</div><div class="zona-sub">'+countLabel+'</div></div>'+
@@ -86,12 +108,16 @@ function renderCatList(){
       if(e.target.closest('.cat-drag-handle')) return;
       openEditCategoria(row.dataset.id);
     });
-    row.addEventListener('dragover', function(e){ e.preventDefault(); row.classList.add('cat-drag-over'); });
+    row.addEventListener('dragover', function(e){
+      if(!_sameReorderGroup(_dragCatId, row.dataset.id)) return; // sin preventDefault → no se puede soltar aquí
+      e.preventDefault();
+      row.classList.add('cat-drag-over');
+    });
     row.addEventListener('dragleave', function(){ row.classList.remove('cat-drag-over'); });
     row.addEventListener('drop', function(e){
       e.preventDefault();
       row.classList.remove('cat-drag-over');
-      if(_dragCatId && _dragCatId!==row.dataset.id) reorderCategorias(_dragCatId, row.dataset.id);
+      if(_sameReorderGroup(_dragCatId, row.dataset.id)) reorderCategorias(_dragCatId, row.dataset.id);
     });
   });
   list.querySelectorAll('.cat-drag-handle').forEach(function(handle){
@@ -119,11 +145,26 @@ function genCatSlug(nombre){
   return slug;
 }
 
-function _catFieldsHtml(icon){
+/* Solo categorías de primer nivel pueden elegirse como padre — evita anidar
+   más de un nivel, que ni la barra de subchips (stock.js) ni este listado soportan. */
+function _parentOptionsHtml(selectedSlug, excludeSlug){
+  var opts = stockCats.filter(function(c){
+    return c.slug!==STOCK_CAT_DEFAULT_SLUG && !c.parent_slug && c.slug!==excludeSlug;
+  });
+  return '<option value="">— Ninguna (categoría de primer nivel) —</option>' +
+    opts.map(function(c){
+      return '<option value="'+c.slug+'"'+(c.slug===selectedSlug?' selected':'')+'>'+escHtml(c.nombre)+'</option>';
+    }).join('');
+}
+function _catFieldsHtml(icon, parentSlug, excludeSlug){
   return [
     '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">' +
       '<div class="fgroup" style="flex:1"><label class="flbl">Color</label><input class="inp" id="cat-color" type="color" value="#5599cc" style="padding:3px;height:38px"></div>' +
       '<div class="cat-preview" id="cat-preview">'+(icon||'✦')+'</div>' +
+    '</div>',
+    '<div class="fgroup" style="margin-bottom:16px">' +
+      '<label class="flbl">Subcategoría de</label>' +
+      '<select class="inp" id="cat-parent">'+_parentOptionsHtml(parentSlug||'', excludeSlug||'')+'</select>' +
     '</div>'
   ];
 }
@@ -168,7 +209,7 @@ function openEditCategoria(id){
     nombre:c.nombre,
     activo:c.activa!==false,
     activoLabel:'Activa',
-    fields:_catFieldsHtml(c.icono||'📦'),
+    fields:_catFieldsHtml(c.icono||'📦', c.parent_slug||'', c.slug),
     icons:STOCK_CAT_ICONS,
     icono:c.icono||'📦',
     onIconChange:function(icon){ var p=document.getElementById('cat-preview'); if(p) p.textContent=icon; },
@@ -188,17 +229,18 @@ async function saveCategoria(data){
   var icono=data.icono||'📦';
   var color=data['cat-color']||'#5599cc';
   var activa=data.activo!==false;
+  var parentSlug=data['cat-parent']||null;
   try{
     if(editCatId){
       var cat=stockCats.find(function(x){return x.id===editCatId;});
       if(cat && cat.slug===STOCK_CAT_DEFAULT_SLUG){ showToast('Esta categoría no puede editarse','error'); return; }
-      var res=await _sb.from('stock_categorias').update({nombre:nombre,icono:icono,color:color,activa:activa}).eq('id',editCatId);
+      var res=await _sb.from('stock_categorias').update({nombre:nombre,icono:icono,color:color,activa:activa,parent_slug:parentSlug}).eq('id',editCatId);
       if(res.error) throw res.error;
       showToast('Categoría actualizada','success');
     } else {
       var slug=genCatSlug(nombre);
       var maxOrden=stockCats.reduce(function(m,c){return Math.max(m,c.orden||0);},0);
-      var res=await _sb.from('stock_categorias').insert({local_id:LOCAL_ID,nombre:nombre,slug:slug,icono:icono,color:color,activa:activa,orden:maxOrden+1});
+      var res=await _sb.from('stock_categorias').insert({local_id:LOCAL_ID,nombre:nombre,slug:slug,icono:icono,color:color,activa:activa,orden:maxOrden+1,parent_slug:parentSlug});
       if(res.error) throw res.error;
       showToast('Categoría creada','success');
     }
@@ -250,15 +292,33 @@ async function deleteCategoria(id, reassign){
   }
 }
 
+/* Solo se puede reordenar dentro del mismo nivel: categorías principales entre
+   sí, o subcategorías entre sí dentro del mismo padre — nunca mezclar. */
+function _sameReorderGroup(draggedId, targetId){
+  if(!draggedId || draggedId===targetId) return false;
+  var dragged = stockCats.find(function(c){ return c.id===draggedId; });
+  var target = stockCats.find(function(c){ return c.id===targetId; });
+  if(!dragged || !target) return false;
+  return (dragged.parent_slug||'') === (target.parent_slug||'');
+}
+
 async function reorderCategorias(draggedId, targetId){
-  var orderable = stockCats.filter(function(c){ return c.slug!==STOCK_CAT_DEFAULT_SLUG; });
-  var fromIdx = orderable.findIndex(function(c){ return c.id===draggedId; });
-  var toIdx = orderable.findIndex(function(c){ return c.id===targetId; });
+  var dragged = stockCats.find(function(c){ return c.id===draggedId; });
+  if(!dragged) return;
+  var parentKey = dragged.parent_slug || '';
+  /* Grupo de hermanos: todas las principales (parentKey='') o solo las
+     subcategorías del mismo padre — el 'orden' se renumera solo ahí dentro,
+     sin tocar categorías de otros grupos. */
+  var group = stockCats.filter(function(c){
+    return c.slug!==STOCK_CAT_DEFAULT_SLUG && (c.parent_slug||'')===parentKey;
+  });
+  var fromIdx = group.findIndex(function(c){ return c.id===draggedId; });
+  var toIdx = group.findIndex(function(c){ return c.id===targetId; });
   if(fromIdx<0 || toIdx<0 || fromIdx===toIdx) return;
-  var moved = orderable.splice(fromIdx,1)[0];
-  orderable.splice(toIdx,0,moved);
+  var moved = group.splice(fromIdx,1)[0];
+  group.splice(toIdx,0,moved);
   try{
-    await Promise.all(orderable.map(function(c,i){
+    await Promise.all(group.map(function(c,i){
       return _sb.from('stock_categorias').update({orden:i+1}).eq('id',c.id);
     }));
     await fetchStockCategorias();

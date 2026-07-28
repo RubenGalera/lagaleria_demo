@@ -30,9 +30,10 @@
   <div id="view-inv">
     <div class="sticky-header">
       <div id="cat-bar" class="cat-bar toolbar-row">
-        <div class="cpill cpill-all act" onclick="setCat('all', this)">✦ <span class="cpill-lbl">Todo</span></div>
-        <div class="cpill cpill-rep" onclick="setCat('rep', this)">⚠ <span class="cpill-lbl">Reponer</span><span class="cpill-rep-count" id="rep-count"></span></div>
+        <div class="cpill cpill-all act" data-cat="all" onclick="setCat('all')">✦ <span class="cpill-lbl">Todo</span></div>
+        <div class="cpill cpill-rep" data-cat="rep" onclick="setCat('rep')">⚠ <span class="cpill-lbl">Reponer</span><span class="cpill-rep-count" id="rep-count"></span></div>
       </div>
+      <div id="cat-dropdown"></div>
       <div class="search-bar">
         <span class="search-icon">🔍</span>
         <input type="text" class="search-input" id="search-input" placeholder="Buscar producto..." oninput="onSearchInput(this.value)">
@@ -60,7 +61,7 @@
     <div class="content" id="prod-list"></div>
 
     <div class="content" style="padding-bottom:14px">
-      <button class="add-btn" onclick="openProdModal()">+ Añadir producto</button>
+      <button class="add-btn" id="btn-add-prod" onclick="openProdModal()">+ Añadir producto</button>
       <button class="inv-update-btn" id="btn-inv" onclick="toggleInv()">☰ Actualizar inventario</button>
       <div class="inv-last-update">
         <div class="inv-dot" id="inv-dot"></div>
@@ -98,18 +99,24 @@
         <button class="modal-cls" onclick="closeProdModal()">&#215;</button>
       </div>
       <div class="field">
-        <label>Nombre</label>
-        <input class="inp" id="pm-n" placeholder="Cerveza Estrella, Aceite AOVE...">
+        <label>Nombre <span class="required-mark">*</span></label>
+        <input class="inp" id="pm-n" placeholder="Cerveza Estrella, Aceite AOVE..." oninput="clearFieldError(this)">
+        <span class="field-error-msg" id="pm-n-err">Este campo es obligatorio</span>
       </div>
       <div class="row2">
         <div class="field">
-          <label>Categoría</label>
-          <select class="sel" id="pm-c"></select>
+          <label>Categoría <span class="required-mark">*</span></label>
+          <select class="sel" id="pm-c" onchange="onPmCatChange(); clearFieldError(this)"></select>
+          <span class="field-error-msg" id="pm-c-err">Este campo es obligatorio</span>
         </div>
         <div class="field">
           <label>Proveedor</label>
           <select class="sel" id="pm-p"></select>
         </div>
+      </div>
+      <div class="field" id="pm-subcat-field" style="display:none">
+        <label>Subcategoría</label>
+        <select class="sel" id="pm-c-sub"></select>
       </div>
       <div class="row2">
         <div class="field">
@@ -123,8 +130,9 @@
       </div>
       <div class="row2">
         <div class="field">
-          <label>Unidad</label>
-          <input class="inp" id="pm-u" placeholder="bot, kg, caja...">
+          <label>Unidad <span class="required-mark">*</span></label>
+          <input class="inp" id="pm-u" placeholder="bot, kg, caja..." oninput="clearFieldError(this)">
+          <span class="field-error-msg" id="pm-u-err">Este campo es obligatorio</span>
         </div>
         <div class="field">
           <label>Mínimo alerta</label>
@@ -139,6 +147,7 @@
         <label>Activo</label>
         <label class="sw"><input type="checkbox" id="pm-activo" checked><span class="sw-track"></span></label>
       </div>
+      <div class="field-required-legend"><span class="required-mark">*</span> Campos obligatorios</div>
       <button class="btn-full" id="prod-modal-btn" onclick="saveProdModal()">Añadir producto</button>
       <button class="btn-del-prod" id="prod-modal-del" style="display:none" onclick="deleteProd()">🗑 Eliminar producto del inventario</button>
     </div>

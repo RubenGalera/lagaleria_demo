@@ -71,6 +71,8 @@ body{display:flex;flex-direction:column}
 /* ── CATEGORÍAS DE STOCK (card clicable + drag-to-reorder) ── */
 .cat-preview{font-size:20px;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid var(--brd2);transition:background .15s,border-color .15s;line-height:1;font-style:normal}
 .cat-row-default{opacity:.7}
+.cat-row-child{margin-left:26px;position:relative}
+.cat-row-child::before{content:"↳";position:absolute;left:-17px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:13px}
 .cat-drag-handle{flex-shrink:0;width:20px;text-align:center;color:var(--faint);font-size:16px;line-height:1;cursor:grab;touch-action:none}
 .cat-drag-handle:active{cursor:grabbing}
 .cat-row.cat-dragging{opacity:.4}

@@ -226,6 +226,17 @@ function applySession(profile, remember){
   var defaultPage = canSeeInicio ? 'inicio' : 'turnos';
   goTo(defaultPage);
 
+  /* goTo() solo refresca permisos del iframe al que se navega — Stock nunca es
+     defaultPage, así que si ya estaba cargado (re-login sin recargar la página)
+     seguiría mostrando los permisos del usuario anterior hasta que alguien
+     entrara manualmente a esa pestaña. Se refresca aquí explícitamente. */
+  try{
+    var frStock = document.getElementById('fr-stock');
+    if(frStock && frStock.contentWindow && typeof frStock.contentWindow.applyRolePermissions === 'function'){
+      frStock.contentWindow.applyRolePermissions();
+    }
+  }catch(e){}
+
   var ls  = document.getElementById('login-screen');
   var app = document.getElementById('app');
   ls.classList.add('hide');
