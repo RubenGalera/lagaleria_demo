@@ -126,9 +126,26 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
    botón) + 14px (margen inferior del toggle) = 90px. Mismo truco de sangrado
    a ancho completo que .ped-toggle. */
 .ped-prov-wrap{margin:0 -14px 14px;padding:0 14px;position:sticky;top:90px;z-index:89;background:var(--bg)}
-/* mismo estilo visual que .search-input (Productos): fondo --surf, borde --brd, radius 8px.
-   height explícito porque <select> y <input> no rinden la misma altura con el mismo padding. */
-.ped-prov-wrap select{background:var(--surf);border:1px solid var(--brd);padding:9px 12px;border-radius:8px;height:35px}
+/* Botón que sustituye al <select> nativo — mismo estilo visual que tenía
+   (fondo --surf, borde --brd, radius 8px, height 35px). .ped-prov-wrap ya es
+   position:sticky, así que sirve de contenedor posicionado para el panel de
+   abajo sin necesitar position:relative aparte. */
+.ped-prov-select-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;background:var(--surf);border:1px solid var(--brd);padding:9px 12px;border-radius:8px;height:35px;color:var(--txt);font-size:13px;font-weight:600;cursor:pointer;text-align:left}
+.ped-prov-select-btn:active{opacity:.7}
+.ped-prov-chevron{flex-shrink:0;opacity:.6}
+/* Panel flotante con scroll real — antes era un <select> nativo, cuyo popup
+   de opciones lo gestiona el navegador y no admite overflow/max-height por
+   CSS. Al contenerlo aquí (position:absolute anclado a .ped-prov-wrap, fuera
+   del flujo normal) no empuja el layout ni afecta al scroll del fondo. */
+.ped-prov-dd-panel{display:none;position:absolute;left:14px;right:14px;top:calc(100% + 6px);z-index:95;overflow-y:auto;-webkit-overflow-scrolling:touch;max-height:60vh;background:var(--bg);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.ped-prov-dd-panel.open{display:block}
+/* ─── Pedido por categoría: chips de filtro — mismo hueco/posición sticky que
+   .ped-prov-wrap (top:90px, ver comentario arriba) para que ambas vistas de
+   Pedido tengan un control de filtro equivalente en el mismo sitio. ─── */
+.ped-cat-bar{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -14px 14px;padding:0 14px;position:sticky;top:90px;z-index:89;background:var(--bg)}
+.ped-cat-bar::-webkit-scrollbar{display:none}
+.ped-cat-chip{flex-shrink:0}
+.ped-cat-chip.act{background:var(--acc);border-color:var(--acc);color:#1a1810}
 .ped-section-hdr .sec-lbl{color:var(--dim)}
 .ped-section-hdr.alert .sec-lbl{color:var(--red)}
 .ped-item-grey{opacity:.6}

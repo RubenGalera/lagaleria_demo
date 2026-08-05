@@ -7,6 +7,15 @@ Prioridad:
 
 ---
 
+Añadir en docs/MEJORAS.md en la sección "Accesibilidad y UX":
+
+- Validación visual de campos obligatorios (*): patrón implementado en el modal 
+  de producto (components.css — .required-mark, .field-error, .field-error-msg, 
+  .field-required-legend). Replicar progresivamente en todos los modales del proyecto:
+  modal de trabajador, modal de asistente de evento, modal de proveedor/contacto, 
+  modal de reserva, modal de evento. Aplicar cuando se toque cada modal.
+
+
 ## Navegación
 | 🟢 | Al pulsar un tab, si hay algo desplegado dentro del iframe (acordeón, subpanel), comprimirlo antes de mostrar la vista por defecto.
 | 🟢 | Responsive del grid de trabajadores (vista Persona en Turnos): 1 columna en móvil, 2 en tablet (768px), 3+ en desktop (≥1024px).

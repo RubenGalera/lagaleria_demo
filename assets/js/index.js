@@ -935,6 +935,22 @@ function doLogin(){
 
 /* ══ LOGIN STEPS ══ */
 function ls_init(){
+  /* Enlace de invitación con teléfono prellenado (?tel=...) — lo genera
+     prev_sendInvite() en worker-modal.js al enviar la invitación por
+     WhatsApp. Se comprueba ANTES que la sesión guardada a propósito: si el
+     dispositivo tiene la sesión de otro trabajador recordada (ej. el admin
+     que generó el enlace), ?tel= debe ganar siempre y llevar a la pantalla
+     de PIN de ese teléfono — nunca cargar la sesión de otro usuario. */
+  try{
+    var urlTel = new URLSearchParams(window.location.search).get('tel');
+    if(urlTel){
+      var elUrlTel = document.getElementById('l-tel');
+      if(elUrlTel) elUrlTel.value = urlTel;
+      setTimeout(function(){ ls_goPin(); }, 1200);
+      return;
+    }
+  }catch(e){}
+
   /* Restaurar sesión guardada — DOM ya está listo aquí */
   try{
     var saved = localStorage.getItem(LS_KEY);
@@ -944,20 +960,6 @@ function ls_init(){
       var ring = document.getElementById('ls-loading-ring');
       if(ring) ring.style.display = '';
       ls_refreshAndApply(cached);
-      return;
-    }
-  }catch(e){}
-
-  /* Enlace de invitación con teléfono prellenado (?tel=...) — lo genera
-     prev_sendInvite() en worker-modal.js al enviar la invitación por
-     WhatsApp. Si viene con tel en la URL nos saltamos el paso de teléfono:
-     el trabajador solo tiene que teclear el PIN que le acaban de enviar. */
-  try{
-    var urlTel = new URLSearchParams(window.location.search).get('tel');
-    if(urlTel){
-      var elUrlTel = document.getElementById('l-tel');
-      if(elUrlTel) elUrlTel.value = urlTel;
-      setTimeout(function(){ ls_goPin(); }, 1200);
       return;
     }
   }catch(e){}

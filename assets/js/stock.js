@@ -191,6 +191,13 @@ function catShortLabel(nombre) {
   return (nombre || '').split(' ')[0]
 }
 
+/* Helpers de agrupación por categoría/subcategoría — compartidos entre Productos
+   (_paintInventory) y Pedido/Por categoría (renderPedCatView) para que ambas
+   vistas respeten exactamente el mismo orden y jerarquía. */
+const sortByName = (a, b) => a.name.localeCompare(b.name, 'es')
+const catHeader = c => `<div class="sec-hdr"><div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div><div class="sec-line"></div></div>`
+const subHeader = c => `<div class="sec-hdr sec-hdr-sub"><div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div><div class="sec-line"></div></div>`
+
 function renderCatBar() {
   const bar = document.getElementById('cat-bar')
   if (!bar) return
@@ -519,10 +526,6 @@ function _paintInventory() {
     updateReorderCount()
     return
   }
-
-  const sortByName = (a, b) => a.name.localeCompare(b.name, 'es')
-  const catHeader = c => `<div class="sec-hdr"><div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div><div class="sec-line"></div></div>`
-  const subHeader = c => `<div class="sec-hdr sec-hdr-sub"><div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div><div class="sec-line"></div></div>`
 
   if (activeCat !== 'all') {
     if (activeSubCat) {
@@ -891,6 +894,18 @@ function setPedMode(mode) {
   renderPedido()
 }
 
+/* Click en una card de Pedido: admin/encargado abren el modal de edición
+   (mismo que en Productos); empleado ve un toast — a diferencia de Productos,
+   aquí el botón/card siempre está visible, solo cambia qué pasa al pulsarla. */
+function onPedProductClick(id) {
+  if (!canManageProducts()) { showToast('Solo admin y encargados pueden editar productos', 'error'); return }
+  openProdModal(id)
+}
+function onAddOneoffClick() {
+  if (!canManageProducts()) { showToast('Solo admin y encargados pueden editar productos', 'error'); return }
+  showOneoffModal()
+}
+
 /* ─── Card de producto en Pedido — misma estructura visual que renderProduct()
    (Productos): semáforo + icono de categoría + nombre en la línea principal,
    badges de ubicación/proveedor y "Tienes · Min" en la segunda línea.
@@ -906,7 +921,7 @@ function renderPedCard(p, qtyHtml, extraClass = '') {
   const cat  = stockCatsAll.find(c => c.slug === p.cat)
   const prov = provName(p.provId)
   return `
-    <div class="prod ${st}${extraClass ? ' ' + extraClass : ''}">
+    <div class="prod ${st}${extraClass ? ' ' + extraClass : ''}" onclick="onPedProductClick('${p.id}')">
       <div class="prod-sema-col">
         <span class="sema ${st}"></span>
       </div>
@@ -924,14 +939,33 @@ function renderPedCard(p, qtyHtml, extraClass = '') {
 }
 
 /* ─── Pedido — vista Por categoría ─── */
+let pedCatFilter = 'all' // 'all' o slug de categoría principal — filtro de chips de esta vista
+
+function setPedCatFilter(slug) {
+  pedCatFilter = slug
+  renderPedido()
+}
+
+function renderPedCatChips() {
+  const topCats = stockCatsAll.filter(c => !c.parent_slug)
+    .slice().sort((a, b) => (a.orden || 0) - (b.orden || 0))
+  const chips = [`<div class="cpill ped-cat-chip${pedCatFilter === 'all' ? ' act' : ''}" onclick="setPedCatFilter('all')">✦ <span class="cpill-lbl">Todo</span></div>`]
+    .concat(topCats.map(c => `<div class="cpill ped-cat-chip${pedCatFilter === c.slug ? ' act' : ''}" onclick="setPedCatFilter('${c.slug}')">${c.icono} <span class="cpill-lbl">${c.nombre}</span></div>`))
+    .join('')
+  return `<div class="ped-cat-bar">${chips}</div>`
+}
+
 function renderPedCatView() {
-  const rol              = getStockUser()?.rol
-  const canManageOneoffs = rol === 'encargado' || rol === 'admin' || rol === 'superadmin'
-  const needsOrder       = prods.filter(isPendingForOrderView)
+  const chipsHtml   = renderPedCatChips()
+  const needsOrderAll = prods.filter(isPendingForOrderView)
+  // Vinos (con hijas) incluye sus subcategorías en el filtro — mismo patrón que Productos.
+  const needsOrder = pedCatFilter === 'all'
+    ? needsOrderAll
+    : needsOrderAll.filter(p => catSlugsForFilter(pedCatFilter).includes(p.cat))
 
   const bottomButtons = `
     <button class="ped-send" onclick="sendPedidoWhatsApp()">${WA_ICON_SVG} Enviar pedido por WhatsApp</button>
-    ${canManageOneoffs ? `<button class="oneoff-btn" onclick="showOneoffModal()">+ Añadir producto puntual</button>` : ''}
+    <button class="oneoff-btn" onclick="onAddOneoffClick()">+ Añadir producto puntual</button>
   `
 
   let oneoffSectionHtml = ''
@@ -942,7 +976,7 @@ function renderPedCatView() {
           <div class="oneoff-name">${o.nombre}</div>
           <div class="oneoff-meta">${o.cantidad} ${o.unidad}${o.creado_por ? ` · por ${o.creado_por}` : ''}</div>
         </div>
-        ${canManageOneoffs ? `<button class="oneoff-del" onclick="deleteOneoff('${o.id}')">✕</button>` : ''}
+        ${canManageProducts() ? `<button class="oneoff-del" onclick="deleteOneoff('${o.id}')">✕</button>` : ''}
       </div>
     `).join('')
     oneoffSectionHtml = `
@@ -952,7 +986,7 @@ function renderPedCatView() {
   }
 
   if (!needsOrder.length && !oneoffs.length) {
-    return `
+    return chipsHtml + `
       <div class="ped-empty">
         <div class="ped-empty-icon">🛒</div>
         <div class="ped-empty-title">¡Todo en orden!</div>
@@ -966,25 +1000,41 @@ function renderPedCatView() {
     if (!byCat[p.cat]) byCat[p.cat] = []
     byCat[p.cat].push(p)
   }
+  const pedItemHtml = p => {
+    const st = getStockStatus(p.qty, p.min)
+    const n  = Math.max(1, p.min - p.qty)
+    return renderPedCard(p, `<div class="ped-tag ${st}">+${n} ${p.unit}</div>`)
+  }
 
-  const catSections = stockCatsAll
-    .filter(c => byCat[c.slug])
-    .map(c => {
-      const header = `
-        <div class="sec-hdr">
-          <div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div>
-          <div class="sec-line"></div>
-        </div>
-      `
-      const items = byCat[c.slug].slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map(p => {
-        const st = getStockStatus(p.qty, p.min)
-        const n  = Math.max(1, p.min - p.qty)
-        return renderPedCard(p, `<div class="ped-tag ${st}">+${n} ${p.unit}</div>`)
-      }).join('')
-      return header + items
-    }).join('')
+  // Mismo orden/jerarquía que la vista "Todo" de Productos: solo categorías de
+  // primer nivel como secciones; las que tienen subcategorías las anidan
+  // indentadas debajo, nunca al mismo nivel que Alimentación/Bebidas/etc.
+  const topCats = stockCatsAll.filter(c => !c.parent_slug)
+    .slice().sort((a, b) => (a.orden || 0) - (b.orden || 0))
+  let catSections = ''
+  topCats.forEach(c => {
+    const children = childrenOfCat(c.slug)
+    if (children.length) {
+      let groups = ''
+      children.forEach(ch => {
+        const items = (byCat[ch.slug] || []).slice().sort(sortByName)
+        if (!items.length) return
+        groups += subHeader(ch) + items.map(pedItemHtml).join('')
+      })
+      const parentItems = (byCat[c.slug] || []).slice().sort(sortByName)
+      if (parentItems.length) {
+        groups += `<div class="sec-hdr sec-hdr-sub"><div class="sec-lbl">❓ SIN SUBCATEGORÍA</div><div class="sec-line"></div></div>`
+        groups += parentItems.map(pedItemHtml).join('')
+      }
+      if (groups) catSections += catHeader(c) + groups
+    } else {
+      const items = (byCat[c.slug] || []).slice().sort(sortByName)
+      if (!items.length) return
+      catSections += catHeader(c) + items.map(pedItemHtml).join('')
+    }
+  })
 
-  return oneoffSectionHtml + catSections + bottomButtons
+  return chipsHtml + oneoffSectionHtml + catSections + bottomButtons
 }
 
 /* ─── Pedido — vista Por proveedor ───
@@ -1014,29 +1064,63 @@ function adjustPedQty(id, delta) {
   renderPedido()
 }
 
+/* Panel propio en vez de <select> nativo — un <select> nativo no se puede
+   reestilar (el navegador gestiona su propio popup/scroll), así que con
+   muchos proveedores no había forma de aplicar overflow/max-height reales.
+   Mismo patrón que el panel "Filtrar por proveedor" de Productos
+   (#filter-panel/.filter-prov-item), reutilizando esas clases. */
+let pedProvPanelOpen = false
+function togglePedProvPanel() {
+  pedProvPanelOpen = !pedProvPanelOpen
+  renderPedido()
+}
+function closePedProvPanel() {
+  if (!pedProvPanelOpen) return
+  pedProvPanelOpen = false
+  renderPedido()
+}
+function selectPedProvFromPanel(id) {
+  pedProvPanelOpen = false
+  selectPedProv(id) // ya dispara renderPedido()
+}
 function renderPedProvSelect() {
-  const placeholderSelected = pedProvId ? '' : 'selected'
-  const opts = stockProvsAll.map(p =>
-    `<option value="${p.id}" ${p.id === pedProvId ? 'selected' : ''}>${pedProvIndicator(p.id)}${p.nombre}</option>`
+  const selected = pedProvId ? stockProvsAll.find(p => p.id === pedProvId) : null
+  const label = selected ? `${pedProvIndicator(selected.id)}${selected.nombre}` : 'Selecciona un proveedor…'
+  const provsWithProds = stockProvsAll
+    .filter(prov => prods.some(p => p.provId === prov.id))
+    .slice().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+  const allRow = `<div class="filter-prov-item filter-prov-all${pedProvId ? '' : ' sel'}" onclick="selectPedProvFromPanel('')">✦ Ver todos los proveedores</div>`
+  const rows = provsWithProds.map(p =>
+    `<div class="filter-prov-item${p.id === pedProvId ? ' sel' : ''}" onclick="selectPedProvFromPanel('${p.id}')">${pedProvIndicator(p.id)}${p.nombre}</div>`
   ).join('')
   return `
     <div class="ped-prov-wrap">
-      <select class="inp" onchange="selectPedProv(this.value)">
-        <option value="" ${placeholderSelected}>Selecciona un proveedor…</option>
-        ${opts}
-      </select>
+      <button type="button" class="ped-prov-select-btn" id="ped-prov-select-btn" onclick="event.stopPropagation(); togglePedProvPanel()">
+        <span>${label}</span>
+        <svg class="ped-prov-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="ped-prov-dd-panel${pedProvPanelOpen ? ' open' : ''}" id="ped-prov-dd-panel">
+        <div class="filter-prov-list">${allRow}${rows}</div>
+      </div>
     </div>
   `
 }
+document.addEventListener('click', e => {
+  const panel = document.getElementById('ped-prov-dd-panel')
+  const btn = document.getElementById('ped-prov-select-btn')
+  if (!panel || !panel.classList.contains('open')) return
+  if (panel.contains(e.target) || (btn && btn.contains(e.target))) return
+  closePedProvPanel()
+})
 
 function renderPedProvItem(p, isOtros) {
   const qty = pedQty.get(p.id) || 0
   const extraClass = isOtros ? (qty > 0 ? 'ped-item-grey ped-item-selected' : 'ped-item-grey') : ''
   const qtyHtml = `
     <div class="ped-qty-wrap">
-      <button class="sbtn" onclick="adjustPedQty('${p.id}', -1)">−</button>
+      <button class="sbtn" onclick="event.stopPropagation(); adjustPedQty('${p.id}', -1)">−</button>
       <div class="ped-qty-val">${qty}</div>
-      <button class="sbtn" onclick="adjustPedQty('${p.id}', 1)">+</button>
+      <button class="sbtn" onclick="event.stopPropagation(); adjustPedQty('${p.id}', 1)">+</button>
     </div>
   `
   return renderPedCard(p, qtyHtml, extraClass)

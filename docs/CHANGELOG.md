@@ -1,5 +1,19 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.21 — Subcategorías de vinos, permisos Stock y validación de campos (julio 2026)
+- Subcategorías de Vinos: Ribera del Duero / Rioja / Otros con dropdown en chip "Vinos ▾"
+- Vista "Todo": vinos agrupados bajo sección VINOS con subsecciones indentadas
+- Header de categoría siempre visible al filtrar (BEBIDAS, ALIMENTACIÓN, RIBERA DEL DUERO...)
+- Scroll al inicio al cambiar de categoría o filtro
+- Permisos por rol en Stock: empleados solo pueden usar +/- de cantidad, sin crear/editar/borrar
+- Modal de producto: selects de categoría en cascada (categoría principal → subcategoría)
+- Validación de campos obligatorios en modal de producto: Nombre*, Categoría*, Unidad* con borde rojo y mensaje de error. Patrón reutilizable en components.css
+- Foto eliminada de chips del grid de Turnos — más espacio para el nombre
+- Ancho mínimo 90px en columnas del grid de Turnos
+- Fix: hora_especial formato antiguo eliminado de todos los turnos
+- Fix: badge de nota especial aparecía en todos los días del mismo turno en vez de solo el día correcto
+- 132 vinos de la carta completa añadidos al catálogo
+
 ## v0.2.20 — Fixes post-lanzamiento y nuevos productos (julio 2026)
 - Fix: notas especiales en chips de Turnos muestran texto visible en badge dorado (antes icono 📝 con tooltip)
 - Fix: selects de nota especial filtrados por días/turnos asignados del trabajador
