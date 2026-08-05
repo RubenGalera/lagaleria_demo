@@ -1,5 +1,12 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.24 — Fix crítico variante B + orden manual de turnos (agosto 2026)
+- Fix crítico: variante B se perdía al cambiar a variante A dentro de la ventana de autoguardado (2s). scheduleAutosave() ahora captura un snapshot {semana, variante, grid} en el momento de la edición — saveWeekSnapshot() ya no lee globals en vivo sino parámetros fijos
+- Fix: todos los turnos existentes migrados a variante='A' (antes tenían NULL por el ALTER TABLE)
+- Orden manual de trabajadores persiste: saveWeekSnapshot() guarda el índice de posición (campo orden) y loadWeekFromSupabase() ordena por orden ASC al cargar
+- Fix layout chips A/B: misma línea que el selector de semana, alineados a la izquierda
+- Fix login ?tel=: sesión activa de otro usuario se ignora correctamente
+
 ## v0.2.23 — Plan B de turnos + fixes de variante (agosto 2026)
 - Nueva feature: variantes A/B de turnos por semana — plan de respaldo para admin
 - Botón "+" junto al selector de semana crea variante B vacía (solo admin)

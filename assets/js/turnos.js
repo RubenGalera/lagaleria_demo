@@ -250,7 +250,12 @@ async function loadWeekFromSupabase(semanaInicio) {
     cm: [[],[],[],[],[],[],[]],
     cn: [[],[],[],[],[],[],[]],
   };
-  filas.forEach(f => {
+  /* orden ASC dentro de cada slot/día — Supabase no garantiza el orden de
+     filas sin .order(), y aquí conviene ordenar una vez sobre el array plano
+     (estable) en vez de por columna: cada push() below va a su propio
+     data[slot][dia], así que el orden relativo dentro de cada uno se
+     conserva igual que si hubiéramos ordenado grupo a grupo. */
+  filas.slice().sort((a, b) => (a.orden || 0) - (b.orden || 0)).forEach(f => {
     const nombre = sbIdToNombre(f.trabajador_id);
     if (!nombre) return;
     const str = f.hora_especial ? `${nombre}:${f.hora_especial}` : nombre;
@@ -287,30 +292,45 @@ function eventosToPickerDates() {
 
 /* ── /SUPABASE Fase 1 ── */
 
-/* ── AUTOSAVE (Fase A2) ── */
+/* ── AUTOSAVE (Fase A2) ──
+   BUG encontrado: saveWeekSnapshot() leía curMonday/curVariante/L().data en
+   vivo, EN EL MOMENTO DE EJECUTARSE — pero se invoca 2s después de llamar a
+   scheduleAutosave() (setTimeout). Si el admin editaba la variante B y
+   cambiaba a A dentro de esos 2s, el timer pendiente disparaba usando el
+   curVariante YA CAMBIADO ('A') y el L().data YA SOBRESCRITO (de A, tras el
+   loadWeekFromSupabase del cambio de vista) — el edit de B nunca se guardaba
+   en ningún sitio, se perdía en el aire. Fix: capturar semana/variante/grid
+   como snapshot EN EL MOMENTO DE LA EDICIÓN (scheduleAutosave), y pasarlos
+   como parámetros — saveWeekSnapshot() ya no lee ningún global en vivo. */
 let _saveTimer = null;
+let _pendingSave = null; // {semana, variante, varianteActiva, grid} capturado en scheduleAutosave()
 
-async function saveWeekSnapshot() {
+function _snapshotGridData() {
+  const snap = {};
+  ROWS.forEach(slot => { snap[slot] = L().data[slot].map(dia => (dia || []).slice()); });
+  return snap;
+}
+
+async function saveWeekSnapshot(semana, variante, grid, varianteActiva) {
   if (!_sb) { console.warn('[autosave] Supabase no disponible'); return; }
-  const semana = curMonday;
-  const variante = curVariante;
-  /* Acotado a la variante que se está editando — sin el .eq('variante', ...)
-     un autosave de la variante A borraría también los turnos de la B. */
+  console.log('[SAVE] variante=', variante, 'semana=', semana, new Date().toISOString());
+  /* Acotado a la variante editada — sin el .eq('variante', ...) un autosave
+     de la variante A borraría también los turnos de la B. */
   const { error: delErr } = await _sb.from('turnos')
     .delete()
     .eq('local_id', LOCAL_ID)
     .eq('semana_inicio', semana)
     .eq('variante', variante);
   if (delErr) { console.error('[autosave] Error borrando:', delErr.message); return; }
-  const activa = variante === curVarianteActiva;
+  const activa = variante === varianteActiva;
   const rows = [];
   ROWS.forEach(slot => {
     for (let dia = 0; dia < 7; dia++) {
-      (L().data[slot][dia] || []).forEach(raw => {
+      (grid[slot][dia] || []).forEach((raw, orden) => {
         const { name, hour } = parse(raw);
         const trabajador_id = sbNombreToId(name);
         if (!trabajador_id) return;
-        rows.push({ local_id: LOCAL_ID, semana_inicio: semana, slot, dia, trabajador_id, hora_especial: hour || null, variante, activa });
+        rows.push({ local_id: LOCAL_ID, semana_inicio: semana, slot, dia, trabajador_id, hora_especial: hour || null, variante, activa, orden });
       });
     }
   });
@@ -322,15 +342,21 @@ async function saveWeekSnapshot() {
 }
 
 function scheduleAutosave() {
+  _pendingSave = { semana: curMonday, variante: curVariante, varianteActiva: curVarianteActiva, grid: _snapshotGridData() };
   clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(async () => { _saveTimer = null; await saveWeekSnapshot(); }, 2000);
+  _saveTimer = setTimeout(async () => {
+    _saveTimer = null;
+    const p = _pendingSave; _pendingSave = null;
+    if (p) await saveWeekSnapshot(p.semana, p.variante, p.grid, p.varianteActiva);
+  }, 2000);
 }
 
 async function flushSave() {
-  if (_saveTimer === null) return;
+  if (_saveTimer === null || !_pendingSave) return;
   clearTimeout(_saveTimer);
   _saveTimer = null;
-  await saveWeekSnapshot();
+  const p = _pendingSave; _pendingSave = null;
+  await saveWeekSnapshot(p.semana, p.variante, p.grid, p.varianteActiva);
 }
 /* ── /AUTOSAVE ── */
 
@@ -356,11 +382,13 @@ function crearVarianteB(){
 
 async function setVariante(v){
   if(!_isAdmin() || v===curVariante) return;
-  /* Sin flushSave() aquí a propósito: cambiar de variante es solo navegación,
-     no una edición. El guardado real ya lo dispara scheduleAutosave() desde
-     los sitios donde se toca L().data (añadir/quitar turno, autogenerar...).
-     Forzar un guardado síncrono en cada cambio de variante era la causa del
-     bug donde los turnos de la variante que se abandonaba desaparecían. */
+  /* flushSave() ahora es seguro: usa el snapshot {semana,variante,grid} que
+     scheduleAutosave() capturó EN EL MOMENTO DE LA EDICIÓN, no el curVariante
+     actual — así el guardado pendiente de la variante que se abandona se
+     persiste con sus propios datos antes de cambiar de vista, en vez de
+     quedar un timer suelto que dispararía más tarde con el estado ya
+     cambiado (esa lectura en vivo era el bug real). */
+  await flushSave();
   curVariante = v;
   await loadWeekFromSupabase(curMonday);
 }
@@ -1412,7 +1440,13 @@ DatePicker.init({
   onChange:function(d){ _applyWeek(d); }
 });
 sbInitTrabajadores().then(()=>changeWeek(0)); /* carga diccionario nombre↔UUID, actualiza label y carga semana actual */
-window.addEventListener('beforeunload', () => { if (_saveTimer !== null) { clearTimeout(_saveTimer); _saveTimer = null; saveWeekSnapshot(); } });
+window.addEventListener('beforeunload', () => {
+  if (_saveTimer !== null && _pendingSave) {
+    clearTimeout(_saveTimer);
+    const p = _pendingSave; _saveTimer = null; _pendingSave = null;
+    saveWeekSnapshot(p.semana, p.variante, p.grid, p.varianteActiva);
+  }
+});
 
 
 
