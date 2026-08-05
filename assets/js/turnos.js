@@ -10,12 +10,15 @@ let _sbTrabajadores = [];
 let _skillLocalToUUID = {};  /* slug 'barra' → UUID del catálogo skills */
 let _skillUUIDToLocal = {};  /* UUID → slug 'barra' */
 
+/* Admin: trae AMBAS variantes de golpe (loadWeekFromSupabase filtra en JS
+   la que toque ver, y de paso deriva weekHasVariantB/curVarianteActiva sin
+   una query aparte). No-admin: solo la variante activa=true — la única que
+   debe poder ver un trabajador. */
 async function sbLoadTurnos(semanaInicio) {
   if (!_sb) { console.warn('sbLoadTurnos: Supabase no disponible'); return []; }
-  const {data, error} = await _sb.from('turnos')
-    .select('*')
-    .eq('local_id', LOCAL_ID)
-    .eq('semana_inicio', semanaInicio);
+  let q = _sb.from('turnos').select('*').eq('local_id', LOCAL_ID).eq('semana_inicio', semanaInicio);
+  if (!_isAdmin()) q = q.eq('activa', true);
+  const {data, error} = await q;
   if (error) { console.warn('sbLoadTurnos:', error.message); return []; }
   return data || [];
 }
@@ -221,10 +224,25 @@ async function loadWeekFromSupabase(semanaInicio) {
   finDt.setUTCDate(finDt.getUTCDate() + 6);
   const semanaFin = finDt.toISOString().split('T')[0];
 
-  const [filas, filasEv] = await Promise.all([
+  const [filasRaw, filasEv] = await Promise.all([
     sbLoadTurnos(semanaInicio),
     sbLoadEventos(semanaInicio, semanaFin),
   ]);
+
+  const admin = _isAdmin();
+  if (admin) {
+    weekHasVariantB = filasRaw.some(f => f.variante === 'B');
+    const activaRow = filasRaw.find(f => f.activa);
+    curVarianteActiva = activaRow ? (activaRow.variante || 'A') : 'A';
+    if (!weekHasVariantB) curVariante = 'A'; // no quedarse "atrapado" en B al cambiar a una semana que no la tiene
+  } else {
+    // filasRaw ya viene filtrado a activa=true — se deriva igualmente para que
+    // un guardado posterior (si el rol puede editar) apunte a la variante correcta.
+    weekHasVariantB = false;
+    curVarianteActiva = filasRaw.length ? (filasRaw[0].variante || 'A') : 'A';
+    curVariante = curVarianteActiva;
+  }
+  const filas = admin ? filasRaw.filter(f => (f.variante || 'A') === curVariante) : filasRaw;
 
   const data = {
     sm: [[],[],[],[],[],[],[]],
@@ -239,6 +257,7 @@ async function loadWeekFromSupabase(semanaInicio) {
     if (data[f.slot] && f.dia >= 0 && f.dia <= 6) data[f.slot][f.dia].push(str);
   });
   locals.galeria.data = data;
+  renderVariantChips();
 
   const inicioDt = new Date(semanaInicio + 'T00:00:00Z');
   locals.galeria.eventos = filasEv
@@ -274,11 +293,16 @@ let _saveTimer = null;
 async function saveWeekSnapshot() {
   if (!_sb) { console.warn('[autosave] Supabase no disponible'); return; }
   const semana = curMonday;
+  const variante = curVariante;
+  /* Acotado a la variante que se está editando — sin el .eq('variante', ...)
+     un autosave de la variante A borraría también los turnos de la B. */
   const { error: delErr } = await _sb.from('turnos')
     .delete()
     .eq('local_id', LOCAL_ID)
-    .eq('semana_inicio', semana);
+    .eq('semana_inicio', semana)
+    .eq('variante', variante);
   if (delErr) { console.error('[autosave] Error borrando:', delErr.message); return; }
+  const activa = variante === curVarianteActiva;
   const rows = [];
   ROWS.forEach(slot => {
     for (let dia = 0; dia < 7; dia++) {
@@ -286,7 +310,7 @@ async function saveWeekSnapshot() {
         const { name, hour } = parse(raw);
         const trabajador_id = sbNombreToId(name);
         if (!trabajador_id) return;
-        rows.push({ local_id: LOCAL_ID, semana_inicio: semana, slot, dia, trabajador_id, hora_especial: hour || null });
+        rows.push({ local_id: LOCAL_ID, semana_inicio: semana, slot, dia, trabajador_id, hora_especial: hour || null, variante, activa });
       });
     }
   });
@@ -294,7 +318,7 @@ async function saveWeekSnapshot() {
     const { error: insErr } = await _sb.from('turnos').insert(rows);
     if (insErr) { console.error('[autosave] Error insertando:', insErr.message); return; }
   }
-  console.log('[autosave] ✅', rows.length, 'filas guardadas, semana', semana);
+  console.log('[autosave] ✅', rows.length, 'filas guardadas, semana', semana, 'variante', variante);
 }
 
 function scheduleAutosave() {
@@ -309,6 +333,124 @@ async function flushSave() {
   await saveWeekSnapshot();
 }
 /* ── /AUTOSAVE ── */
+
+/* ── PLAN B DE TURNOS (variantes A/B) — solo admin/superadmin ── */
+
+/* Crea la variante B vacía y cambia el grid a verla/editarla. No escribe nada
+   en BD todavía — la fila de "+ Añadir producto puntual"-equivalente aquí es
+   que B empieza a existir de verdad en cuanto el primer turno se autoguarde
+   en ella (mismo criterio que "una semana sin turnos" ya no se distingue hoy
+   de "una semana que no existe": no hay una tabla de "semanas", solo filas de
+   turnos). Si el admin crea B y no añade nada, al recargar la página los
+   chips A/B no reaparecerán — no hay forma de persistir "existe pero vacía"
+   sin una fila real. */
+function crearVarianteB(){
+  if(!_isAdmin() || weekHasVariantB) return;
+  weekHasVariantB = true;
+  curVariante = 'B';
+  ROWS.forEach(r=>{ for(let d=0;d<7;d++) L().data[r][d]=[]; });
+  buildGrid(); renderW(); updateStats();
+  renderVariantChips();
+  showToast('Variante B creada — vacía');
+}
+
+async function setVariante(v){
+  if(!_isAdmin() || v===curVariante) return;
+  /* Sin flushSave() aquí a propósito: cambiar de variante es solo navegación,
+     no una edición. El guardado real ya lo dispara scheduleAutosave() desde
+     los sitios donde se toca L().data (añadir/quitar turno, autogenerar...).
+     Forzar un guardado síncrono en cada cambio de variante era la causa del
+     bug donde los turnos de la variante que se abandonaba desaparecían. */
+  curVariante = v;
+  await loadWeekFromSupabase(curMonday);
+}
+
+function onActivarVariante(v){
+  if(!_isAdmin()) return;
+  if(v===curVarianteActiva){ showToast('Esta semana ya está activa'); return; }
+  showConfirmDialog(
+    '¿Activar esta semana?',
+    'Al activar esta semana, todos los trabajadores verán esta programación. ¿Deseas continuar?',
+    'Activar',
+    ()=>doActivarVariante(v)
+  );
+}
+async function doActivarVariante(v){
+  closeOv('ov-confirm');
+  if(!_sb){ showToast('Sin conexión'); return; }
+  await flushSave();
+  const otra = v==='A' ? 'B' : 'A';
+  const { error:e1 } = await _sb.from('turnos').update({activa:true}).eq('local_id',LOCAL_ID).eq('semana_inicio',curMonday).eq('variante',v);
+  if(e1){ console.error('[variante] activar:', e1.message); showToast('Error al activar'); return; }
+  const { error:e2 } = await _sb.from('turnos').update({activa:false}).eq('local_id',LOCAL_ID).eq('semana_inicio',curMonday).eq('variante',otra);
+  if(e2) console.error('[variante] desactivar otra:', e2.message);
+  curVarianteActiva = v;
+  renderVariantChips();
+  showToast('Semana '+v+' activada ✓');
+}
+
+function onEliminarVariante(v){
+  if(!_isAdmin()) return;
+  const esActiva = v===curVarianteActiva;
+  showConfirmDialog(
+    esActiva ? '¿Eliminar semana activa?' : '¿Eliminar semana alternativa?',
+    esActiva
+      ? 'Al eliminar esta semana, la alternativa quedará activa como principal. ¿Deseas continuar?'
+      : '¿Deseas eliminar esta semana alternativa?',
+    'Eliminar',
+    ()=>doEliminarVariante(v, esActiva)
+  );
+}
+async function doEliminarVariante(v, esActiva){
+  closeOv('ov-confirm');
+  if(!_sb){ showToast('Sin conexión'); return; }
+  const otra = v==='A' ? 'B' : 'A';
+  if(esActiva){
+    const { error:eAct } = await _sb.from('turnos').update({activa:true}).eq('local_id',LOCAL_ID).eq('semana_inicio',curMonday).eq('variante',otra);
+    if(eAct){ console.error('[variante] reactivar otra:', eAct.message); showToast('Error al eliminar'); return; }
+  }
+  const { error:eDel } = await _sb.from('turnos').delete().eq('local_id',LOCAL_ID).eq('semana_inicio',curMonday).eq('variante',v);
+  if(eDel){ console.error('[variante] eliminar:', eDel.message); showToast('Error al eliminar'); return; }
+  curVariante = otra; // única variante que queda
+  await loadWeekFromSupabase(curMonday); // recalcula weekHasVariantB/curVarianteActiva desde BD
+  showToast('Semana alternativa eliminada ✓');
+}
+
+/* Pinta (o vacía) #variant-bar y el botón "+" según el rol y si existe B.
+   Se llama tras cada loadWeekFromSupabase() — nunca hay que llamarla "a mano"
+   al margen de un cambio de estado real. Un solo botón Activar/Eliminar
+   (no uno por chip) que actúa sobre curVariante, la que esté seleccionada —
+   así todo cabe en una sola línea junto al selector de semana. */
+function renderVariantChips(){
+  const plusBtn = document.getElementById('vbtn-plus');
+  const bar = document.getElementById('variant-bar');
+  if(!bar) return;
+  if(!_isAdmin()){
+    if(plusBtn) plusBtn.style.display = 'none';
+    bar.innerHTML = '';
+    return;
+  }
+  if(plusBtn) plusBtn.style.display = weekHasVariantB ? 'none' : '';
+  if(!weekHasVariantB){ bar.innerHTML = ''; return; }
+  const chip = v => `
+    <div class="vchip${curVariante===v?' act':''}" onclick="setVariante('${v}')">
+      <span class="vchip-full">Semana ${v}</span>
+      <span class="vchip-short">${v}</span>
+    </div>
+  `;
+  bar.innerHTML = `
+    ${chip('A')}${chip('B')}
+    <button class="tpill vchip-btn" onclick="onActivarVariante('${curVariante}')">
+      <span class="tpill-icon">✓</span>
+      <span class="tpill-txt">Activar</span>
+    </button>
+    <button class="tpill tpill-danger vchip-btn" onclick="onEliminarVariante('${curVariante}')">
+      <span class="tpill-icon">×</span>
+      <span class="tpill-txt">Eliminar</span>
+    </button>
+  `;
+}
+/* ── /PLAN B DE TURNOS ── */
 
 /* ── CONSTANTES Y DATOS LOCALES ── */
 const DAYS_S=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
@@ -1049,6 +1191,18 @@ function weekLabel(monStr){
 let curMonday=mondayOfDate(new Date().toISOString().split('T')[0]);
 let curWeek=isoWeekNum(curMonday);
 let curYear=isoWeekYear(curMonday);
+
+/* ── Plan B de turnos (variantes A/B, ver turnos.variante/activa en BD) ──
+   curVariante: variante que se está viendo/editando ahora mismo en el grid.
+   curVarianteActiva: variante marcada activa=true para curMonday — la que ven
+   los trabajadores. Para admin pueden diferir (viendo B sin haberla activado
+   todavía); para no-admin siempre coinciden, ya que solo cargan activa=true.
+   weekHasVariantB: si curMonday tiene turnos guardados con variante='B'
+   (se recalcula en cada loadWeekFromSupabase — ver ahí el porqué de que una
+   variante B "vacía" recién creada no sobreviva a un recargo de página). */
+let curVariante = 'A';
+let curVarianteActiva = 'A';
+let weekHasVariantB = false;
 
 function _applyWeek(monStr){
   curMonday=monStr;

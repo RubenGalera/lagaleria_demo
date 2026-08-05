@@ -22,17 +22,22 @@
 
   <!-- FILA 2: selector de semana (izq) + acciones (dcha) -->
   <div class="turnos-pills toolbar-row">
-    <div class="tp-week-nav">
-      <button class="wbtn tt-arrow" onclick="changeWeek(-1)">&#8249;</button>
-      <div class="tp-week-center" onclick="DatePicker.open()">
-        <span class="material-symbols-outlined tp-cal-icon">calendar_month</span>
-        <div>
-          <div class="tt-date" id="wlabel">18–24 mayo</div>
-          <div class="tt-sub" id="wsub">Sem 21</div>
+    <div class="tp-week-group">
+      <div class="tp-week-nav">
+        <button class="wbtn tt-arrow" onclick="changeWeek(-1)">&#8249;</button>
+        <div class="tp-week-center" onclick="DatePicker.open()">
+          <span class="material-symbols-outlined tp-cal-icon">calendar_month</span>
+          <div>
+            <div class="tt-date" id="wlabel">18–24 mayo</div>
+            <div class="tt-sub" id="wsub">Sem 21</div>
+          </div>
         </div>
+        <button class="wbtn tt-arrow" onclick="changeWeek(1)">&#8250;</button>
       </div>
-      <button class="wbtn tt-arrow" onclick="changeWeek(1)">&#8250;</button>
+      <button class="wbtn vbtn-plus" id="vbtn-plus" onclick="crearVarianteB()" title="Crear plan B (variante alternativa) para esta semana" style="display:none">+</button>
     </div>
+    <!-- Plan B de turnos: chips A/B + Activar/Eliminar — solo admin/superadmin, solo si existe variante B (ver renderVariantChips() en turnos.js) -->
+    <div class="variant-bar" id="variant-bar"></div>
     <div class="tp-actions">
       <button class="tpill tpill-accent" onclick="openGenerarModal()">
         <span class="tpill-icon">✦</span>

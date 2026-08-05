@@ -1,5 +1,26 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.23 — Plan B de turnos + fixes de variante (agosto 2026)
+- Nueva feature: variantes A/B de turnos por semana — plan de respaldo para admin
+- Botón "+" junto al selector de semana crea variante B vacía (solo admin)
+- Chips A/B en la misma línea que el selector, alineados a la izquierda
+- Chip seleccionado en dorado (--acc) con texto oscuro, igual que chips activos en Productos
+- Un botón "Activar" y uno "Eliminar" actúan sobre la variante seleccionada
+- Modal de confirmación al activar variante no activa o eliminar variante activa
+- Empleados solo ven la variante activa — sin chips ni botón "+"
+- Fix crítico: cambiar de variante B a A ya no borra los turnos de B (saveWeekSnapshot filtra siempre por variante)
+- Fix login ?tel=: sesión activa de otro usuario se ignora al acceder con enlace de invitación
+
+## v0.2.22 — Algoritmo stock, permisos Pedido y fix login ?tel= (agosto 2026)
+- Algoritmo getStockStatus() simplificado: qty>min→verde, qty<=min y qty>ceil(min/2)→naranja, qty<=ceil(min/2)→rojo. Más intuitivo y consistente
+- Editar producto desde Pedido: admin/encargado abren modal de edición directamente, empleado ve toast informativo
+- Chips de categoría en Pedido/Por categoría (mismo espacio que dropdown proveedor)
+- Ordenación correcta en Pedido/Por categoría: subcategorías agrupadas bajo su padre (Vinos → Ribera/Rioja/Otros)
+- Fix scroll dropdown proveedores en Pedido: panel propio con overflow-y:auto y max-height:60vh
+- Fix login con ?tel=: si hay sesión activa de otro usuario, se ignora y muestra PIN del teléfono del enlace
+- Toast informativo para empleados al intentar editar/crear productos
+
+
 ## v0.2.21 — Subcategorías de vinos, permisos Stock y validación de campos (julio 2026)
 - Subcategorías de Vinos: Ribera del Duero / Rioja / Otros con dropdown en chip "Vinos ▾"
 - Vista "Todo": vinos agrupados bajo sección VINOS con subsecciones indentadas
