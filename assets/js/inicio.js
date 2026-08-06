@@ -1,84 +1,54 @@
-/* lagaleria_inicio.html — dashboard de Inicio.
-   Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), toast/showModal/closeModal/stepField/formatDateLabel (ui-helpers.js).
-   Expone funciones/variables globales (initFromParent, navTo, initDashboard, etc.) en window — sin IIFE/module — para que window.parent y los iframes puedan usarlas. */
+/* lagaleria_inicio.html — dashboard de Inicio (rediseño mockup v7).
+   Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), toast/showModal/closeModal (ui-helpers.js), cleanTel (utils.js).
+   Expone funciones/variables globales (initDashboard, navTo, goToTurnos, navToEvento, navToStockReponer,
+   openContactosPanel, openProveedoresPanel, etc.) en window — sin IIFE/module — para que window.parent y
+   los iframes puedan usarlas.
+   A diferencia de la versión anterior (que "espiaba" el estado en memoria de los iframes hermanos con un
+   fallback a Supabase), esta versión consulta Supabase directamente para cada card — más simple y no
+   depende de que otro iframe ya esté cargado. */
 
 
-var SUPA_URL = 'https://nnmaedehqeeogmhzqzji.supabase.co';
-var SUPA_KEY = 'sb_publishable_spxukgcwMf-VFre7l_E68g_tWatBs9X';
-
-/* ── Auth helpers ─────────────────────────────────────────────────────── */
-/* revisar: getAuthToken()/supaFetch() reimplementan acceso REST a Supabase en paralelo a _sb (supabase-client.js), que ya está cargado en esta página. No se unificó porque cambiaría la lógica de negocio (headers, manejo de errores). Ver docs/MEJORAS.md — deuda técnica. */
-function getAuthToken(){
-  try{
-    var p = window.parent;
-    if(p.supabase){
-      var sess = p._supaSession;
-      if(sess && sess.access_token) return sess.access_token;
-    }
-  }catch(e){}
-  return SUPA_KEY;
+/* ── Fecha / semana ISO — mismo algoritmo que turnos.js (mondayOfDate/isoWeekNum), replicado aquí
+   porque esta página no carga turnos.js. ── */
+function mondayOfDate(dateStr){
+  var p=dateStr.split('-').map(Number), y=p[0], m=p[1], d=p[2];
+  var dt=new Date(Date.UTC(y,m-1,d));
+  var dow=dt.getUTCDay()||7;
+  dt.setUTCDate(dt.getUTCDate()-(dow-1));
+  return dt.toISOString().split('T')[0];
+}
+function isoWeekNum(dateStr){
+  var p=dateStr.split('-').map(Number), y=p[0], m=p[1], d=p[2];
+  var dt=new Date(Date.UTC(y,m-1,d));
+  var day=dt.getUTCDay()||7;
+  dt.setUTCDate(dt.getUTCDate()+4-day);
+  var y0=new Date(Date.UTC(dt.getUTCFullYear(),0,1));
+  return Math.ceil((((dt-y0)/86400000)+1)/7);
+}
+function _todayDowIdx(){ var jsDay=new Date().getDay(); return jsDay===0?6:jsDay-1; } // 0=Lunes...6=Domingo, igual que turnos.dia
+var MESES_ABR=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+var DIAS_LARGOS=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+function _formatFechaCorta(fecha){
+  var d=new Date(fecha+'T00:00:00Z');
+  return d.getUTCDate()+' '+MESES_ABR[d.getUTCMonth()];
 }
 
-function supaFetch(path, opts){
-  var token = getAuthToken();
-  var headers = Object.assign({
-    'apikey': SUPA_KEY,
-    'Authorization': 'Bearer ' + token,
-    'Content-Type': 'application/json',
-    'Prefer': 'return=representation',
-  }, opts && opts.headers || {});
-  return fetch(SUPA_URL + path, Object.assign({}, opts, { headers: headers }));
+/* ── Sesión actual ── */
+function _getCurrentUser(){
+  try{ if(window.parent && window.parent!==window && window.parent.currentUser) return window.parent.currentUser; }catch(e){}
+  try{ var saved=localStorage.getItem('lg_session'); if(saved) return JSON.parse(saved); }catch(e){}
+  return null;
+}
+function showMockBadge(){ var b=document.getElementById('mock-badge'); if(b) b.style.display='block'; }
+
+function showToast(msg){
+  var t=document.getElementById('_toast');if(!t)return;
+  t.textContent=msg;t.style.opacity='1';
+  clearTimeout(t._t);t._t=setTimeout(function(){t.style.opacity='0';},2200);
 }
 
-/* ── Init ─────────────────────────────────────────────────────────────── */
-var rol = 'admin';
-var localId = null;
-
-function initFromParent(){
-  try{
-    var p = window.parent;
-    if(!p || !p.currentUser){
-      try{
-        var saved = localStorage.getItem('lg_session');
-        if(saved){ var u = JSON.parse(saved); rol = u.rol || 'admin'; applyRolPermissions(rol); }
-      }catch(e){}
-      var isMockDirect = new URLSearchParams(window.location.search).get('mock') === '1';
-      if(isMockDirect) showMockBadge();
-      else{ localId = LOCAL_ID; fetchReservasHoy(); }
-      return;
-    }
-    rol = p.currentUser.rol;
-    applyRolPermissions(rol);
-    var local = p.getActiveLocal ? p.getActiveLocal() : null;
-    if(local){
-      var gn = document.getElementById('greeting-name');
-      if(gn) gn.textContent = local.nombre;
-    }
-    var isMock = new URLSearchParams(window.location.search).get('mock') === '1';
-    if(!isMock){ localId = LOCAL_ID; fetchReservasHoy(); }
-  }catch(e){ console.error('initFromParent', e); }
-}
-
-function showMockBadge(){
-  var b = document.getElementById('mock-badge');
-  if(b) b.style.display = 'block';
-}
-
-async function fetchReservasHoy(){
-  if(!localId) return;
-  try{
-    var hoy = new Date().toISOString().slice(0,10);
-    var res = await supaFetch(
-      '/rest/v1/reservas?select=id&local_id=eq.'+localId+'&fecha=eq.'+hoy
-    );
-    if(!res.ok) throw new Error(res.status);
-    var data = await res.json();
-    document.getElementById('stat-reservas').textContent = data.length || '0';
-    if(data.length > 0){
-      document.getElementById('mod-reservas-sub').textContent = data.length + ' reserva'+(data.length===1?'':'s')+' hoy';
-    }
-  }catch(e){ /* silencioso */ }
-}
+function _escHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _uniq(arr){ var seen={},out=[]; arr.forEach(function(x){ if(x&&!seen[x]){seen[x]=true;out.push(x);} }); return out; }
 
 /* ── Navegación entre iframes ─────────────────────────────────────────── */
 function navTo(page, section){
@@ -96,147 +66,334 @@ function navTo(page, section){
     }
   }catch(e){}
 }
-
-window.addEventListener('load', function(){ initFromParent(); setTimeout(initDashboard, 300); });
-window.refreshInicio = initFromParent;
-
-/* ── Helpers locales ──────────────────────────────────────────────────── */
-var _trabWorkers = [];
-function L(){return{staff:_trabWorkers,data:{sm:[[],[],[],[],[],[],[]],sn:[[],[],[],[],[],[],[]],cm:[[],[],[],[],[],[],[]],cn:[[],[],[],[],[],[],[]]},eventos:[]};}
-
-function showToast(msg){
-  var t=document.getElementById('_toast');if(!t)return;
-  t.textContent=msg;t.style.opacity='1';
-  clearTimeout(t._t);t._t=setTimeout(function(){t.style.opacity='0';},2200);
+function goToTurnos(){ try{ window.parent.goTo('turnos'); }catch(e){} }
+function navToEvento(id){
+  try{
+    window.parent.goTo('reservas');
+    setTimeout(function(){
+      try{
+        var fr=window.parent.document.getElementById('fr-reservas');
+        var cw=fr&&fr.contentWindow;
+        if(cw&&cw.goToSection) cw.goToSection('ev');
+        if(cw&&cw.openEvDetail) cw.openEvDetail(id);
+      }catch(e){}
+    },400);
+  }catch(e){}
+}
+function navToStockReponer(){
+  try{
+    window.parent.goTo('stock');
+    setTimeout(function(){
+      try{
+        var fr=window.parent.document.getElementById('fr-stock');
+        if(fr&&fr.contentWindow&&fr.contentWindow.setCat) fr.contentWindow.setCat('rep');
+      }catch(e){}
+    },400);
+  }catch(e){}
 }
 
-function toggleDashDispo(el){
-  var exp=el.parentElement.querySelector('.dash-expand');
-  var chev=el.querySelector('.dash-chev');
-  if(exp)exp.classList.toggle('open');
-  if(chev)chev.classList.toggle('open');
-}
+window.addEventListener('load', function(){
+  try{ if(new URLSearchParams(window.location.search).get('mock')==='1') showMockBadge(); }catch(e){}
+  setTimeout(initDashboard, 300);
+});
+window.refreshInicio = initDashboard;
 
 /* ── Dashboard — orquestador ──────────────────────────────────────────── */
 async function initDashboard(){
-  var d=new Date();
-  var dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  var meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  var startOfYear=new Date(d.getFullYear(),0,1);
-  var sem=Math.ceil(((d-startOfYear)/86400000+startOfYear.getDay()+1)/7);
-  var fel=document.getElementById('dash-fecha-full');if(fel)fel.textContent=dias[d.getDay()]+' '+d.getDate()+' '+meses[d.getMonth()]+' '+d.getFullYear();
-  var sel=document.getElementById('dash-semana');if(sel)sel.textContent='Semana '+sem;
-  var reservas=null,eventos=null,prods=null,loc=null;
+  var todayStr = new Date().toISOString().split('T')[0];
+  var monday = mondayOfDate(todayStr);
+  var todayIdx = _todayDowIdx();
+  var user = _getCurrentUser();
+  var myId = user && user._sbId || null;
+
+  _renderHeader(user, todayStr);
+  var wr=document.getElementById('week-range'); if(wr) wr.textContent=_weekRangeLabel(monday);
+
+  if(!window._sb || typeof LOCAL_ID==='undefined' || !LOCAL_ID){
+    _renderAllEmpty('Sin conexión');
+    return;
+  }
+
   try{
-    var frames=window.parent?window.parent.document.querySelectorAll('iframe'):[];
-    console.log('[dash] iframes en padre:',frames.length);
-    frames.forEach(function(f){
-      try{
-        var cw=f.contentWindow;
-        console.log('[dash] iframe src:',f.src,'→ cw.eventos:',cw&&cw.eventos,'len:',cw&&cw.eventos&&cw.eventos.length);
-        if(cw&&cw.reservas&&cw.reservas.length)reservas=cw.reservas;
-        if(cw&&cw.eventos&&cw.eventos.length)eventos=cw.eventos;
-        if(cw&&cw.prods)prods=cw.prods;
-        if(cw&&cw.L)loc=cw.L();
-      }catch(e){console.log('[dash] iframe bloqueado:',e.message);}
-    });
-  }catch(e){console.log('[dash] frames error:',e);}
-  console.log('[dash] post-iframe → _sb:',!!_sb,'eventos:',eventos,'reservas:',!!reservas,'prods:',!!prods);
-  if(_sb&&(!eventos||!reservas||!prods)){
-    try{
-      var hoyStr=new Date().toISOString().split('T')[0];
-      var _td=new Date(),_dow=_td.getDay(),_moff=_dow===0?-6:1-_dow;
-      var _mon=new Date(_td);_mon.setDate(_td.getDate()+_moff);
-      var _sun=new Date(_mon);_sun.setDate(_mon.getDate()+6);
-      var _monStr=_mon.toISOString().split('T')[0],_sunStr=_sun.toISOString().split('T')[0];
-      console.log('[dash] Supabase query eventos: gte',hoyStr,'lte',_sunStr,'local_id',LOCAL_ID);
-      var _qEv   = (eventos&&eventos.length) ? null : _sb.from('eventos').select('id,descripcion,fecha,hora').eq('local_id',LOCAL_ID).gte('fecha',hoyStr).lte('fecha',_sunStr).order('fecha').order('hora');
-      var _qRes  = reservas ? null : _sb.from('reservas').select('*').eq('local_id',LOCAL_ID).eq('fecha',hoyStr).order('hora');
-      var _qProd = prods    ? null : _sb.from('stock_productos').select('nombre,cantidad,minimo').eq('local_id',LOCAL_ID).eq('activo',true);
-      var _qZona = reservas ? null : _sb.from('zonas').select('id,emoji').eq('local_id',LOCAL_ID);
-      var _noop=Promise.resolve({data:null});
-      var _rs=await Promise.all([
-        Promise.resolve(_qEv  ||_noop).catch(function(){return{data:null};}),
-        Promise.resolve(_qRes ||_noop).catch(function(){return{data:null};}),
-        Promise.resolve(_qProd||_noop).catch(function(){return{data:null};}),
-        Promise.resolve(_qZona||_noop).catch(function(){return{data:null};}),
-      ]);
-      var _evData=_rs[0].data,_resData=_rs[1].data,_prodData=_rs[2].data,_zonaData=_rs[3].data;
-      console.log('[dash] _evData completo:',JSON.stringify(_rs[0]));
-      if(!(eventos&&eventos.length)&&_evData)eventos=_evData.map(function(e){return{nombre:e.descripcion||'',fecha:e.fecha,hora:e.hora?e.hora.slice(0,5):''};});
-      if(!reservas&&_resData){var _zm={};(_zonaData||[]).forEach(function(z){_zm[z.id]=z.emoji;});reservas=_resData.map(function(r){return{nombre:r.nombre,fecha:r.fecha,hora:r.hora?r.hora.slice(0,5):'',pax:r.pax,mesas:r.mesas,estado:r.estado,zonaId:r.zona_id,emoji:_zm[r.zona_id]||'📍',nota:r.nota||''};});}
-      if(!prods&&_prodData)prods=_prodData.map(function(p){return{name:p.nombre,qty:p.cantidad,min:p.minimo};});
-    }catch(e){console.error('[dash] sbFallback:',e);}
-  }else{console.log('[dash] bloque Supabase OMITIDO — _sb:',!!_sb,'eventos ya cargado:',!!eventos);}
-  console.log('[dash] → _dashEventos con:',eventos);
-  if(!loc)loc=L();
-  _dashReservas(reservas);_dashStock(prods);_dashEventos(eventos);_dashTurnos(loc);
-  _dashContactosPreview();_dashProveedoresPreview();
+    await Promise.all([
+      _loadTuSemana(monday, todayIdx, myId),
+      _loadTurnosHoy(monday, todayIdx, myId),
+      _loadReservasHoy(todayStr),
+      _loadProximoEvento(todayStr),
+      _loadAlertaStock(),
+      _loadAlertaConflictos(monday),
+    ]);
+  }catch(e){ console.error('[inicio] initDashboard', e); }
 }
 
-/* ── Dashboard — card: Reservas hoy ──────────────────────────────────── */
-function _dashReservas(reservas){
-  var hoy=new Date().toISOString().split('T')[0];
-  var deHoy=reservas?reservas.filter(function(r){return r.fecha===hoy;}):[];
-  var conf=deHoy.filter(function(r){return r.estado==='confirmada';}).length;
-  var pend=deHoy.filter(function(r){return r.estado==='pendiente';}).length;
-  var total=deHoy.length;
-  var sub=document.getElementById('dash-res-sub'),badge=document.getElementById('dash-res-badge');
-  if(sub)sub.textContent=total?'Reservas programadas para hoy':'Sin reservas hoy';
-  if(badge)badge.textContent=total||'—';
-  if(total&&badge)badge.className='dash-badge dash-badge-warn';
-  var ahora=new Date().toTimeString().slice(0,5);
-  var proximas=deHoy.filter(function(r){return r.hora>=ahora&&r.estado!=='cancelada';});
-  proximas.sort(function(a,b){return a.hora.localeCompare(b.hora);});
-  var prox=proximas[0];
-  var pn=document.getElementById('dash-prox-nombre'),pm=document.getElementById('dash-prox-meta'),ph=document.getElementById('dash-prox-hora');
-  if(prox){if(pn)pn.textContent=prox.nombre;if(pm)pm.textContent=prox.pax+' pax · '+prox.estado;if(ph)ph.textContent=prox.hora;}
-  var zonas=[{id:101,emoji:'☀️',nombre:'Terraza',mesas:8},{id:102,emoji:'🚪',nombre:'Entrada',mesas:4},{id:103,emoji:'🍷',nombre:'Barra',mesas:6},{id:104,emoji:'🪑',nombre:'Sala',mesas:10},{id:105,emoji:'🎭',nombre:'Salón',mesas:6}];
-  var libM=0,libN=0,hM='',hN='';
-  zonas.forEach(function(z){
-    var rM=deHoy.filter(function(r){return r.hora<'16:00'&&r.zonaId===z.id;}).length;
-    var rN=deHoy.filter(function(r){return r.hora>='16:00'&&r.zonaId===z.id;}).length;
-    libM+=Math.max(0,z.mesas-rM);libN+=Math.max(0,z.mesas-rN);
-    hM+='<div class="dash-zona-item"><span class="dash-zona-name">'+z.emoji+' '+z.nombre+'</span><span class="'+(rM>=z.mesas?'dash-zona-full':'dash-zona-count')+'">'+rM+'/'+z.mesas+'</span></div>';
-    hN+='<div class="dash-zona-item"><span class="dash-zona-name">'+z.emoji+' '+z.nombre+'</span><span class="'+(rN>=z.mesas?'dash-zona-full':'dash-zona-count')+'">'+rN+'/'+z.mesas+'</span></div>';
+function _renderAllEmpty(msg){
+  ['week-grid','turnos-hoy-card','reservas-card'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.innerHTML='<div class="card-empty">'+_escHtml(msg)+'</div>';
   });
-  var zm=document.getElementById('dash-zonas-med'),zn=document.getElementById('dash-zonas-noch'),lm=document.getElementById('dash-libres-med'),ln=document.getElementById('dash-libres-noch');
-  if(zm)zm.innerHTML=hM;if(zn)zn.innerHTML=hN;if(lm)lm.textContent='· '+libM+' libres';if(ln)ln.textContent='· '+libN+' libres';
+  var sec=document.getElementById('evento-sec'); if(sec) sec.style.display='none';
+  var as=document.getElementById('alert-stock');
+  if(as){ as.className='alert-card'; as.innerHTML='<div class="alert-n">—</div><div class="alert-bottom"><div class="alert-txt">'+_escHtml(msg)+'</div></div>'; }
+  var at=document.getElementById('alert-turnos');
+  if(at){ at.className='alert-card warn'; at.innerHTML='<div class="alert-n warn">—</div><div class="alert-bottom"><div class="alert-txt">'+_escHtml(msg)+'</div></div>'; }
 }
 
-/* ── Dashboard — card: Stock ──────────────────────────────────────────── */
-function _dashStock(prods){
-  var sub=document.getElementById('dash-stock-sub'),badge=document.getElementById('dash-stock-badge'),ic=document.getElementById('dash-stock-ic'),title=document.getElementById('dash-stock-title');
-  if(!prods){try{var raw=localStorage.getItem('lg_stock_v1');if(raw)prods=JSON.parse(raw);}catch(e){}}
-  if(!prods||!prods.length){if(sub)sub.textContent='Sin datos de stock';return;}
-  var rojos=prods.filter(function(p){return p.min>0&&p.qty*2<=p.min;});
-  var ambars=prods.filter(function(p){return p.min>0&&p.qty*2>p.min&&p.qty<=p.min;});
-  var total=rojos.length+ambars.length;
-  if(rojos.length){if(title)title.textContent='Stock crítico';if(sub)sub.textContent=rojos.slice(0,2).map(function(p){return p.name;}).join(' · ')+(rojos.length>2?' +más':'');if(badge){badge.textContent=total;badge.className='dash-badge dash-badge-alert';}if(ic)ic.className='dash-ic dash-ic-alert';}
-  else if(ambars.length){if(title)title.textContent='Stock en mínimos';if(sub)sub.textContent=ambars.slice(0,2).map(function(p){return p.name;}).join(' · ')+(ambars.length>2?' +más':'');if(badge){badge.textContent=total;badge.className='dash-badge dash-badge-warn';}if(ic)ic.className='dash-ic dash-ic-warn';}
-  else{if(title)title.textContent='Stock';if(sub)sub.textContent='Todo en orden';if(badge){badge.textContent='✓';badge.className='dash-badge dash-badge-ok';}if(ic)ic.className='dash-ic dash-ic-ok';}
+/* ── Header ────────────────────────────────────────────────────────────── */
+function _renderHeader(user, todayStr){
+  var nameEl=document.getElementById('hdr-name'), dateEl=document.getElementById('hdr-date');
+  var nombre=(user&&user.nombre)||'';
+  if(nameEl) nameEl.textContent = nombre ? nombre.split(' ')[0] : '—';
+  var d=new Date(todayStr+'T12:00:00');
+  var sem=isoWeekNum(todayStr);
+  if(dateEl) dateEl.textContent = DIAS_LARGOS[d.getDay()]+' '+d.getDate()+' '+['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][d.getMonth()]+' · Semana '+sem;
+}
+function _weekRangeLabel(monday){
+  var m=new Date(monday+'T00:00:00Z');
+  var s=new Date(m.getTime()); s.setUTCDate(m.getUTCDate()+6);
+  return m.getUTCDate()+' – '+s.getUTCDate()+' '+MESES_ABR[s.getUTCMonth()];
 }
 
-/* ── Dashboard — cards: Eventos hoy / Esta semana ────────────────────── */
-function _dashEventos(eventos){
-  var hoy=new Date().toISOString().split('T')[0];
-  var _dt=new Date(),_dw=_dt.getDay(),_ms=_dw===0?-6:1-_dw;
-  var _sn=new Date(_dt);_sn.setDate(_dt.getDate()+_ms+6);
-  var sunStr=_sn.toISOString().split('T')[0];
-  var evHoy=eventos?eventos.filter(function(e){return e.fecha===hoy;}):[];
-  var evSem=eventos?eventos.filter(function(e){return e.fecha>=hoy&&e.fecha<=sunStr;}):[];
-  var sub=document.getElementById('dash-ev-hoy-sub'),badge=document.getElementById('dash-ev-hoy-badge');
-  if(evHoy.length){if(sub)sub.textContent=evHoy.map(function(e){return e.nombre;}).join(' · ');if(badge){badge.textContent=evHoy.length;badge.className='dash-badge dash-badge-info';}}
-  else{if(sub)sub.textContent='Sin eventos programados para hoy';}
-  var subS=document.getElementById('dash-ev-sem-sub'),badgeS=document.getElementById('dash-ev-sem-badge'),icS=document.getElementById('dash-ev-sem-ic');
-  if(evSem.length){var dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];var pe=evSem[0];var dName=dias[new Date(pe.fecha+'T12:00:00').getDay()]||'';if(subS)subS.textContent='Próximo evento: '+pe.nombre+' · '+dName+(pe.hora?' '+pe.hora:'');if(badgeS){badgeS.textContent=evSem.length;badgeS.className='dash-badge dash-badge-info';}if(icS)icS.className='dash-ic dash-ic-info';}
-  else{if(subS)subS.textContent='Sin eventos esta semana';}
+/* ── Tu semana ─────────────────────────────────────────────────────────── */
+async function _loadTuSemana(monday, todayIdx, myId){
+  var grid=document.getElementById('week-grid'); if(!grid) return;
+  if(!myId){
+    grid.style.display='block';
+    grid.innerHTML='<div class="card-empty">Inicia sesión para ver tus turnos</div>';
+    return;
+  }
+  grid.style.display='';
+  var res = await _sb.from('turnos').select('dia, slot')
+    .eq('local_id',LOCAL_ID).eq('semana_inicio',monday).eq('activa',true).eq('trabajador_id',myId);
+  if(res.error){ console.error('[inicio] tu semana:', res.error.message); grid.innerHTML=''; return; }
+  var med=[false,false,false,false,false,false,false], noc=[false,false,false,false,false,false,false];
+  (res.data||[]).forEach(function(r){
+    if(r.dia<0||r.dia>6) return;
+    if(r.slot==='sm'||r.slot==='cm') med[r.dia]=true;
+    if(r.slot==='sn'||r.slot==='cn') noc[r.dia]=true;
+  });
+  var DAYS=['L','M','X','J','V','S','D'];
+  var h='<div class="wg-head"></div>';
+  DAYS.forEach(function(d,i){ h+='<div class="wg-head'+(i===todayIdx?' today':'')+'">'+d+'</div>'; });
+  h+=_weekGridRow('Med', med, todayIdx);
+  h+=_weekGridRow('Noc', noc, todayIdx);
+  grid.innerHTML=h;
+}
+function _weekGridRow(label, arr, todayIdx){
+  var h='<div class="wg-row-lbl">'+label+'</div>';
+  arr.forEach(function(on,i){
+    var gold = on && i===todayIdx;
+    h+='<div class="wg-cell">'+(on?'<div class="wg-check'+(gold?' me':'')+'"><i class="ti ti-check" aria-hidden="true"></i></div>':'')+'</div>';
+  });
+  return h;
 }
 
-/* ── Contactos / Proveedores — solo lectura, siempre fresco desde Supabase (sin caché) ── */
+/* ── Turnos de hoy ─────────────────────────────────────────────────────── */
+/* Nº de personas requeridas por slot para el día de hoy: lee la plantilla WeekConfig
+   (Admin/Turnos), guardada en localStorage — es solo del dispositivo/navegador actual
+   (no viaja por Supabase), así que si nunca se configuró ahí, se asume 0 y una card
+   con gente asignada siempre se ve "completa" (nunca se inventan huecos sin base). */
+function _requiredForToday(todayIdx){
+  var out={sm:0,sn:0,cm:0,cn:0};
+  try{
+    var raw=localStorage.getItem('lg_weekconfig_v1');
+    if(raw){
+      var cfg=JSON.parse(raw);
+      var day=cfg[todayIdx];
+      if(day){ ['sm','sn','cm','cn'].forEach(function(s){ out[s]=(day[s]||[]).length; }); }
+    }
+  }catch(e){ console.warn('[inicio] weekConfig local no disponible:', e); }
+  return out;
+}
+function _slotNamesHtml(list, myId){
+  return list.map(function(p){
+    var esc=_escHtml(p.nombre);
+    return p.id===myId ? '<span class="name-me">'+esc+'</span>' : esc;
+  }).join(', ');
+}
+async function _loadTurnosHoy(monday, todayIdx, myId){
+  var card=document.getElementById('turnos-hoy-card'); if(!card) return;
+  var res = await _sb.from('turnos').select('slot, trabajador_id')
+    .eq('local_id',LOCAL_ID).eq('semana_inicio',monday).eq('dia',todayIdx).eq('activa',true);
+  if(res.error){ console.error('[inicio] turnos hoy:', res.error.message); card.innerHTML='<div class="card-empty">Error al cargar</div>'; return; }
+  var rows=res.data||[];
+  var ids=_uniq(rows.map(function(r){return r.trabajador_id;}));
+  var nameById={};
+  if(ids.length){
+    var tRes=await _sb.from('trabajadores').select('id, nombre').in('id', ids);
+    (tRes.data||[]).forEach(function(t){ nameById[t.id]=t.nombre; });
+  }
+  var bySlot={sm:[],sn:[],cm:[],cn:[]};
+  rows.forEach(function(r){ if(bySlot[r.slot]) bySlot[r.slot].push({id:r.trabajador_id, nombre:nameById[r.trabajador_id]||'—'}); });
+  var required=_requiredForToday(todayIdx);
+  var SLOTS=[{k:'sm',lbl:'Sala med'},{k:'sn',lbl:'Sala noc'},{k:'cm',lbl:'Cocina med'},{k:'cn',lbl:'Cocina noc'}];
+  card.innerHTML = SLOTS.map(function(s){
+    var list=bySlot[s.k], need=required[s.k], falta=Math.max(0, need-list.length), complete=falta===0;
+    var namesHtml;
+    if(!list.length){
+      namesHtml = falta>0
+        ? '<span style="color:var(--text-warning)">'+falta+' hueco'+(falta===1?'':'s')+' sin cubrir</span>'
+        : '<span style="color:var(--text-muted)">Sin turnos</span>';
+    } else if(falta>0){
+      namesHtml = _slotNamesHtml(list, myId)+' · <span style="color:var(--text-warning)">'+falta+' hueco'+(falta===1?'':'s')+' sin cubrir</span>';
+    } else {
+      namesHtml = _slotNamesHtml(list, myId);
+    }
+    return '<div class="turnos-slot">'+
+      '<span class="slot-dot '+(complete?'dot-ok':'dot-warn')+'"></span>'+
+      '<span class="slot-tag">'+s.lbl+'</span>'+
+      '<span class="slot-names">'+namesHtml+'</span>'+
+    '</div>';
+  }).join('');
+}
+
+/* ── Reservas hoy ──────────────────────────────────────────────────────── */
+async function _loadReservasHoy(todayStr){
+  var card=document.getElementById('reservas-card'); if(!card) return;
+  var results = await Promise.all([
+    _sb.from('zonas').select('mesas, pax').eq('local_id',LOCAL_ID).eq('activa',true),
+    _sb.from('reservas').select('hora, mesas, estado').eq('local_id',LOCAL_ID).eq('fecha',todayStr),
+  ]);
+  var zonasRes=results[0], resRes=results[1];
+  if(zonasRes.error || resRes.error){
+    console.error('[inicio] reservas hoy:', (zonasRes.error||resRes.error).message);
+    card.innerHTML='<div class="card-empty">Error al cargar</div>';
+    return;
+  }
+  var zonas=zonasRes.data||[];
+  var totalMesas=zonas.reduce(function(s,z){return s+(z.mesas||0);},0);
+  var totalPax=zonas.reduce(function(s,z){return s+(z.pax||0);},0);
+  var reservas=(resRes.data||[]).filter(function(r){ return r.estado!=='cancelada'; });
+  var med=reservas.filter(function(r){ return (r.hora||'')<'16:00'; });
+  var noc=reservas.filter(function(r){ return (r.hora||'')>='16:00'; });
+  var medMesas=med.reduce(function(s,r){return s+(r.mesas||1);},0);
+  var nocMesas=noc.reduce(function(s,r){return s+(r.mesas||1);},0);
+  card.innerHTML =
+    '<div class="res-meta">'+totalMesas+' mesas · aforo '+totalPax+' pax</div>'+
+    _resRow('Mediodía', med.length, medMesas, totalMesas)+
+    _resRow('Noche', noc.length, nocMesas, totalMesas);
+}
+function _resRow(label, count, mesasOcupadas, totalMesas){
+  if(count===0){
+    return '<div class="reservas-row">'+
+      '<span class="res-label">'+label+'</span>'+
+      '<div class="res-empty">'+
+        '<i class="ti ti-circle-check" aria-hidden="true"></i>'+
+        '<span>Día libre · '+totalMesas+' mesa'+(totalMesas===1?'':'s')+' disponible'+(totalMesas===1?'':'s')+'</span>'+
+      '</div>'+
+    '</div>';
+  }
+  var libres=Math.max(0, totalMesas-mesasOcupadas);
+  var pct = totalMesas ? Math.min(100, (mesasOcupadas/totalMesas)*100) : 0;
+  var cls = pct>=100 ? 'full' : (pct>80 ? 'warn' : '');
+  return '<div class="reservas-row">'+
+    '<span class="res-label">'+label+'</span>'+
+    '<span class="res-num">'+count+'</span>'+
+    '<div class="res-bar"><div class="res-bar-fill'+(cls?' '+cls:'')+'" style="width:'+pct+'%"></div></div>'+
+    '<span class="res-libre">'+libres+' mesa'+(libres===1?'':'s')+' libre'+(libres===1?'':'s')+'</span>'+
+  '</div>';
+}
+
+/* ── Próximo evento ────────────────────────────────────────────────────── */
+async function _loadProximoEvento(todayStr){
+  var sec=document.getElementById('evento-sec'), card=document.getElementById('evento-card');
+  if(!sec||!card) return;
+  var res = await _sb.from('eventos').select('id, descripcion, fecha, hora')
+    .eq('local_id',LOCAL_ID).gte('fecha',todayStr).order('fecha').order('hora').limit(1);
+  if(res.error || !res.data || !res.data.length){ sec.style.display='none'; return; }
+  var ev=res.data[0];
+  var results = await Promise.all([
+    _sb.from('evento_asistentes').select('acompanantes, dudoso').eq('evento_id', ev.id),
+    _sb.from('evento_zonas').select('zona_id').eq('evento_id', ev.id),
+  ]);
+  var asiRes=results[0], zonasRes=results[1];
+  var totalPax=(asiRes.data||[]).filter(function(a){return !a.dudoso;}).reduce(function(s,a){return s+1+(Number(a.acompanantes)||0);},0);
+  var aforo=null;
+  var zonaIds=(zonasRes.data||[]).map(function(z){return z.zona_id;});
+  if(zonaIds.length){
+    var zpaxRes = await _sb.from('zonas').select('pax').in('id', zonaIds);
+    aforo=(zpaxRes.data||[]).reduce(function(s,z){return s+(z.pax||0);},0);
+  }
+  var badge=_dateBadge(ev.fecha, todayStr);
+  var sub = badge==='Hoy'
+    ? 'Hoy'+(ev.hora?' · '+ev.hora.slice(0,5):'')
+    : _formatFechaCorta(ev.fecha)+(ev.hora?' · '+ev.hora.slice(0,5):'');
+  card.innerHTML =
+    '<div class="evento-row" onclick="navToEvento(\''+ev.id+'\')">'+
+      '<div class="ev-icon"><i class="ti ti-star" aria-hidden="true"></i></div>'+
+      '<div class="ev-meta">'+
+        '<div class="ev-title">'+_escHtml(ev.descripcion||'Evento')+'</div>'+
+        '<div class="ev-sub">'+_escHtml(sub)+'</div>'+
+      '</div>'+
+      '<div class="ev-right">'+
+        '<span class="ev-today">'+badge+'</span>'+
+        '<span class="ev-plazas">'+totalPax+(aforo!=null?'/'+aforo:'')+' <span>pax</span></span>'+
+      '</div>'+
+    '</div>';
+  sec.style.display='';
+}
+function _dateBadge(fecha, todayStr){
+  if(fecha===todayStr) return 'Hoy';
+  var t=new Date(todayStr+'T00:00:00Z'); t.setUTCDate(t.getUTCDate()+1);
+  if(fecha===t.toISOString().split('T')[0]) return 'Mañana';
+  return _formatFechaCorta(fecha);
+}
+
+/* ── Alertas ───────────────────────────────────────────────────────────── */
+function _renderAlertCard(el, n, label, variant, emptyLabel){
+  if(n>0){
+    el.className='alert-card'+(variant==='warn'?' warn':'');
+    el.innerHTML='<div class="alert-n'+(variant==='warn'?' warn':'')+'">'+n+'</div><div class="alert-bottom"><div class="alert-txt">'+_escHtml(label)+'</div><i class="ti ti-chevron-right alert-arr" aria-hidden="true"></i></div>';
+  }else{
+    el.className='alert-card ok';
+    el.innerHTML='<div class="alert-n ok">✓</div><div class="alert-bottom"><div class="alert-txt">'+_escHtml(emptyLabel)+'</div><i class="ti ti-chevron-right alert-arr" aria-hidden="true"></i></div>';
+  }
+}
+async function _loadAlertaStock(){
+  var el=document.getElementById('alert-stock'); if(!el) return;
+  var res = await _sb.from('stock_productos').select('cantidad, minimo').eq('local_id',LOCAL_ID).eq('activo',true);
+  if(res.error){ console.error('[inicio] alerta stock:', res.error.message); return; }
+  var n=(res.data||[]).filter(function(p){ return p.minimo>0 && p.cantidad<=Math.ceil(p.minimo/2); }).length;
+  _renderAlertCard(el, n, 'producto'+(n===1?'':'s')+' bajo mínimos', 'danger', 'Stock en orden');
+}
+async function _countConflictosTurnos(monday){
+  try{
+    var turnosRes = await _sb.from('turnos').select('trabajador_id, dia, slot').eq('local_id',LOCAL_ID).eq('semana_inicio',monday).eq('activa',true);
+    if(turnosRes.error) throw turnosRes.error;
+    var turnos=turnosRes.data||[];
+    if(!turnos.length) return 0;
+    var ids=_uniq(turnos.map(function(t){return t.trabajador_id;}));
+    var results = await Promise.all([
+      _sb.from('trabajadores').select('id, max_turnos').eq('local_id',LOCAL_ID).eq('archivado',false),
+      _sb.from('disponibilidad').select('trabajador_id, dia_semana, turno').in('trabajador_id', ids),
+    ]);
+    var trabRes=results[0], dispoRes=results[1];
+    var maxById={};
+    (trabRes.data||[]).forEach(function(t){ maxById[t.id]=t.max_turnos; });
+    var dispoSet={};
+    (dispoRes.data||[]).forEach(function(d){ dispoSet[d.trabajador_id+'-'+d.dia_semana+'-'+d.turno]=true; });
+    var countById={}, conflictIds={};
+    turnos.forEach(function(t){
+      countById[t.trabajador_id]=(countById[t.trabajador_id]||0)+1;
+      var tipo=(t.slot==='sm'||t.slot==='cm')?'med':'noch';
+      if(dispoSet[t.trabajador_id+'-'+t.dia+'-'+tipo]) conflictIds[t.trabajador_id]=true;
+    });
+    Object.keys(countById).forEach(function(id){
+      var max=maxById[id];
+      if(max && countById[id]>max) conflictIds[id]=true;
+    });
+    return Object.keys(conflictIds).length;
+  }catch(e){ console.error('[inicio] conflictos turnos:', e); return 0; }
+}
+async function _loadAlertaConflictos(monday){
+  var el=document.getElementById('alert-turnos'); if(!el) return;
+  var n=await _countConflictosTurnos(monday);
+  _renderAlertCard(el, n, 'conflicto'+(n===1?'':'s')+' en turnos', 'warn', 'Turnos sin conflictos');
+}
+
+/* ── Contactos / Proveedores — solo lectura, siempre fresco desde Supabase (sin caché) ──
+   Sin cambios de comportamiento respecto a la versión anterior — solo se les quitó el
+   subtítulo de preview en la card de Inicio, que ya no existe en el rediseño. ── */
 var _CT_CALL_SVG='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#55bb55" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 011.18 1.18C1.5.61.96.01 1.72.01H4.72a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L5.91 7.91a16 16 0 006.18 6.18l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7a2 2 0 011.72 2.03z"/></svg>';
 var _CT_WA_SVG='<svg width="14" height="14" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>';
-function _escHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function _renderContactList(containerId, items){
   var body=document.getElementById(containerId);
@@ -280,47 +437,3 @@ async function openProveedoresPanel(){
     _renderContactList('proveedores-list-body', r.data||[]);
   }catch(e){ console.error('[SB] openProveedoresPanel:',e); if(body) body.innerHTML='<div class="ct-empty">Error al cargar</div>'; }
 }
-
-async function _dashContactosPreview(){
-  var sub=document.getElementById('dash-contactos-sub');
-  if(!sub) return;
-  if(!_sb){ sub.textContent='Sin conexión'; return; }
-  try{
-    var r=await _sb.from('contactos').select('nombre').eq('local_id',LOCAL_ID).eq('activo',true).order('nombre').limit(3);
-    if(r.error||!r.data||!r.data.length){ sub.textContent='Sin contactos guardados'; return; }
-    sub.textContent=r.data.map(function(c){return c.nombre;}).join(' · ');
-  }catch(e){ sub.textContent='Sin conexión'; }
-}
-
-async function _dashProveedoresPreview(){
-  var sub=document.getElementById('dash-proveedores-sub');
-  if(!sub) return;
-  if(!_sb){ sub.textContent='Sin conexión'; return; }
-  try{
-    var r=await _sb.from('stock_proveedores').select('nombre,tel').eq('local_id',LOCAL_ID).eq('activo',true).order('nombre');
-    if(r.error){ sub.textContent='Sin proveedores guardados'; return; }
-    var withTel=(r.data||[]).filter(function(p){return p.tel && typeof cleanTel==='function' && cleanTel(p.tel);}).slice(0,3);
-    sub.textContent = withTel.length ? withTel.map(function(p){return p.nombre;}).join(' · ') : 'Sin proveedores con teléfono';
-  }catch(e){ sub.textContent='Sin conexión'; }
-}
-
-/* ── Dashboard — card: Turnos esta semana ────────────────────────────── */
-function _dashTurnos(loc){
-  var sub=document.getElementById('dash-turnos-sub'),badge=document.getElementById('dash-turnos-badge'),ic=document.getElementById('dash-turnos-ic');
-  if(!loc||!loc.data){if(sub)sub.textContent='Abre Turnos para cargar datos';return;}
-  var slots=['sm','sn','cm','cn'],huecos=0;
-  slots.forEach(function(s){for(var d=0;d<7;d++){if(!loc.data[s]||!loc.data[s][d]||!loc.data[s][d].length)huecos++;}});
-  if(huecos===0){if(sub)sub.textContent='Todos los slots cubiertos';if(badge){badge.textContent='✓';badge.className='dash-badge dash-badge-ok';}if(ic)ic.className='dash-ic dash-ic-ok';}
-  else{if(sub)sub.textContent='Faltan '+huecos+' slots por cubrir';if(badge){badge.textContent='⚠';badge.className='dash-badge dash-badge-warn';}if(ic)ic.className='dash-ic dash-ic-warn';}
-}
-
-/* ── Permisos por rol ─────────────────────────────────────────────────── */
-function applyRolPermissions(r){
-  var isEmpleado=r==='empleado';
-  var cardReservas=document.getElementById('card-reservas');if(cardReservas)cardReservas.style.display=isEmpleado?'none':'';
-  var cardEventos=document.getElementById('card-eventos');if(cardEventos)cardEventos.style.display=isEmpleado?'none':'';
-  var stockBadge=document.getElementById('stock-readonly-badge');if(stockBadge)stockBadge.style.display=isEmpleado?'':'none';
-  var greetUser=document.getElementById('greeting-user');
-  try{var u=window.parent&&window.parent.currentUser?window.parent.currentUser:JSON.parse(localStorage.getItem('lg_session')||'{}');if(greetUser&&u.nombre)greetUser.textContent=u.nombre.split(' ')[0];}catch(e){}
-}
-

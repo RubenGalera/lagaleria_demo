@@ -1099,7 +1099,7 @@ function renderPedProvSelect() {
         <span>${label}</span>
         <svg class="ped-prov-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </button>
-      <div class="ped-prov-dd-panel${pedProvPanelOpen ? ' open' : ''}" id="ped-prov-dd-panel">
+      <div class="ped-prov-dd-panel${pedProvPanelOpen ? ' open' : ''}" id="ped-prov-dd-panel" onwheel="event.stopPropagation()" ontouchmove="event.stopPropagation()">
         <div class="filter-prov-list">${allRow}${rows}</div>
       </div>
     </div>

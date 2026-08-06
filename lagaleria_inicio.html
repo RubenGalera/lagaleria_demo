@@ -14,121 +14,64 @@
 <div id="page-resumen" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
 <div style="flex:1;overflow-y:auto">
 
-  <div class="greeting">
-    <div class="greeting-hi">Bienvenido,</div>
-    <div class="greeting-name" id="greeting-name">La Galería Neotaberna</div>
-  </div>
-  <div class="dash-fecha-bar">
-    <span id="dash-fecha-full">...</span> · <span id="dash-semana">Semana —</span>
-  </div>
-  <div class="dash-sep-top"></div>
+  <h2 class="sr-only">Dashboard de inicio de La Galería Neotaberna</h2>
 
-  <div class="dash-sec-lbl">Hoy</div>
-
-  <div class="dash-proxima" id="dash-proxima-wrap" onclick="navTo('reservas','res')" style="cursor:pointer">
-    <div class="dash-prox-lbl">⏰ Próxima reserva</div>
-    <div class="dash-prox-row">
-      <div>
-        <div class="dash-prox-nombre" id="dash-prox-nombre">Sin reservas próximas</div>
-        <div class="dash-prox-meta" id="dash-prox-meta"></div>
+  <div class="screen">
+    <div class="hdr">
+      <div class="hdr-left">
+        <div class="greeting">Buenas,</div>
+        <div class="title" id="hdr-name">—</div>
+        <div class="date" id="hdr-date">—</div>
       </div>
-      <div class="dash-prox-hora" id="dash-prox-hora"></div>
+    </div>
+
+    <div class="sec" style="margin-top:14px">
+      <div class="week-header">
+        <div class="lbl" style="margin-bottom:0">Tu semana</div>
+        <div class="week-range" id="week-range">—</div>
+      </div>
+      <div class="card" onclick="goToTurnos()">
+        <div class="week-grid" id="week-grid"></div>
+      </div>
+    </div>
+
+    <div class="sec" style="margin-top:10px">
+      <div class="lbl">Turnos de hoy</div>
+      <div class="card" id="turnos-hoy-card" onclick="goToTurnos()"></div>
+    </div>
+
+    <div class="group-label">Reservas hoy</div>
+    <div class="sec">
+      <div class="card" id="reservas-card" onclick="navTo('reservas','res')"></div>
+    </div>
+
+    <div class="sec" style="margin-top:10px;display:none" id="evento-sec">
+      <div class="lbl">Próximo evento</div>
+      <div class="card" id="evento-card"></div>
+    </div>
+
+    <div class="group-label">Alertas</div>
+    <div class="sec">
+      <div class="alerts">
+        <div class="alert-card" id="alert-stock" onclick="navToStockReponer()"></div>
+        <div class="alert-card warn" id="alert-turnos" onclick="navTo('turnos')"></div>
+      </div>
+    </div>
+
+    <div class="group-label">Contactos</div>
+    <div class="sec">
+      <div class="contactos">
+        <div class="cont-btn" onclick="openContactosPanel()">
+          <i class="ti ti-tool" aria-hidden="true"></i>
+          <span class="cont-txt">Técnicos</span>
+        </div>
+        <div class="cont-btn" onclick="openProveedoresPanel()">
+          <i class="ti ti-truck" aria-hidden="true"></i>
+          <span class="cont-txt">Proveedores</span>
+        </div>
+      </div>
     </div>
   </div>
-
-  <div class="dash-card">
-    <div class="dash-row" onclick="navTo('reservas','res')">
-      <div class="dash-ic dash-ic-warn">📋</div>
-      <div class="dash-info">
-        <div class="dash-title">Reservas hoy</div>
-        <div class="dash-sub" id="dash-res-sub">Sin reservas hoy</div>
-      </div>
-      <div class="dash-badge dash-badge-dim" id="dash-res-badge">—</div>
-      <span class="dash-arr">›</span>
-    </div>
-  </div>
-
-  <div class="dash-card">
-    <div class="dash-row" onclick="navTo('reservas','ev')">
-      <div class="dash-ic dash-ic-dim">🎉</div>
-      <div class="dash-info">
-        <div class="dash-title">Eventos hoy</div>
-        <div class="dash-sub" id="dash-ev-hoy-sub">Sin eventos programados</div>
-      </div>
-      <div class="dash-badge dash-badge-dim" id="dash-ev-hoy-badge">—</div>
-      <span class="dash-arr">›</span>
-    </div>
-  </div>
-
-  <div class="dash-card">
-    <div class="dash-row" onclick="navTo('stock','ped')">
-      <div class="dash-ic dash-ic-dim" id="dash-stock-ic">📦</div>
-      <div class="dash-info">
-        <div class="dash-title" id="dash-stock-title">Stock</div>
-        <div class="dash-sub" id="dash-stock-sub">Sin datos de stock</div>
-      </div>
-      <div class="dash-badge dash-badge-dim" id="dash-stock-badge">—</div>
-      <span class="dash-arr">›</span>
-    </div>
-  </div>
-
-  <div class="dash-divider"></div>
-
-  <div class="dash-sec-lbl">Esta semana</div>
-
-  <div class="dash-card">
-    <div class="dash-row" onclick="navTo('turnos')">
-      <div class="dash-ic dash-ic-dim" id="dash-turnos-ic">📅</div>
-      <div class="dash-info">
-        <div class="dash-title" id="dash-turnos-title">Turnos planificados</div>
-        <div class="dash-sub" id="dash-turnos-sub">Abre Turnos para cargar datos</div>
-      </div>
-      <div class="dash-badge dash-badge-dim" id="dash-turnos-badge">—</div>
-      <span class="dash-arr">›</span>
-    </div>
-  </div>
-
-  <div class="dash-card">
-    <div class="dash-row" onclick="navTo('reservas','ev')">
-      <div class="dash-ic dash-ic-dim" id="dash-ev-sem-ic">🎭</div>
-      <div class="dash-info">
-        <div class="dash-title">Eventos esta semana</div>
-        <div class="dash-sub" id="dash-ev-sem-sub">Sin eventos esta semana</div>
-      </div>
-      <div class="dash-badge dash-badge-dim" id="dash-ev-sem-badge">—</div>
-      <span class="dash-arr">›</span>
-    </div>
-  </div>
-
-  <div class="dash-divider"></div>
-
-  <div class="dash-sec-lbl">Accesos rápidos</div>
-
-  <div class="dash-card">
-    <div class="dash-row" onclick="openContactosPanel()">
-      <div class="dash-ic dash-ic-dim">📇</div>
-      <div class="dash-info">
-        <div class="dash-title">Contactos</div>
-        <div class="dash-sub" id="dash-contactos-sub">Cargando…</div>
-      </div>
-      <span class="dash-arr">›</span>
-    </div>
-  </div>
-
-  <div class="dash-card">
-    <div class="dash-row" onclick="openProveedoresPanel()">
-      <div class="dash-ic dash-ic-dim">🚚</div>
-      <div class="dash-info">
-        <div class="dash-title">Proveedores</div>
-        <div class="dash-sub" id="dash-proveedores-sub">Cargando…</div>
-      </div>
-      <span class="dash-arr">›</span>
-    </div>
-  </div>
-
-  <!-- hidden data slots -->
-  <span id="stat-reservas" style="display:none"></span>
-  <span id="mod-reservas-sub" style="display:none"></span>
 
 </div>
 </div>

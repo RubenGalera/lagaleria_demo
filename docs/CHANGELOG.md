@@ -1,5 +1,14 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.25 — Rediseño pantalla Inicio (agosto 2026)
+- Inicio rediseñado completo: header personalizado "Buenas, [nombre]", mini grid "Tu semana", turnos de hoy con nombre resaltado en dorado, reservas con barra de ocupación, próximo evento con plazas, alertas navegables, contactos
+- Datos en tiempo real desde Supabase: turnos del usuario, reservas del día, próximo evento, alertas de stock y conflictos de turnos
+- Reservas sin datos: estado visual verde "Día libre · X mesas disponibles" con icono
+- Alertas con etiquetas específicas: "Stock en orden" / "Turnos sin conflictos"
+- Responsive desktop: columna centrada 640px, fondo neutro a los lados
+- Avatar duplicado eliminado del iframe de Inicio
+- Todas las cards son tappables y navegan a su sección correspondiente
+
 ## v0.2.24 — Fix crítico variante B + orden manual de turnos (agosto 2026)
 - Fix crítico: variante B se perdía al cambiar a variante A dentro de la ventana de autoguardado (2s). scheduleAutosave() ahora captura un snapshot {semana, variante, grid} en el momento de la edición — saveWeekSnapshot() ya no lee globals en vivo sino parámetros fijos
 - Fix: todos los turnos existentes migrados a variante='A' (antes tenían NULL por el ALTER TABLE)

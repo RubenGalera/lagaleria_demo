@@ -1,70 +1,145 @@
-/* lagaleria_inicio.html — dashboard de Inicio.
+/* lagaleria_inicio.html — dashboard de Inicio (rediseño mockup v7).
    Requiere: assets/styles/tokens.css, assets/styles/components.css (cargados antes).
-   :root local sobreescribe --brd/--brd2/--muted y la paleta sm/sn/cm/cn con una versión más saturada, propia de este dashboard — no es un duplicado, es intencional. */
+   :root local traduce los nombres de variable del mockup aprobado a los tokens reales
+   de la app (ver tokens.css) — no son duplicados, es la capa de mapeo del diseño.
+   Colores dados como hex literal en el encargo (no tokens existentes): dorado de "Tu
+   semana"/nombre propio #c9a84c/#2c2410, y barras de Reservas hoy #1D9E75/#EF9F27. */
 
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
-  --brd:rgba(255,255,255,0.07); --brd2:rgba(255,255,255,0.13);
-  --muted:var(--dim);
-  --sm-bg:rgba(42,122,176,.25); --sm-bd:rgba(42,122,176,.6);  --sm-text:#90cdf4;
-  --sn-bg:rgba(42,110,42,.25);  --sn-bd:rgba(42,110,42,.6);   --sn-text:#9ae6b4;
-  --cm-bg:rgba(187,34,34,.25);  --cm-bd:rgba(187,34,34,.6);   --cm-text:#fc8181;
-  --cn-bg:rgba(192,96,0,.25);   --cn-bd:rgba(192,96,0,.6);    --cn-text:#f6ad55;
+  --brd: rgba(255,255,255,.07);
+  --brd2: rgba(255,255,255,.13);
+  --muted: var(--dim);
+
+  /* mapeo mockup → tokens de la app */
+  --text-primary: var(--txt);
+  --text-secondary: var(--muted);
+  --text-muted: var(--dim);
+  --border: var(--brd);
+  --surface-1: var(--surf2);
+  --surface-2: var(--surf);
+
+  --bg-success: var(--grn-bg);
+  --text-success: var(--grn);
+  --bg-warning: rgba(239,159,39,.15);
+  --text-warning: #f6ad55;
+  --border-warning: rgba(239,159,39,.35);
+  --bg-danger: var(--red-bg);
+  --text-danger: #fc8181;
+  --border-danger: var(--red-bd);
+  --bg-pro: rgba(99,102,241,.15);
+  --text-pro: #a5a8f0;
+
+  /* dorado específico de "Tu semana" / nombre propio — dado como hex exacto */
+  --gold: #c9a84c;
+  --gold-text: #2c2410;
+  --res-ok: #1D9E75;
+  --res-warn: #EF9F27;
+
+  /* Fondo fuera de la columna centrada en desktop — reutiliza el mismo fondo
+     base de la app (var(--bg)), con nombre propio para que quede explícito
+     que es "el color de los lados", no una coincidencia. */
+  --surface-0: var(--bg);
 }
-html,body{height:100%;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--txt);overflow:hidden}
+html,body{height:100%;background:var(--surface-0);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--txt);overflow:hidden}
 body{display:flex;flex-direction:column}
 
 .page{flex:1;overflow-y:auto;display:none;flex-direction:column;min-height:0}
 .page.active{display:flex}
 
-.greeting{padding:16px 16px 4px}
-.greeting-hi{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
-.greeting-name{font-size:22px;color:var(--acc);font-family:Georgia,serif;letter-spacing:2px;margin-top:2px;font-weight:400}
-.dash-fecha-bar{font-size:12px;color:var(--dim);padding:6px 16px 10px}
-.dash-fecha-bar span{color:var(--txt)}
-.dash-sep-top{height:1px;background:var(--brd)}
-.dash-sec-lbl{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.7px;padding:12px 16px 6px}
-.dash-proxima{margin:0 12px 8px;background:var(--surf);border:1px solid var(--brd2);border-radius:12px;padding:12px 14px}
-.dash-prox-lbl{font-size:10px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
-.dash-prox-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.dash-prox-nombre{font-size:14px;font-weight:700;color:var(--txt)}
-.dash-prox-meta{font-size:11px;color:var(--dim);margin-top:2px}
-.dash-prox-hora{font-size:26px;font-weight:700;color:var(--acc);font-family:Georgia,serif;flex-shrink:0}
-.dash-card{margin:0 12px 8px;background:var(--surf);border:1px solid var(--brd);border-radius:12px;overflow:hidden}
-.dash-row{display:flex;align-items:center;gap:12px;padding:13px 14px;cursor:pointer}
-.dash-ic{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px}
-.dash-ic-ok{background:rgba(72,187,120,.15);color:#68d391}
-.dash-ic-warn{background:rgba(237,137,54,.15);color:#f6ad55}
-.dash-ic-alert{background:rgba(245,101,101,.15);color:#fc8181}
-.dash-ic-info{background:rgba(99,179,237,.15);color:#90cdf4}
-.dash-ic-dim{background:rgba(255,255,255,.06);color:var(--dim)}
-.dash-info{flex:1;min-width:0}
-.dash-title{font-size:13px;font-weight:600;color:var(--txt)}
-.dash-sub{font-size:11px;color:var(--dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dash-badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;flex-shrink:0}
-.dash-badge-ok{background:rgba(72,187,120,.15);color:#68d391;border:1px solid rgba(72,187,120,.25)}
-.dash-badge-warn{background:rgba(237,137,54,.15);color:#f6ad55;border:1px solid rgba(237,137,54,.25)}
-.dash-badge-alert{background:rgba(245,101,101,.15);color:#fc8181;border:1px solid rgba(245,101,101,.25)}
-.dash-badge-info{background:rgba(99,179,237,.15);color:#90cdf4;border:1px solid rgba(99,179,237,.25)}
-.dash-badge-dim{background:rgba(255,255,255,.06);color:var(--dim);border:1px solid var(--brd)}
-.dash-chev{font-size:18px;color:var(--dim);flex-shrink:0;transition:transform .2s}
-.dash-chev.open{transform:rotate(90deg)}
-.dash-arr{font-size:18px;color:var(--dim);flex-shrink:0}
-.dash-expand{display:none;border-top:1px solid var(--brd);padding:10px 14px}
-.dash-expand.open{display:block}
-.dash-turno-grp{margin-bottom:8px}
-.dash-turno-grp:last-child{margin-bottom:0}
-.dash-turno-hdr{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
-.dash-libres{color:#68d391;text-transform:none;letter-spacing:0}
-.dash-zonas{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px}
-.dash-zona-item{display:flex;align-items:center;justify-content:space-between;font-size:11px;padding:2px 0}
-.dash-zona-name{color:var(--dim)}
-.dash-zona-count{color:var(--txt);font-weight:600}
-.dash-zona-full{color:var(--faint)}
-.dash-sep{height:1px;background:var(--brd);margin:8px 0}
-.dash-divider{height:1px;background:var(--brd);margin:4px 12px 4px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
-/* Contactos / Proveedores — listas de solo lectura dentro de .modal (ver components.css) */
+/* ── Dashboard (mockup v7) ──
+   max-width + margin:0 auto ya es responsivo sin media query: en móvil
+   (viewport < 640px) width:100% manda y ocupa todo el ancho; en desktop
+   (viewport > 640px) max-width la limita a 640px y queda centrada, dejando
+   ver var(--surface-0) — el fondo de html/body — a los lados. */
+.screen{max-width:640px;margin:0 auto;width:100%;padding-bottom:20px}
+.hdr{padding:16px 16px 14px;border-bottom:0.5px solid var(--border)}
+.hdr-left .greeting{font-size:13px;color:var(--text-secondary)}
+.hdr-left .title{font-size:20px;font-weight:500;color:var(--text-primary);margin-top:1px}
+.hdr-left .date{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+.sec{padding:0 16px}
+.lbl{font-size:10px;font-weight:500;color:var(--text-muted);letter-spacing:0.07em;text-transform:uppercase;margin-bottom:8px}
+.group-label{font-size:10px;font-weight:500;color:var(--text-muted);letter-spacing:0.07em;text-transform:uppercase;padding:16px 16px 8px}
+
+.card{background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer}
+.card:active{opacity:0.85}
+
+/* Tu semana */
+.week-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;gap:8px}
+.week-range{font-size:11px;color:var(--text-muted);white-space:nowrap}
+.week-grid{display:grid;grid-template-columns:36px repeat(7,1fr);font-size:11px}
+.wg-head{padding:6px 0;text-align:center;color:var(--text-muted);font-weight:500;border-bottom:0.5px solid var(--border)}
+.wg-head.today{color:var(--gold)}
+.wg-row-lbl{padding:7px 8px;color:var(--text-secondary);font-size:10px;font-weight:500;display:flex;align-items:center;border-top:0.5px solid var(--border)}
+.wg-cell{border-top:0.5px solid var(--border);border-left:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;padding:6px 2px}
+.wg-check{width:18px;height:18px;border-radius:4px;background:var(--bg-success);display:flex;align-items:center;justify-content:center}
+.wg-check i{font-size:11px;color:var(--text-success)}
+.wg-check.me{background:var(--gold)}
+.wg-check.me i{color:var(--gold-text)}
+
+/* Turnos de hoy */
+.turnos-slot{padding:10px 14px;display:flex;align-items:flex-start;gap:10px}
+.turnos-slot+.turnos-slot{border-top:0.5px solid var(--border)}
+.slot-tag{font-size:10px;font-weight:500;color:var(--text-muted);letter-spacing:0.03em;width:64px;flex-shrink:0;padding-top:1px}
+.slot-names{font-size:12px;color:var(--text-primary);flex:1;line-height:1.5}
+.name-me{color:var(--gold);font-weight:500}
+.slot-dot{width:6px;height:6px;border-radius:50%;margin-top:4px;flex-shrink:0}
+.dot-ok{background:var(--res-ok)}
+.dot-warn{background:var(--res-warn)}
+
+/* Reservas hoy */
+.res-meta{padding:8px 14px 0;font-size:11px;color:var(--text-muted)}
+.reservas-row{padding:10px 14px;display:flex;align-items:center;gap:10px}
+.reservas-row+.reservas-row{border-top:0.5px solid var(--border)}
+.res-label{font-size:12px;color:var(--text-secondary);width:56px;flex-shrink:0}
+.res-num{font-size:18px;font-weight:500;color:var(--text-primary);min-width:24px}
+.res-bar{flex:1;height:4px;border-radius:2px;background:var(--surface-1);overflow:hidden}
+.res-bar-fill{height:100%;border-radius:2px;background:var(--res-ok)}
+.res-bar-fill.warn{background:var(--res-warn)}
+.res-bar-fill.full{background:var(--red)}
+.res-libre{font-size:11px;color:var(--text-muted);white-space:nowrap}
+.res-empty{display:flex;align-items:center;gap:6px;flex:1;background:var(--bg-success);color:var(--text-success);padding:6px 10px;border-radius:8px;font-size:12px}
+.res-empty i{font-size:14px;flex-shrink:0}
+
+/* Próximo evento */
+.evento-row{padding:12px 14px;display:flex;align-items:center;gap:10px}
+.ev-icon{width:32px;height:32px;border-radius:8px;background:var(--bg-pro);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ev-icon i{font-size:16px;color:var(--text-pro)}
+.ev-meta{flex:1;min-width:0}
+.ev-title{font-size:13px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-sub{font-size:11px;color:var(--text-secondary);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+.ev-today{font-size:10px;font-weight:500;color:var(--text-pro);background:var(--bg-pro);padding:2px 7px;border-radius:20px;white-space:nowrap}
+.ev-plazas{font-size:12px;font-weight:500;color:var(--text-primary);white-space:nowrap}
+.ev-plazas span{color:var(--text-muted);font-weight:400}
+
+/* Alertas */
+.alerts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.alert-card{border-radius:10px;padding:11px 12px;border:0.5px solid var(--border-danger);background:var(--bg-danger);cursor:pointer}
+.alert-card:active{opacity:.85}
+.alert-card.warn{border-color:var(--border-warning);background:var(--bg-warning)}
+.alert-card.ok{border-color:var(--grn-bd);background:var(--grn-bg)}
+.alert-n{font-size:22px;font-weight:500;color:var(--text-danger)}
+.alert-n.warn{color:var(--text-warning)}
+.alert-n.ok{color:var(--grn)}
+.alert-bottom{display:flex;align-items:flex-end;justify-content:space-between;margin-top:3px;gap:6px}
+.alert-txt{font-size:11px;color:var(--text-secondary);line-height:1.3}
+.alert-arr{font-size:13px;color:var(--text-muted);flex-shrink:0}
+
+/* Contactos */
+.contactos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cont-btn{background:var(--surface-1);border:0.5px solid var(--border);border-radius:10px;padding:11px 12px;display:flex;align-items:center;gap:8px;cursor:pointer}
+.cont-btn:active{opacity:.85}
+.cont-btn i{font-size:17px;color:var(--text-secondary)}
+.cont-txt{font-size:12px;color:var(--text-primary);font-weight:500}
+
+/* Estado vacío genérico dentro de una card (sin turnos/reservas/etc.) */
+.card-empty{padding:16px 14px;font-size:12px;color:var(--text-muted);text-align:center}
+
+/* Contactos / Proveedores — listas de solo lectura dentro de .modal (ver components.css) — sin cambios */
 .ct-list{display:flex;flex-direction:column;gap:8px}
 .ct-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--nav);border:1px solid var(--brd);border-radius:10px}
 .ct-item-info{flex:1;min-width:0}
