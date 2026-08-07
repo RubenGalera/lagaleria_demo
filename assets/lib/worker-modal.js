@@ -247,8 +247,12 @@ function cancelPreview() {
     w.prioridad   = _previewSnapshot.prioridad;
     /* toggleSg() ya guardó cada click al instante en Supabase — "cancelar"
        tiene que deshacer también eso, no solo el estado local en memoria,
-       fila a fila igual que se guardó. */
+       fila a fila igual que se guardó. Por eso "cancelar sin escribir en BD"
+       no aplica aquí tal cual: si hubo clicks durante la preview, ya se
+       escribieron, y revertirlos exige escribir también — lo que NUNCA
+       vuelve a pasar es el guardado diferido de toda la semana. */
     const canPersist = typeof addTurnoToSlot === 'function' && typeof removeTurnoFromSlot === 'function';
+    let reverted = 0;
     ROWS.forEach(r => {
       for (let d = 0; d < 7; d++) {
         if (!L().data[r][d]) L().data[r][d] = [];
@@ -259,17 +263,21 @@ function cancelPreview() {
             if (L().data[r][d][idx] !== orig) {
               L().data[r][d][idx] = orig;
               if (canPersist) { removeTurnoFromSlot(r, d, _previewName); addTurnoToSlot(r, d, _previewName, parse(orig).hour); }
+              reverted++;
             }
           } else {
             L().data[r][d].push(orig);
             if (canPersist) addTurnoToSlot(r, d, _previewName, parse(orig).hour);
+            reverted++;
           }
         } else if (idx >= 0) {
           L().data[r][d].splice(idx, 1);
           if (canPersist) removeTurnoFromSlot(r, d, _previewName);
+          reverted++;
         }
       }
     });
+    console.log('[MODAL CANCEL] revertiendo '+reverted+' slots');
   }
   _previewSnapshot = null;
   closeOv('ov-preview');
@@ -441,6 +449,21 @@ function saveProfile() {
   const scrollTop = window.scrollY || document.documentElement.scrollTop;
   _syncUnavailToSupabase(w, _previewSnapshot);
   _syncNotasToSupabase(w);
+  /* Los turnos ya se guardaron uno a uno al hacer click (toggleSg) — este log
+     solo resume, a modo de auditoría, cuántos altas/bajas netas hubo durante
+     la apertura del modal, comparando contra el snapshot tomado en openPreview(). */
+  if (_previewSnapshot) {
+    let added = 0, removed = 0;
+    ROWS.forEach(r => {
+      for (let d = 0; d < 7; d++) {
+        const orig = _previewSnapshot.shifts[r][d];
+        const now = (L().data[r][d] || []).some(n => parse(n).name === _previewName);
+        if (!orig && now) added++;
+        else if (orig && !now) removed++;
+      }
+    });
+    console.log('[MODAL SAVE] trabajador='+_previewName+' slots añadidos='+added+' eliminados='+removed);
+  }
   _previewSnapshot = null;
   closeOv('ov-preview'); buildGrid(); renderW(); updateStats();
   if (gs) gs.scrollLeft = scrollLeft;

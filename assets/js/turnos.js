@@ -300,6 +300,7 @@ async function addTurnoToSlot(slot, dia, nombre, horaEspecial) {
   if (!_sb) { console.warn('[turnos] addTurnoToSlot: Supabase no disponible'); return; }
   const trabajador_id = sbNombreToId(nombre);
   if (!trabajador_id) return;
+  console.log('[TURNO ADD] slot='+slot+' dia='+dia+' trabajador='+nombre);
   const orden = (L().data[slot][dia] || []).findIndex(n => parse(n).name === nombre);
   const { error } = await _sb.from('turnos').insert({
     local_id: LOCAL_ID, semana_inicio: curMonday, slot, dia, trabajador_id,
@@ -313,6 +314,7 @@ async function removeTurnoFromSlot(slot, dia, nombre) {
   if (!_sb) { console.warn('[turnos] removeTurnoFromSlot: Supabase no disponible'); return; }
   const trabajador_id = sbNombreToId(nombre);
   if (!trabajador_id) return;
+  console.log('[TURNO DEL] slot='+slot+' dia='+dia+' trabajador='+nombre);
   const { error } = await _sb.from('turnos').delete()
     .eq('local_id', LOCAL_ID).eq('semana_inicio', curMonday).eq('variante', curVariante)
     .eq('slot', slot).eq('dia', dia).eq('trabajador_id', trabajador_id);
@@ -345,6 +347,7 @@ async function sbBulkInsertTurnos(items) {
    actualiza el campo orden de cada trabajador ya presente en ese slot/día. */
 async function reorderSlot(slot, dia) {
   if (!_sb) return;
+  console.log('[TURNO REORDER] slot='+slot+' dia='+dia);
   const nombres = (L().data[slot][dia] || []).map(n => parse(n).name);
   await Promise.all(nombres.map((nombre, i) => {
     const trabajador_id = sbNombreToId(nombre);
@@ -424,7 +427,28 @@ function onEliminarVariante(v){
 async function doEliminarVariante(v, esActiva){
   closeOv('ov-confirm');
   if(!_sb){ showToast('Sin conexión'); return; }
-  const otra = v==='A' ? 'B' : 'A';
+
+  if(v === 'A'){
+    /* B es siempre la alternativa, nunca la principal — al eliminar A, B no
+       se queda huérfana como "B": se renombra a 'A' y pasa a ser la única
+       variante, activa. La próxima vez que se pulse "+" la nueva alternativa
+       se vuelve a crear como 'B' (ver crearVarianteB), nunca como una segunda 'A'. */
+    const { error:eDel } = await _sb.from('turnos').delete()
+      .eq('local_id',LOCAL_ID).eq('semana_inicio',curMonday).eq('variante','A');
+    if(eDel){ console.error('[variante] eliminar A:', eDel.message); showToast('Error al eliminar'); return; }
+    const { error:eProm } = await _sb.from('turnos').update({variante:'A', activa:true})
+      .eq('local_id',LOCAL_ID).eq('semana_inicio',curMonday).eq('variante','B');
+    if(eProm){ console.error('[variante] promover B a A:', eProm.message); showToast('Error al eliminar'); return; }
+    curVariante = 'A';
+    curVarianteActiva = 'A';
+    weekHasVariantB = false;
+    await loadWeekFromSupabase(curMonday); // recarga el grid con lo que era B, ahora A
+    showToast('Semana alternativa ahora es la principal ✓');
+    return;
+  }
+
+  // v === 'B': comportamiento sin cambios — A siempre queda como A.
+  const otra = 'A';
   if(esActiva){
     const { error:eAct } = await _sb.from('turnos').update({activa:true}).eq('local_id',LOCAL_ID).eq('semana_inicio',curMonday).eq('variante',otra);
     if(eAct){ console.error('[variante] reactivar otra:', eAct.message); showToast('Error al eliminar'); return; }

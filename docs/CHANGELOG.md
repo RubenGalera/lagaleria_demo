@@ -1,5 +1,16 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.26 — Fix guardado turnos + mejoras Stock y Inicio (agosto 2026)
+- Fix crítico: guardado inmediato fila a fila en Turnos — eliminado scheduleAutosave() y saveWeekSnapshot() completo. Añadir/quitar trabajador escribe en Supabase al instante, sin ventana de pérdida de datos
+- Fix crítico: orden manual de trabajadores persiste — drag & drop sincroniza L().data y hace UPDATE inmediato del campo orden
+- Operaciones en bloque (cargar plantilla, autogenerar, limpiar) siguen usando INSERT/DELETE masivo eficiente
+- Nombre propio resaltado en dorado en el grid de Turnos (igual que en Inicio)
+- Inicio: vacaciones reflejadas en "Tu semana" con celda 🌴 diferenciada
+- Inicio: reservas pendientes de confirmar con badge naranja ⏳ en Reservas hoy y alerta dedicada
+- Inicio: alerta stock ahora usa getStockStatus() como fuente única de verdad — muestra 8 (red+amb) en vez de 7
+- Fix scroll dropdown "Filtrar" en Productos: position:fixed con coordenadas calculadas, overflow-y:scroll, overscroll-behavior:contain
+- Pedido/Por proveedor: estado inicial muestra productos urgentes agrupados por proveedor (🔴/🟠) en vez de lista vacía. Sección "Sin proveedor" incluida
+
 ## v0.2.25 — Rediseño pantalla Inicio (agosto 2026)
 - Inicio rediseñado completo: header personalizado "Buenas, [nombre]", mini grid "Tu semana", turnos de hoy con nombre resaltado en dorado, reservas con barra de ocupación, próximo evento con plazas, alertas navegables, contactos
 - Datos en tiempo real desde Supabase: turnos del usuario, reservas del día, próximo evento, alertas de stock y conflictos de turnos
