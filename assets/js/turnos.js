@@ -10,6 +10,15 @@ let _sbTrabajadores = [];
 let _skillLocalToUUID = {};  /* slug 'barra' → UUID del catálogo skills */
 let _skillUUIDToLocal = {};  /* UUID → slug 'barra' */
 
+/* trabajador_id (UUID) del usuario que ha iniciado sesión — para resaltar su
+   propio nombre en el grid. Mismo patrón que _isAdmin() en worker-modal.js. */
+function _myTrabajadorId() {
+  var u = null;
+  try { u = (window.parent && window.parent !== window) ? window.parent.currentUser : null; } catch(e) {}
+  if (!u) try { var s = localStorage.getItem('lg_session'); if (s) u = JSON.parse(s); } catch(e) {}
+  return (u && u._sbId) || null;
+}
+
 /* Admin: trae AMBAS variantes de golpe (loadWeekFromSupabase filtra en JS
    la que toque ver, y de paso deriva weekHasVariantB/curVarianteActiva sin
    una query aparte). No-admin: solo la variante activa=true — la única que
@@ -35,31 +44,14 @@ async function sbLoadEventos(desde, hasta) {
   return data || [];
 }
 
-async function sbSaveTurno(turno) {
-  if (!_sb) { console.warn('sbSaveTurno: Supabase no disponible'); return false; }
-  const payload = {
-    local_id:      LOCAL_ID,
-    semana_inicio: turno.semana_inicio,
-    slot:          turno.slot,
-    dia:           turno.dia,
-    trabajador_id: turno.trabajador_id,
-    hora_especial: turno.hora_especial || null,
-  };
-  const {error} = await _sb.from('turnos').upsert(payload, {
-    onConflict: 'local_id,semana_inicio,slot,dia,trabajador_id'
-  });
-  if (error) { console.warn('sbSaveTurno:', error.message); return false; }
-  return true;
-}
-
 async function sbInitTrabajadores() {
   if (!_sb) { console.warn('[SB] sbInitTrabajadores: _sb no disponible'); return; }
 
   /* 1 — Trabajadores base */
   /* Se cargan TODOS, incluidos los archivados — necesario para que _nombreToId/_idToNombre
-     (usados por saveWeekSnapshot() al reconstruir la semana) sigan resolviendo el nombre de
-     un archivado con turnos ya asignados; si no, el próximo autosave de la semana borraría
-     esas filas al no poder resolver su trabajador_id (ver isArchivedName() más abajo). El
+     (usados por addTurnoToSlot/removeTurnoFromSlot/sbBulkInsertTurnos) sigan resolviendo el
+     nombre de un archivado con turnos ya asignados; si no, no se podría resolver su
+     trabajador_id al operar sobre esas filas (ver isArchivedName() más abajo). El
      roster real (locals.galeria.staff, "añadir al turno", contadores) sí los excluye — se
      filtran en el paso 5 más abajo, no aquí en la query. */
   const {data, error} = await _sb.from('trabajadores')
@@ -292,73 +284,77 @@ function eventosToPickerDates() {
 
 /* ── /SUPABASE Fase 1 ── */
 
-/* ── AUTOSAVE (Fase A2) ──
-   BUG encontrado: saveWeekSnapshot() leía curMonday/curVariante/L().data en
-   vivo, EN EL MOMENTO DE EJECUTARSE — pero se invoca 2s después de llamar a
-   scheduleAutosave() (setTimeout). Si el admin editaba la variante B y
-   cambiaba a A dentro de esos 2s, el timer pendiente disparaba usando el
-   curVariante YA CAMBIADO ('A') y el L().data YA SOBRESCRITO (de A, tras el
-   loadWeekFromSupabase del cambio de vista) — el edit de B nunca se guardaba
-   en ningún sitio, se perdía en el aire. Fix: capturar semana/variante/grid
-   como snapshot EN EL MOMENTO DE LA EDICIÓN (scheduleAutosave), y pasarlos
-   como parámetros — saveWeekSnapshot() ya no lee ningún global en vivo. */
-let _saveTimer = null;
-let _pendingSave = null; // {semana, variante, varianteActiva, grid} capturado en scheduleAutosave()
+/* ── GUARDADO FILA A FILA ──
+   BUG encontrado (y ahora eliminado de raíz): el mecanismo anterior
+   (scheduleAutosave + setTimeout de 2s, delete+insert de TODA la semana)
+   tenía una ventana de pérdida de datos — si el admin navegaba (cambiaba de
+   variante/semana) antes de que el timer disparase, el guardado pendiente
+   podía ejecutarse con curVariante/L().data ya cambiados, o pisarse con
+   otro timer. Fix: cada alta/baja de un trabajador en un slot se guarda AL
+   INSTANTE, fila a fila — nunca se borra+reinserta la semana entera, así
+   que nunca hay nada "pendiente" que se pueda perder o pisar al navegar. */
 
-function _snapshotGridData() {
-  const snap = {};
-  ROWS.forEach(slot => { snap[slot] = L().data[slot].map(dia => (dia || []).slice()); });
-  return snap;
-}
-
-async function saveWeekSnapshot(semana, variante, grid, varianteActiva) {
-  if (!_sb) { console.warn('[autosave] Supabase no disponible'); return; }
-  console.log('[SAVE] variante=', variante, 'semana=', semana, new Date().toISOString());
-  /* Acotado a la variante editada — sin el .eq('variante', ...) un autosave
-     de la variante A borraría también los turnos de la B. */
-  const { error: delErr } = await _sb.from('turnos')
-    .delete()
-    .eq('local_id', LOCAL_ID)
-    .eq('semana_inicio', semana)
-    .eq('variante', variante);
-  if (delErr) { console.error('[autosave] Error borrando:', delErr.message); return; }
-  const activa = variante === varianteActiva;
-  const rows = [];
-  ROWS.forEach(slot => {
-    for (let dia = 0; dia < 7; dia++) {
-      (grid[slot][dia] || []).forEach((raw, orden) => {
-        const { name, hour } = parse(raw);
-        const trabajador_id = sbNombreToId(name);
-        if (!trabajador_id) return;
-        rows.push({ local_id: LOCAL_ID, semana_inicio: semana, slot, dia, trabajador_id, hora_especial: hour || null, variante, activa, orden });
-      });
-    }
+/* Añade una fila — usada por toggleSg()/cancelPreview() (worker-modal.js) y
+   por las operaciones masivas de abajo (a través de sbBulkInsertTurnos). */
+async function addTurnoToSlot(slot, dia, nombre, horaEspecial) {
+  if (!_sb) { console.warn('[turnos] addTurnoToSlot: Supabase no disponible'); return; }
+  const trabajador_id = sbNombreToId(nombre);
+  if (!trabajador_id) return;
+  const orden = (L().data[slot][dia] || []).findIndex(n => parse(n).name === nombre);
+  const { error } = await _sb.from('turnos').insert({
+    local_id: LOCAL_ID, semana_inicio: curMonday, slot, dia, trabajador_id,
+    hora_especial: horaEspecial || null,
+    variante: curVariante, activa: curVariante === curVarianteActiva,
+    orden: orden >= 0 ? orden : 0,
   });
-  if (rows.length) {
-    const { error: insErr } = await _sb.from('turnos').insert(rows);
-    if (insErr) { console.error('[autosave] Error insertando:', insErr.message); return; }
-  }
-  console.log('[autosave] ✅', rows.length, 'filas guardadas, semana', semana, 'variante', variante);
+  if (error) console.error('[turnos] addTurnoToSlot:', error.message);
 }
-
-function scheduleAutosave() {
-  _pendingSave = { semana: curMonday, variante: curVariante, varianteActiva: curVarianteActiva, grid: _snapshotGridData() };
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(async () => {
-    _saveTimer = null;
-    const p = _pendingSave; _pendingSave = null;
-    if (p) await saveWeekSnapshot(p.semana, p.variante, p.grid, p.varianteActiva);
-  }, 2000);
+async function removeTurnoFromSlot(slot, dia, nombre) {
+  if (!_sb) { console.warn('[turnos] removeTurnoFromSlot: Supabase no disponible'); return; }
+  const trabajador_id = sbNombreToId(nombre);
+  if (!trabajador_id) return;
+  const { error } = await _sb.from('turnos').delete()
+    .eq('local_id', LOCAL_ID).eq('semana_inicio', curMonday).eq('variante', curVariante)
+    .eq('slot', slot).eq('dia', dia).eq('trabajador_id', trabajador_id);
+  if (error) console.error('[turnos] removeTurnoFromSlot:', error.message);
 }
-
-async function flushSave() {
-  if (_saveTimer === null || !_pendingSave) return;
-  clearTimeout(_saveTimer);
-  _saveTimer = null;
-  const p = _pendingSave; _pendingSave = null;
-  await saveWeekSnapshot(p.semana, p.variante, p.grid, p.varianteActiva);
+/* Alta masiva (autogenerar / cargar plantilla) — un único INSERT con varias
+   filas en vez de N llamadas sueltas, pero sigue sin tocar ninguna fila que
+   no sea nueva (nunca borra nada). items: [{slot, dia, name, hour?}]. El
+   orden de cada fila se lee de su posición ya insertada en L().data (llamar
+   después de hacer todos los push() correspondientes). */
+async function sbBulkInsertTurnos(items) {
+  if (!_sb || !items.length) return;
+  const activa = curVariante === curVarianteActiva;
+  const rows = [];
+  items.forEach(it => {
+    const trabajador_id = sbNombreToId(it.name);
+    if (!trabajador_id) return;
+    const orden = (L().data[it.slot][it.dia] || []).findIndex(n => parse(n).name === it.name);
+    rows.push({
+      local_id: LOCAL_ID, semana_inicio: curMonday, slot: it.slot, dia: it.dia,
+      trabajador_id, hora_especial: it.hour || null,
+      variante: curVariante, activa, orden: orden >= 0 ? orden : 0,
+    });
+  });
+  if (!rows.length) return;
+  const { error } = await _sb.from('turnos').insert(rows);
+  if (error) console.error('[turnos] sbBulkInsertTurnos:', error.message);
 }
-/* ── /AUTOSAVE ── */
+/* Reordenar dentro de una celda (drag & drop) no añade/quita filas — solo
+   actualiza el campo orden de cada trabajador ya presente en ese slot/día. */
+async function reorderSlot(slot, dia) {
+  if (!_sb) return;
+  const nombres = (L().data[slot][dia] || []).map(n => parse(n).name);
+  await Promise.all(nombres.map((nombre, i) => {
+    const trabajador_id = sbNombreToId(nombre);
+    if (!trabajador_id) return null;
+    return _sb.from('turnos').update({ orden: i })
+      .eq('local_id', LOCAL_ID).eq('semana_inicio', curMonday).eq('variante', curVariante)
+      .eq('slot', slot).eq('dia', dia).eq('trabajador_id', trabajador_id);
+  }));
+}
+/* ── /GUARDADO FILA A FILA ── */
 
 /* ── PLAN B DE TURNOS (variantes A/B) — solo admin/superadmin ── */
 
@@ -382,13 +378,10 @@ function crearVarianteB(){
 
 async function setVariante(v){
   if(!_isAdmin() || v===curVariante) return;
-  /* flushSave() ahora es seguro: usa el snapshot {semana,variante,grid} que
-     scheduleAutosave() capturó EN EL MOMENTO DE LA EDICIÓN, no el curVariante
-     actual — así el guardado pendiente de la variante que se abandona se
-     persiste con sus propios datos antes de cambiar de vista, en vez de
-     quedar un timer suelto que dispararía más tarde con el estado ya
-     cambiado (esa lectura en vivo era el bug real). */
-  await flushSave();
+  /* Ya no hace falta "flushear" nada al cambiar de variante: cada alta/baja
+     se guardó al instante en el momento del click (ver addTurnoToSlot/
+     removeTurnoFromSlot), así que no hay ningún cambio pendiente que se
+     pueda perder ni pisar al navegar. */
   curVariante = v;
   await loadWeekFromSupabase(curMonday);
 }
@@ -406,7 +399,6 @@ function onActivarVariante(v){
 async function doActivarVariante(v){
   closeOv('ov-confirm');
   if(!_sb){ showToast('Sin conexión'); return; }
-  await flushSave();
   const otra = v==='A' ? 'B' : 'A';
   const { error:e1 } = await _sb.from('turnos').update({activa:true}).eq('local_id',LOCAL_ID).eq('semana_inicio',curMonday).eq('variante',v);
   if(e1){ console.error('[variante] activar:', e1.message); showToast('Error al activar'); return; }
@@ -593,6 +585,7 @@ const BAND_LBL_CLS={sm:'band-label-sm',sn:'band-label-sn',cm:'band-label-cm',cn:
 var slotTimes = {sm:'12:30', sn:'20:00', cm:'12:00', cn:'20:00'};
 const SLOT_NAMES = {sm:'Sala mediodía', sn:'Sala noche', cm:'Cocina mediodía', cn:'Cocina noche'};
 function buildGrid(){
+  const myId=_myTrabajadorId();
   const er=document.getElementById("ev-row");
   er.innerHTML='';
   if(L().eventos.length){
@@ -672,13 +665,14 @@ function buildGrid(){
         const notaText=notaMatch?(notaMatch.nota||''):'';
         const notaTrunc=notaText.length>10?notaText.slice(0,10)+'…':notaText;
         const notaTag=notaMatch?`<span class="chip-tag chip-nota" title="${notaText.replace(/"/g,'&quot;')}">${notaTrunc}</span>`:"";
-        chip.innerHTML=`<div class="dh"><span></span><span></span><span></span></div><span class="chip-name">${name}</span>${hour?`<span class="chip-tag">${hour}</span>`:""}${archivedTag}${notaTag}${warnIcon}`;
+        const isMe=w&&myId&&w._sbId===myId;
+        chip.innerHTML=`<div class="dh"><span></span><span></span><span></span></div><span class="chip-name${isMe?' chip-name-me':''}">${name}</span>${hour?`<span class="chip-tag">${hour}</span>`:""}${archivedTag}${notaTag}${warnIcon}`;
         if(archived){
           chip.title='Trabajador archivado — turno histórico, solo lectura';
           chip.onclick=()=>{ if(typeof showToast==='function') showToast(name+' está archivado — este turno es histórico, solo lectura'); };
         } else {
           chip.onclick=()=>openPreview(name);
-          setupDrag(chip,cell);
+          setupDrag(chip,cell,r,d);
         }
         cell.appendChild(chip);
       });
@@ -690,7 +684,7 @@ function buildGrid(){
 }
 
 /* ── DRAG & DROP ── */
-function setupDrag(chip,cell){
+function setupDrag(chip,cell,slot,dia){
   chip.addEventListener("dragstart",()=>{chip.style.opacity=".4";window._dc=chip;});
   chip.addEventListener("dragend",()=>chip.style.opacity="");
   chip.addEventListener("dragover",e=>{e.preventDefault();chip.style.outline="1px dashed var(--acc)";});
@@ -701,6 +695,18 @@ function setupDrag(chip,cell){
       const chips=[...chip.parentNode.querySelectorAll(".chip")];
       const si=chips.indexOf(src),ti=chips.indexOf(chip);
       if(si<ti)chip.parentNode.insertBefore(src,chip.nextSibling);else chip.parentNode.insertBefore(src,chip);
+      /* El drop solo reordena el DOM — sincronizar L().data con el nuevo
+         orden visual (conservando el raw completo, con hora especial si la
+         tenía) y persistir el nuevo orden fila a fila. Antes de este fix el
+         drag ni siquiera tocaba L().data, así que el reorden nunca se
+         guardaba de verdad, aunque pareciera funcionar visualmente. */
+      const newNames=[...chip.parentNode.querySelectorAll(".chip")]
+        .map(c=>c.querySelector('.chip-name')?.textContent)
+        .filter(Boolean);
+      const rawByName={};
+      (L().data[slot][dia]||[]).forEach(raw=>{ rawByName[parse(raw).name]=raw; });
+      L().data[slot][dia]=newNames.map(n=>rawByName[n]).filter(Boolean);
+      if(typeof reorderSlot==='function') reorderSlot(slot,dia);
     }
   });
 }
@@ -939,13 +945,15 @@ async function doBorrarDefinitivo(){
   const name = _pendingPermDeleteName; if (!name) return;
   const w = getW(name); if (!w) return;
   closeOv('ov-confirm');
+  /* sbBorrarTrabajadorDefinitivo ya borra en Supabase TODOS los turnos de
+     este trabajador_id (todas las semanas/variantes) — no queda nada que
+     autoguardar, lo de abajo es solo limpieza del estado local en memoria. */
   if (w._sbId) await sbBorrarTrabajadorDefinitivo(w._sbId);
   const idx = L().staff.findIndex(x => x.name === name);
   if (idx > -1) L().staff.splice(idx, 1);
   ROWS.forEach(r => L().data[r].forEach((d, i) => { L().data[r][i] = d.filter(n => parse(n).name !== name); }));
   _pendingPermDeleteName = null;
   buildGrid(); renderTrabajadores(); renderW(); updateStats();
-  scheduleAutosave();
   showToast(`${name} eliminado definitivamente`);
 }
 
@@ -983,7 +991,8 @@ function openAddModal(row,col){
    El modal en sí (campos, validación, INSERT) vive en assets/lib/workerCreateModal.js
    — componente compartido con Admin (openNuevoTrabajador en adminWorkers.js).
    Aquí solo se decide qué hacer con el trabajador una vez creado: añadirlo
-   al roster de esta semana y a los mapas nombre↔id que usa saveWeekSnapshot(). */
+   al roster de esta semana y a los mapas nombre↔id que usan addTurnoToSlot/
+   removeTurnoFromSlot al persistir sus turnos. */
 function openNuevoTrabajadorCompleto(){
   closeOv("ov-add");
   openWorkerCreateModal(function(w){
@@ -1149,7 +1158,6 @@ function renderW(){
 }
 
 function setView(v){
-  flushSave();
   document.getElementById("view-semana").style.display=v==="semana"?"":"none";
   document.getElementById("view-persona").style.display=v==="persona"?"":"none";
   document.getElementById("vtab-s").classList.toggle("active",v==="semana");
@@ -1440,13 +1448,9 @@ DatePicker.init({
   onChange:function(d){ _applyWeek(d); }
 });
 sbInitTrabajadores().then(()=>changeWeek(0)); /* carga diccionario nombre↔UUID, actualiza label y carga semana actual */
-window.addEventListener('beforeunload', () => {
-  if (_saveTimer !== null && _pendingSave) {
-    clearTimeout(_saveTimer);
-    const p = _pendingSave; _saveTimer = null; _pendingSave = null;
-    saveWeekSnapshot(p.semana, p.variante, p.grid, p.varianteActiva);
-  }
-});
+/* Sin listener de beforeunload: cada alta/baja ya se guarda al instante
+   (addTurnoToSlot/removeTurnoFromSlot), no hay nada pendiente que flushear
+   al cerrar la pestaña. */
 
 
 
@@ -1781,12 +1785,19 @@ function openGenerarModal(){
   showOv('ov-generar');
 }
 
-function limpiarSemana(){
+async function limpiarSemana(){
   if(!confirm('¿Vaciar todos los turnos de esta semana?')) return;
   ROWS.forEach(r=>{ for(let d=0;d<7;d++) L().data[r][d]=[]; });
   buildGrid(); renderW(); updateStats();
   showToast('Semana limpiada ✓');
-  scheduleAutosave();
+  /* Vaciar SÍ es un caso legítimo de borrar de golpe — pero acotado a esta
+     semana+variante concreta (nunca "toda la tabla"), así que sigue sin
+     poder tocar otra variante ni otra semana. */
+  if(_sb){
+    const { error } = await _sb.from('turnos').delete()
+      .eq('local_id',LOCAL_ID).eq('semana_inicio',curMonday).eq('variante',curVariante);
+    if(error) console.error('[turnos] limpiarSemana:', error.message);
+  }
 }
 
 /* "Cargar plantilla" — superpone sobre lo que ya haya en el grid (no borra),
@@ -1797,27 +1808,34 @@ async function handleCargarPlantilla(){
   if(!res || !res.ok){ showToast('Error al cargar la plantilla'); closeOv('ov-generar'); return; }
   if(res.empty){ showToast('No hay plantilla guardada todavía'); closeOv('ov-generar'); return; }
   let addedCount=0, dupSkipped=0;
+  const added=[];
   res.added.forEach(a=>{
     if(!L().data[a.slot][a.dia]) L().data[a.slot][a.dia]=[];
     if(L().data[a.slot][a.dia].some(n=>parse(n).name===a.name)){ dupSkipped++; return; }
     L().data[a.slot][a.dia].push(a.name);
+    added.push({slot:a.slot, dia:a.dia, name:a.name});
     addedCount++;
   });
   buildGrid(); renderW(); updateStats();
-  if(addedCount) scheduleAutosave();
+  if(addedCount) await sbBulkInsertTurnos(added);
   showToast('Plantilla cargada — '+addedCount+' añadidos, '+(res.ignored+dupSkipped)+' ignorados');
   closeOv('ov-generar');
 }
 
 /* "Automático" — ejecuta el autogenerador existente sin cambios de lógica
-   (runTurnoAutogenCore, en turnoAutogen.js) y cierra el modal al terminar. */
+   (runTurnoAutogenCore, en turnoAutogen.js) y cierra el modal al terminar.
+   runTurnoAutogenCore() solo AÑADE asignaciones (nunca quita ni pisa las que
+   ya había), así que basta con un insert masivo de lo nuevo — igual que
+   cargar plantilla. */
 function handleAutomatico(){
   const loadEl = document.getElementById('autogen-loading');
   if(loadEl) loadEl.classList.add('show');
-  setTimeout(()=>{
+  setTimeout(async ()=>{
     const result = runTurnoAutogenCore();
     buildGrid(); renderW(); updateStats();
-    scheduleAutosave();
+    if(result.assigned.length){
+      await sbBulkInsertTurnos(result.assigned.map(a=>({slot:a.slot, dia:a.day, name:a.name})));
+    }
     if(loadEl) loadEl.classList.remove('show');
     const msg = (!result.assigned.length && !result.alerts.length)
       ? 'La semana ya cumple todos los requisitos ✓'

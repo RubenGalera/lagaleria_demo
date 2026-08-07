@@ -29,6 +29,8 @@
   --border-danger: var(--red-bd);
   --bg-pro: rgba(99,102,241,.15);
   --text-pro: #a5a8f0;
+  --bg-vacation: rgba(99,179,237,.18);
+  --text-vacation: #63b3ed;
 
   /* dorado específico de "Tu semana" / nombre propio — dado como hex exacto */
   --gold: #c9a84c;
@@ -79,6 +81,10 @@ body{display:flex;flex-direction:column}
 .wg-check i{font-size:11px;color:var(--text-success)}
 .wg-check.me{background:var(--gold)}
 .wg-check.me i{color:var(--gold-text)}
+.wg-check.vac{background:var(--bg-vacation);font-size:11px}
+.week-legend{display:flex;gap:12px;padding:8px 2px 0;font-size:10px;color:var(--text-muted);flex-wrap:wrap}
+.week-legend i{color:var(--text-success);margin-right:2px}
+.week-legend .wl-empty{color:var(--text-muted)}
 
 /* Turnos de hoy */
 .turnos-slot{padding:10px 14px;display:flex;align-items:flex-start;gap:10px}
@@ -100,6 +106,7 @@ body{display:flex;flex-direction:column}
 .res-bar-fill{height:100%;border-radius:2px;background:var(--res-ok)}
 .res-bar-fill.warn{background:var(--res-warn)}
 .res-bar-fill.full{background:var(--red)}
+.res-pend{font-size:11px;font-weight:500;color:var(--res-warn);background:rgba(239,159,39,.15);padding:1px 6px;border-radius:10px;flex-shrink:0;white-space:nowrap}
 .res-libre{font-size:11px;color:var(--text-muted);white-space:nowrap}
 .res-empty{display:flex;align-items:center;gap:6px;flex:1;background:var(--bg-success);color:var(--text-success);padding:6px 10px;border-radius:8px;font-size:12px}
 .res-empty i{font-size:14px;flex-shrink:0}

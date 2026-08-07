@@ -451,9 +451,17 @@ function clearSearch() {
    diferenciado, algo que las <option> no permiten de forma fiable entre navegadores. */
 function toggleFilterPanel() {
   const panel = document.getElementById('filter-panel')
-  if (!panel) return
+  const btn = document.getElementById('search-filter-btn')
+  if (!panel || !btn) return
   const opening = !panel.classList.contains('open')
-  if (opening) renderFilterProvList()
+  if (opening) {
+    renderFilterProvList()
+    const r = btn.getBoundingClientRect()
+    panel.style.top = (r.bottom + 6) + 'px'
+    panel.style.right = (window.innerWidth - r.right) + 'px'
+    panel.style.left = 'auto'
+    panel.style.minWidth = Math.max(r.width, 220) + 'px'
+  }
   panel.classList.toggle('open', opening)
 }
 function closeFilterPanel() {
@@ -1126,53 +1134,62 @@ function renderPedProvItem(p, isOtros) {
   return renderPedCard(p, qtyHtml, extraClass)
 }
 
-/* ─── Resumen inicial (sin proveedor seleccionado): lista de proveedores + urgentes ─── */
+/* ─── Resumen inicial (sin proveedor seleccionado) ───
+   Solo productos urgentes (red/amb), agrupados por proveedor, con la misma
+   renderPedCard() que usa la vista de un proveedor concreto — no es un
+   listado propio, son las cards reales para poder ver/editar el producto
+   directamente desde aquí. Orden: proveedores con algún 🔴 primero (por
+   nombre), luego proveedores solo con 🟠 (por nombre), y "Sin proveedor"
+   siempre al final si hay urgentes sin proveedor asignado. */
 function renderPedProvSummary() {
-  const provsWithProds = stockProvsAll
-    .filter(prov => prods.some(p => p.provId === prov.id))
-    .slice()
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+  const urgent = prods.filter(p => getStockStatus(p.qty, p.min) !== 'grn')
 
-  if (!provsWithProds.length) {
+  if (!urgent.length) {
     return `
       <div class="ped-empty">
-        <div class="ped-empty-icon">🚚</div>
-        <div class="ped-empty-title">Sin proveedores con productos</div>
-        <div class="ped-empty-sub">Asigna un proveedor a tus productos desde Stock.</div>
+        <div class="ped-empty-icon">🟢</div>
+        <div class="ped-empty-title">Todo el stock en orden</div>
       </div>
     `
   }
 
-  const listHtml = `
-    <div class="ped-prov-list">
-      ${provsWithProds.map(prov => `
-        <div class="ped-prov-item" onclick="selectPedProv('${prov.id}')">
-          <span>${pedProvIndicator(prov.id)}${prov.nombre}</span>
-          <span class="ped-prov-arrow">›</span>
-        </div>
-      `).join('')}
-    </div>
-  `
+  const byProv = new Map() // provId (o '' = sin proveedor) → productos urgentes
+  urgent.forEach(p => {
+    const key = p.provId || ''
+    if (!byProv.has(key)) byProv.set(key, [])
+    byProv.get(key).push(p)
+  })
 
-  const urgentProvs = provsWithProds.filter(prov => pedProvIndicator(prov.id) !== '')
-  let urgentHtml = ''
-  if (urgentProvs.length) {
-    urgentHtml = `<div class="oneoff-section-lbl">Urgentes</div>` + urgentProvs.map(prov => {
-      const items = prods.filter(p => p.provId === prov.id && getStockStatus(p.qty, p.min) !== 'grn')
-        .sort((a, b) => {
-          const ua = getStockStatus(a.qty, a.min), ub = getStockStatus(b.qty, b.min)
-          if (ua !== ub) return ua === 'red' ? -1 : 1
-          return a.name.localeCompare(b.name, 'es')
-        })
-      const itemsHtml = items.map(p => {
-        const n = Math.max(1, p.min - p.qty)
-        return renderPedCard(p, `<div class="ped-tag ${getStockStatus(p.qty, p.min)}">+${n} ${p.unit}</div>`)
-      }).join('')
-      return `<div class="sec-hdr ped-section-hdr alert"><div class="sec-lbl">${pedProvIndicator(prov.id)}${prov.nombre.toUpperCase()}</div><div class="sec-line"></div></div>${itemsHtml}`
-    }).join('')
+  const groups = []
+  byProv.forEach((items, key) => {
+    if (key === '') return // se añade aparte, siempre al final
+    const prov = stockProvsAll.find(pr => pr.id === key)
+    groups.push({
+      label: prov ? prov.nombre : 'Proveedor',
+      items,
+      hasRed: items.some(p => getStockStatus(p.qty, p.min) === 'red'),
+    })
+  })
+  groups.sort((a, b) => (a.hasRed === b.hasRed ? 0 : (a.hasRed ? -1 : 1)) || a.label.localeCompare(b.label, 'es'))
+
+  const sinProv = byProv.get('')
+  if (sinProv && sinProv.length) {
+    groups.push({ label: 'Sin proveedor', items: sinProv, hasRed: sinProv.some(p => getStockStatus(p.qty, p.min) === 'red') })
   }
 
-  return listHtml + urgentHtml
+  return groups.map(g => {
+    const icon = g.hasRed ? '🔴' : '🟠'
+    const items = g.items.slice().sort((a, b) => {
+      const ua = getStockStatus(a.qty, a.min), ub = getStockStatus(b.qty, b.min)
+      if (ua !== ub) return ua === 'red' ? -1 : 1
+      return a.name.localeCompare(b.name, 'es')
+    })
+    const itemsHtml = items.map(p => {
+      const n = Math.max(1, p.min - p.qty)
+      return renderPedCard(p, `<div class="ped-tag ${getStockStatus(p.qty, p.min)}">+${n} ${p.unit}</div>`)
+    }).join('')
+    return `<div class="sec-hdr ped-section-hdr alert"><div class="sec-lbl">${icon} ${g.label.toUpperCase()}</div><div class="sec-line"></div></div>${itemsHtml}`
+  }).join('')
 }
 
 function renderPedProvView() {

@@ -33,6 +33,11 @@
       <div class="card" onclick="goToTurnos()">
         <div class="week-grid" id="week-grid"></div>
       </div>
+      <div class="week-legend" id="week-legend" style="display:none">
+        <span><i class="ti ti-check" aria-hidden="true"></i> turno</span>
+        <span>🌴 vacaciones</span>
+        <span class="wl-empty">vacío sin turno</span>
+      </div>
     </div>
 
     <div class="sec" style="margin-top:10px">
@@ -55,6 +60,7 @@
       <div class="alerts">
         <div class="alert-card" id="alert-stock" onclick="navToStockReponer()"></div>
         <div class="alert-card warn" id="alert-turnos" onclick="navTo('turnos')"></div>
+        <div class="alert-card warn" id="alert-reservas" style="display:none" onclick="navTo('reservas')"></div>
       </div>
     </div>
 
@@ -114,6 +120,7 @@
 <script src="assets/lib/supabase-client.js"></script>
 <script src="assets/lib/ui-helpers.js"></script>
 <script src="assets/lib/utils.js"></script>
+<script src="assets/lib/stock-status.js"></script>
 <script src="assets/js/inicio.js"></script>
 </body>
 </html>

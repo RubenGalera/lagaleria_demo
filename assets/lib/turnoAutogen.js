@@ -2,9 +2,9 @@
    del modal "Generar").
    Extraído de turnos.js (antes _runAutoGenCore, 151 líneas) para mantener
    turnos.js centrado en orquestación de UI. Esta función es lógica pura:
-   no toca el DOM ni dispara guardado — el caller (turnos.js/handleAutomatico)
-   es quien llama a buildGrid/renderW/updateStats/scheduleAutosave y muestra
-   el resultado (toast), después de invocar esto.
+   no toca el DOM ni guarda nada — el caller (turnos.js/handleAutomatico)
+   es quien llama a buildGrid/renderW/updateStats/sbBulkInsertTurnos y
+   muestra el resultado (toast), después de invocar esto.
 
    Requiere en el ámbito de página (definidos en turnos.js): L(), ROWS,
    weekConfig, SLOT_ROLES, parse(), cntT(), getDayVacacion(). */

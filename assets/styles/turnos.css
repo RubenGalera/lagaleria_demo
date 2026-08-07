@@ -135,6 +135,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .chip-cm{background:var(--cm-bg);border:1px solid var(--cm-bd)}
 .chip-cn{background:var(--cn-bg);border:1px solid var(--cn-bd)}
 .chip-name{font-size:13px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#d0dde2}
+.chip-name.chip-name-me{color:#c9a84c;font-weight:500}
 .chip-tag{font-size:9px;padding:1px 5px;border-radius:3px;white-space:nowrap;flex-shrink:0;background:var(--acc-bg);color:var(--acc);border:1px solid var(--acc-bd)}
 .chip-tag.chip-nota{max-width:52px;overflow:hidden;text-overflow:ellipsis}
 /* Trabajador archivado con turno histórico esta semana — solo lectura (ver isArchivedName() en turnos.js) */
@@ -375,6 +376,7 @@ body.sala-theme .chip-sn{background:#c5e5c5;border-color:var(--sn-text)}
 body.sala-theme .chip-cm{background:#f5c5c5;border-color:var(--cm-text)}
 body.sala-theme .chip-cn{background:#fad5a0;border-color:var(--cn-text)}
 body.sala-theme .chip-name{color:#222}
+body.sala-theme .chip-name.chip-name-me{color:#c9a84c}
 body.sala-theme .mclose,.sala-theme .wbtn,.sala-theme .stat,.sala-theme .modal,.sala-theme .ev-detail-modal,.sala-theme .confirm-modal{background:#fff}
 body.sala-theme .w-preview,.sala-theme .ev-item,.sala-theme .ev-form,.sala-theme .pitem,.sala-theme .aw-item,.sala-theme .hora-row{background:#efefea}
 body.sala-theme .w-tel-display{color:#1a1a18}

@@ -122,6 +122,7 @@ async function initDashboard(){
       _loadProximoEvento(todayStr),
       _loadAlertaStock(),
       _loadAlertaConflictos(monday),
+      _loadAlertaReservas(todayStr),
     ]);
   }catch(e){ console.error('[inicio] initDashboard', e); }
 }
@@ -135,6 +136,7 @@ function _renderAllEmpty(msg){
   if(as){ as.className='alert-card'; as.innerHTML='<div class="alert-n">—</div><div class="alert-bottom"><div class="alert-txt">'+_escHtml(msg)+'</div></div>'; }
   var at=document.getElementById('alert-turnos');
   if(at){ at.className='alert-card warn'; at.innerHTML='<div class="alert-n warn">—</div><div class="alert-bottom"><div class="alert-txt">'+_escHtml(msg)+'</div></div>'; }
+  var ar=document.getElementById('alert-reservas'); if(ar) ar.style.display='none';
 }
 
 /* ── Header ────────────────────────────────────────────────────────────── */
@@ -155,14 +157,23 @@ function _weekRangeLabel(monday){
 /* ── Tu semana ─────────────────────────────────────────────────────────── */
 async function _loadTuSemana(monday, todayIdx, myId){
   var grid=document.getElementById('week-grid'); if(!grid) return;
+  var legend=document.getElementById('week-legend');
   if(!myId){
     grid.style.display='block';
     grid.innerHTML='<div class="card-empty">Inicia sesión para ver tus turnos</div>';
+    if(legend) legend.style.display='none';
     return;
   }
   grid.style.display='';
-  var res = await _sb.from('turnos').select('dia, slot')
-    .eq('local_id',LOCAL_ID).eq('semana_inicio',monday).eq('activa',true).eq('trabajador_id',myId);
+  var sundayObj=new Date(monday+'T00:00:00Z'); sundayObj.setUTCDate(sundayObj.getUTCDate()+6);
+  var sundayStr=sundayObj.toISOString().split('T')[0];
+  var results = await Promise.all([
+    _sb.from('turnos').select('dia, slot')
+      .eq('local_id',LOCAL_ID).eq('semana_inicio',monday).eq('activa',true).eq('trabajador_id',myId),
+    _sb.from('trabajadores_vacaciones').select('desde, hasta')
+      .eq('trabajador_id',myId).lte('desde',sundayStr).gte('hasta',monday),
+  ]);
+  var res=results[0], vacRes=results[1];
   if(res.error){ console.error('[inicio] tu semana:', res.error.message); grid.innerHTML=''; return; }
   var med=[false,false,false,false,false,false,false], noc=[false,false,false,false,false,false,false];
   (res.data||[]).forEach(function(r){
@@ -170,18 +181,30 @@ async function _loadTuSemana(monday, todayIdx, myId){
     if(r.slot==='sm'||r.slot==='cm') med[r.dia]=true;
     if(r.slot==='sn'||r.slot==='cn') noc[r.dia]=true;
   });
+  var vac=[false,false,false,false,false,false,false];
+  if(vacRes.error) console.error('[inicio] tu semana vacaciones:', vacRes.error.message);
+  else (vacRes.data||[]).forEach(function(v){
+    for(var d=0;d<7;d++){
+      var dt=new Date(monday+'T00:00:00Z'); dt.setUTCDate(dt.getUTCDate()+d);
+      var dayStr=dt.toISOString().split('T')[0];
+      if(dayStr>=v.desde && dayStr<=v.hasta) vac[d]=true;
+    }
+  });
   var DAYS=['L','M','X','J','V','S','D'];
   var h='<div class="wg-head"></div>';
   DAYS.forEach(function(d,i){ h+='<div class="wg-head'+(i===todayIdx?' today':'')+'">'+d+'</div>'; });
-  h+=_weekGridRow('Med', med, todayIdx);
-  h+=_weekGridRow('Noc', noc, todayIdx);
+  h+=_weekGridRow('Med', med, todayIdx, vac);
+  h+=_weekGridRow('Noc', noc, todayIdx, vac);
   grid.innerHTML=h;
+  if(legend) legend.style.display = vac.some(function(v){return v;}) ? 'flex' : 'none';
 }
-function _weekGridRow(label, arr, todayIdx){
+function _weekGridRow(label, arr, todayIdx, vac){
   var h='<div class="wg-row-lbl">'+label+'</div>';
   arr.forEach(function(on,i){
     var gold = on && i===todayIdx;
-    h+='<div class="wg-cell">'+(on?'<div class="wg-check'+(gold?' me':'')+'"><i class="ti ti-check" aria-hidden="true"></i></div>':'')+'</div>';
+    if(on) h+='<div class="wg-cell"><div class="wg-check'+(gold?' me':'')+'"><i class="ti ti-check" aria-hidden="true"></i></div></div>';
+    else if(vac && vac[i]) h+='<div class="wg-cell"><div class="wg-check vac" title="Vacaciones">🌴</div></div>';
+    else h+='<div class="wg-cell"></div>';
   });
   return h;
 }
@@ -266,12 +289,14 @@ async function _loadReservasHoy(todayStr){
   var noc=reservas.filter(function(r){ return (r.hora||'')>='16:00'; });
   var medMesas=med.reduce(function(s,r){return s+(r.mesas||1);},0);
   var nocMesas=noc.reduce(function(s,r){return s+(r.mesas||1);},0);
+  var medPend=med.filter(function(r){return r.estado==='pendiente';}).length;
+  var nocPend=noc.filter(function(r){return r.estado==='pendiente';}).length;
   card.innerHTML =
     '<div class="res-meta">'+totalMesas+' mesas · aforo '+totalPax+' pax</div>'+
-    _resRow('Mediodía', med.length, medMesas, totalMesas)+
-    _resRow('Noche', noc.length, nocMesas, totalMesas);
+    _resRow('Mediodía', med.length, medMesas, totalMesas, medPend)+
+    _resRow('Noche', noc.length, nocMesas, totalMesas, nocPend);
 }
-function _resRow(label, count, mesasOcupadas, totalMesas){
+function _resRow(label, count, mesasOcupadas, totalMesas, pending){
   if(count===0){
     return '<div class="reservas-row">'+
       '<span class="res-label">'+label+'</span>'+
@@ -284,9 +309,11 @@ function _resRow(label, count, mesasOcupadas, totalMesas){
   var libres=Math.max(0, totalMesas-mesasOcupadas);
   var pct = totalMesas ? Math.min(100, (mesasOcupadas/totalMesas)*100) : 0;
   var cls = pct>=100 ? 'full' : (pct>80 ? 'warn' : '');
+  var pendBadge = pending>0 ? '<span class="res-pend" title="'+pending+' pendiente'+(pending===1?'':'s')+' de confirmar">⏳'+pending+'</span>' : '';
   return '<div class="reservas-row">'+
     '<span class="res-label">'+label+'</span>'+
     '<span class="res-num">'+count+'</span>'+
+    pendBadge+
     '<div class="res-bar"><div class="res-bar-fill'+(cls?' '+cls:'')+'" style="width:'+pct+'%"></div></div>'+
     '<span class="res-libre">'+libres+' mesa'+(libres===1?'':'s')+' libre'+(libres===1?'':'s')+'</span>'+
   '</div>';
@@ -351,7 +378,9 @@ async function _loadAlertaStock(){
   var el=document.getElementById('alert-stock'); if(!el) return;
   var res = await _sb.from('stock_productos').select('cantidad, minimo').eq('local_id',LOCAL_ID).eq('activo',true);
   if(res.error){ console.error('[inicio] alerta stock:', res.error.message); return; }
-  var n=(res.data||[]).filter(function(p){ return p.minimo>0 && p.cantidad<=Math.ceil(p.minimo/2); }).length;
+  /* getStockStatus() viene de assets/lib/stock-status.js (mismo criterio que
+     Stock/Pedido) — cuenta red+amb, no un cálculo propio que podía divergir. */
+  var n=(res.data||[]).filter(function(p){ return getStockStatus(p.cantidad, p.minimo)!=='grn'; }).length;
   _renderAlertCard(el, n, 'producto'+(n===1?'':'s')+' bajo mínimos', 'danger', 'Stock en orden');
 }
 async function _countConflictosTurnos(monday){
@@ -387,6 +416,21 @@ async function _loadAlertaConflictos(monday){
   var el=document.getElementById('alert-turnos'); if(!el) return;
   var n=await _countConflictosTurnos(monday);
   _renderAlertCard(el, n, 'conflicto'+(n===1?'':'s')+' en turnos', 'warn', 'Turnos sin conflictos');
+}
+/* Solo se muestra si hay pendientes — a diferencia de las otras dos alertas
+   no tiene estado "ok" visible, se oculta del todo (no es una card fija). */
+async function _loadAlertaReservas(todayStr){
+  var el=document.getElementById('alert-reservas'); if(!el) return;
+  var res = await _sb.from('reservas').select('id').eq('local_id',LOCAL_ID).eq('fecha',todayStr).eq('estado','pendiente');
+  if(res.error){ console.error('[inicio] alerta reservas:', res.error.message); return; }
+  var n=(res.data||[]).length;
+  if(n>0){
+    el.style.display='';
+    el.className='alert-card warn';
+    el.innerHTML='<div class="alert-n warn">'+n+'</div><div class="alert-bottom"><div class="alert-txt">reserva'+(n===1?'':'s')+' por confirmar</div><i class="ti ti-chevron-right alert-arr" aria-hidden="true"></i></div>';
+  }else{
+    el.style.display='none';
+  }
 }
 
 /* ── Contactos / Proveedores — solo lectura, siempre fresco desde Supabase (sin caché) ──

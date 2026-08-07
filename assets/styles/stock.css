@@ -159,14 +159,6 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .ped-qty-val{min-width:22px;text-align:center;font-size:14px;font-weight:700;color:var(--txt)}
 .ped-otros-hint{font-size:11px;color:var(--dim);padding:2px 0 8px}
 
-/* ─── Pedido por proveedor: resumen inicial (lista + urgentes) ─── */
-.ped-prov-list{margin-bottom:8px;border:1px solid var(--brd);border-radius:10px;overflow:hidden}
-.ped-prov-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 13px;font-size:13px;font-weight:600;color:var(--txt);cursor:pointer;border-bottom:1px solid var(--brd);transition:background .15s}
-.ped-prov-item:last-child{border-bottom:none}
-.ped-prov-item:hover{background:var(--surf)}
-.ped-prov-item:active{background:var(--acc-bg)}
-.ped-prov-arrow{color:var(--faint);font-size:14px}
-
 /* ─── Pedido: icono de categoría junto al nombre (reutilizado en renderPedCard) ─── */
 .ped-cat-icon{margin-right:5px;font-size:12px}
 
@@ -275,7 +267,12 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
    única forma de saber qué filtro hay puesto sin abrir el panel. */
 .search-filter-btn.active .search-filter-lbl{display:inline}
 
-.filter-panel{display:none;padding:0 var(--sp-md) 10px;background:var(--bg);border-bottom:1px solid var(--brd)}
+/* position:fixed (no absolute/sticky): coordenadas calculadas en JS desde
+   getBoundingClientRect() de #search-filter-btn al abrir (ver toggleFilterPanel()).
+   overflow-y:scroll (no auto) fuerza la scrollbar siempre visible y, junto con
+   overscroll-behavior-y:contain, evita que el gesto de scroll se "traspase" al
+   fondo de la página al llegar al final de la lista — mismo fix que .ped-prov-dd-panel. */
+.filter-panel{display:none;position:fixed;z-index:150;overflow-y:scroll;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;max-height:50vh;background:var(--bg);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
 .filter-panel.open{display:block}
 .filter-prov-list{border:1px solid var(--brd);border-radius:10px;overflow:hidden}
 .filter-prov-item{padding:11px 13px;font-size:13px;font-weight:600;color:var(--txt);cursor:pointer;border-bottom:1px solid var(--brd);transition:background .15s}

@@ -4,7 +4,7 @@
    Requiere en el ámbito de página: getW, cntT, L, ROWS, CONFLICTS, parse, ini,
    isSafeImg, curLocal, curWeek, curYear, curMonday, showOv, closeOv, showToast, buildGrid, renderW,
    updateStats, renderTrabajadores, renderNotaList, renderVacList, renderSkillsSummary,
-   getDayVacacion, ensureWorkerExtras, _sb. Opcionales: scheduleAutosave,
+   getDayVacacion, ensureWorkerExtras, _sb. Opcionales: addTurnoToSlot, removeTurnoFromSlot,
    sbUploadFotoTrabajador, compressImage, saveWorker, showConfirm. */
 
 var _previewName = '';
@@ -245,15 +245,28 @@ function cancelPreview() {
     w.unavailMed  = _previewSnapshot.unavailMed.slice();
     w.unavailNoch = _previewSnapshot.unavailNoch.slice();
     w.prioridad   = _previewSnapshot.prioridad;
+    /* toggleSg() ya guardó cada click al instante en Supabase — "cancelar"
+       tiene que deshacer también eso, no solo el estado local en memoria,
+       fila a fila igual que se guardó. */
+    const canPersist = typeof addTurnoToSlot === 'function' && typeof removeTurnoFromSlot === 'function';
     ROWS.forEach(r => {
       for (let d = 0; d < 7; d++) {
         if (!L().data[r][d]) L().data[r][d] = [];
         const orig = _previewSnapshot.shifts[r][d];
         const idx = L().data[r][d].findIndex(n => parse(n).name === _previewName);
         if (orig) {
-          if (idx >= 0) L().data[r][d][idx] = orig; else L().data[r][d].push(orig);
+          if (idx >= 0) {
+            if (L().data[r][d][idx] !== orig) {
+              L().data[r][d][idx] = orig;
+              if (canPersist) { removeTurnoFromSlot(r, d, _previewName); addTurnoToSlot(r, d, _previewName, parse(orig).hour); }
+            }
+          } else {
+            L().data[r][d].push(orig);
+            if (canPersist) addTurnoToSlot(r, d, _previewName, parse(orig).hour);
+          }
         } else if (idx >= 0) {
           L().data[r][d].splice(idx, 1);
+          if (canPersist) removeTurnoFromSlot(r, d, _previewName);
         }
       }
     });
@@ -263,7 +276,6 @@ function cancelPreview() {
   if (typeof buildGrid === 'function') buildGrid();
   if (typeof renderW === 'function') renderW();
   if (typeof updateStats === 'function') updateStats();
-  if (typeof scheduleAutosave === 'function') scheduleAutosave();
 }
 
 /* ── ALERTAS DE PERFIL ── */
@@ -313,12 +325,12 @@ function updateAlert() {
 
 /* ── DISPONIBILIDAD EN PERFIL ── */
 function toggleSg(cell) {
-  /* Solo lectura fuera de Turnos (Admin/Inicio) — scheduleAutosave() solo existe en
+  /* Solo lectura fuera de Turnos (Admin/Inicio) — addTurnoToSlot() solo existe en
      turnos.js, así que es la señal ya establecida en este archivo para "¿soy la página
      real del grid?" (ver saveProfile()). Fuera de Turnos este grid se queda siempre
      vacío a propósito (L().data en adminWorkers.js) — no debe mostrar ni cargar turnos
      asignados de ninguna semana, solo sirve para bloquear el click con este aviso. */
-  if (typeof scheduleAutosave !== 'function') {
+  if (typeof addTurnoToSlot !== 'function') {
     if (typeof showToast === 'function') showToast('Los turnos se asignan desde el módulo Turnos, dentro de la semana correspondiente. Aquí solo puedes configurar restricciones generales.', 'info');
     return;
   }
@@ -331,19 +343,29 @@ function toggleSg(cell) {
       return;
     }
   }
+  /* Cada alta/baja se guarda al instante (fila a fila, nunca la semana
+     entera) — así el usuario puede navegar libremente sin perder nada. */
   if (!cell.classList.contains('on-'+row)) {
     document.querySelector(`#prof-sg .sg-cell[data-row="${conf}"][data-col="${col}"]`)?.classList.remove('on-'+conf);
-    if (L().data[conf][col]) L().data[conf][col] = L().data[conf][col].filter(n => parse(n).name !== _previewName);
+    if (L().data[conf][col] && L().data[conf][col].some(n => parse(n).name === _previewName)) {
+      L().data[conf][col] = L().data[conf][col].filter(n => parse(n).name !== _previewName);
+      removeTurnoFromSlot(conf, col, _previewName);
+    }
   }
   cell.classList.toggle('on-'+row);
   if (!L().data[row][col]) L().data[row][col] = [];
   if (cell.classList.contains('on-'+row)) {
-    if (!L().data[row][col].some(n => parse(n).name === _previewName)) L().data[row][col].push(_previewName);
+    if (!L().data[row][col].some(n => parse(n).name === _previewName)) {
+      L().data[row][col].push(_previewName);
+      addTurnoToSlot(row, col, _previewName);
+    }
   } else {
-    L().data[row][col] = L().data[row][col].filter(n => parse(n).name !== _previewName);
+    if (L().data[row][col].some(n => parse(n).name === _previewName)) {
+      L().data[row][col] = L().data[row][col].filter(n => parse(n).name !== _previewName);
+      removeTurnoFromSlot(row, col, _previewName);
+    }
   }
   updateAlert();
-  if (typeof scheduleAutosave === 'function') scheduleAutosave();
 }
 
 function toggleUnavail(el) {
@@ -409,16 +431,11 @@ function saveProfile() {
   w.unavailMed  = Array.from(document.querySelectorAll('#unavail-med .unavail-chip-h.active')).map(el => parseInt(el.dataset.d));
   w.unavailNoch = Array.from(document.querySelectorAll('#unavail-noch .unavail-chip-h.active')).map(el => parseInt(el.dataset.d));
   w.notas = _notaRows.filter(n => n.nota && n.nota.trim()).map(n => ({...n}));
-  ROWS.forEach(r => L().data[r].forEach((da, di) => { L().data[r][di] = da.filter(n => parse(n).name !== _previewName); }));
-  document.querySelectorAll('#prof-sg .sg-cell').forEach(c => {
-    ROWS.forEach(r => {
-      if (c.dataset.row === r && c.classList.contains('on-'+r)) {
-        const d = parseInt(c.dataset.col);
-        if (!L().data[r][d]) L().data[r][d] = [];
-        if (!L().data[r][d].some(n => parse(n).name === _previewName)) L().data[r][d].push(_previewName);
-      }
-    });
-  });
+  /* Los turnos (L().data) ya NO se resincronizan aquí desde el estado del
+     grid de checkboxes: toggleSg() persiste cada alta/baja al instante en
+     el momento del click, así que a estas alturas ya están guardados —
+     tanto en memoria como en Supabase. Repetirlo aquí era redundante y
+     solo servía para alimentar el antiguo scheduleAutosave(). */
   const gs = document.querySelector('.grid-scroll');
   const scrollLeft = gs ? gs.scrollLeft : 0;
   const scrollTop = window.scrollY || document.documentElement.scrollTop;
@@ -438,7 +455,6 @@ function saveProfile() {
     console.warn('[DEBUG saveProfile] w._sbId es falsy — NO se llama a Supabase. w:', JSON.stringify(w));
   }
   if (typeof showToast === 'function') showToast('Perfil guardado ✓', 'success');
-  if (typeof scheduleAutosave === 'function') scheduleAutosave();
 }
 
 /* ── Persiste a Supabase solo los días que realmente cambiaron desde la apertura del modal ── */
