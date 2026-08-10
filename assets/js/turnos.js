@@ -432,13 +432,45 @@ async function doEliminarVariante(v, esActiva){
     /* B es siempre la alternativa, nunca la principal — al eliminar A, B no
        se queda huérfana como "B": se renombra a 'A' y pasa a ser la única
        variante, activa. La próxima vez que se pulse "+" la nueva alternativa
-       se vuelve a crear como 'B' (ver crearVarianteB), nunca como una segunda 'A'. */
+       se vuelve a crear como 'B' (ver crearVarianteB), nunca como una segunda 'A'.
+       NO se hace con UPDATE variante='B'→'A': variante forma parte de un índice
+       único y ese UPDATE puede fallar en producción (activa=true se aplicaba
+       pero variante se quedaba en 'B'). En su lugar: leer las filas de B,
+       borrarlas, y solo entonces reinsertarlas como A.
+       IMPORTANTE — orden verificado en producción: insertar los clones ANTES
+       de borrar las B originales también falla (23505 duplicate key): mientras
+       ambas filas — la B activa original y su clon A activa — existen a la vez,
+       violan el índice único de "una sola fila activa por slot/día/trabajador".
+       Por eso aquí se borra B primero y se inserta A después, no al revés. */
     const { error:eDel } = await _sb.from('turnos').delete()
       .eq('local_id',LOCAL_ID).eq('semana_inicio',curMonday).eq('variante','A');
     if(eDel){ console.error('[variante] eliminar A:', eDel.message); showToast('Error al eliminar'); return; }
-    const { error:eProm } = await _sb.from('turnos').update({variante:'A', activa:true})
+
+    const { data:filasB, error:eSel } = await _sb.from('turnos').select('*')
       .eq('local_id',LOCAL_ID).eq('semana_inicio',curMonday).eq('variante','B');
-    if(eProm){ console.error('[variante] promover B a A:', eProm.message); showToast('Error al eliminar'); return; }
+    if(eSel){ console.error('[variante] leer B:', eSel.message); showToast('Error al eliminar'); return; }
+
+    if(filasB && filasB.length){
+      const { error:eDelB } = await _sb.from('turnos').delete()
+        .eq('local_id',LOCAL_ID).eq('semana_inicio',curMonday).eq('variante','B');
+      if(eDelB){ console.error('[variante] borrar B:', eDelB.message); showToast('Error al eliminar'); return; }
+
+      const rows = filasB.map(f => ({
+        local_id: LOCAL_ID, semana_inicio: curMonday, slot: f.slot, dia: f.dia,
+        trabajador_id: f.trabajador_id, hora_especial: f.hora_especial,
+        variante: 'A', activa: true, orden: f.orden,
+      }));
+      const { error:eIns } = await _sb.from('turnos').insert(rows);
+      /* Para este punto B ya está borrada — si el insert falla no hay forma
+         de "deshacer" limpiamente desde aquí, así que se avisa fuerte en vez
+         de fallar en silencio (el toast genérico de arriba no vale porque
+         esto ya no es "no se pudo eliminar", es "se perdieron turnos"). */
+      if(eIns){
+        console.error('[variante] insertar B como A:', eIns.message);
+        showToast('Error al recuperar los turnos — contacta con soporte', 'error');
+      }
+    }
+
     curVariante = 'A';
     curVarianteActiva = 'A';
     weekHasVariantB = false;

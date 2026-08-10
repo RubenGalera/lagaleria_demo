@@ -1,5 +1,20 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.28 — Fix crítico variantes A/B y estandarización guardado turnos (agosto 2026)
+- Fix crítico de raíz: constraint turnos_unique ahora incluye variante — variante B puede tener los mismos trabajadores en los mismos slots que variante A. Sin este fix, todos los INSERTs de B fallaban con error 409 silencioso
+- Fix: doEliminarVariante usa DELETE+INSERT en vez de UPDATE para promover B→A, evitando violación del índice único
+- Fix: _refreshWorkerTurnosFromSupabase carga datos frescos de Supabase al abrir modal de trabajador, sin filtrar por activa
+- Datos históricos estandarizados: todas las semanas con variante=A y activa=true correctamente
+- Logs de diagnóstico en todas las operaciones: [TURNO ADD], [TURNO DEL], [TURNO REORDER], [MODAL SAVE], [MODAL CANCEL]
+- Verificado con prueba completa: A y B coexisten, eliminar A promueve B→A correctamente, sin huérfanos
+
+## v0.2.27 — Fix variantes A/B y auditoría guardado turnos (agosto 2026)
+- Fix: eliminar variante A promueve B a A con activa=true — antes dejaba todos los turnos en activa=false
+- Fix: datos históricos corregidos (semanas 3, 10, 17 ago tenían activa=false por el bug anterior)
+- Auditoría completa de guardado inmediato — todas las rutas confirmadas: añadir/quitar/reordenar trabajador, modal guardar/cancelar, autogenerar, plantilla, limpiar
+- Logs de diagnóstico añadidos: [TURNO ADD], [TURNO DEL], [TURNO REORDER], [MODAL SAVE], [MODAL CANCEL]
+- B siempre es la alternativa — al pulsar + el nuevo plan se crea siempre como B
+
 ## v0.2.26 — Fix guardado turnos + mejoras Stock y Inicio (agosto 2026)
 - Fix crítico: guardado inmediato fila a fila en Turnos — eliminado scheduleAutosave() y saveWeekSnapshot() completo. Añadir/quitar trabajador escribe en Supabase al instante, sin ventana de pérdida de datos
 - Fix crítico: orden manual de trabajadores persiste — drag & drop sincroniza L().data y hace UPDATE inmediato del campo orden

@@ -5,7 +5,9 @@
    isSafeImg, curLocal, curWeek, curYear, curMonday, showOv, closeOv, showToast, buildGrid, renderW,
    updateStats, renderTrabajadores, renderNotaList, renderVacList, renderSkillsSummary,
    getDayVacacion, ensureWorkerExtras, _sb. Opcionales: addTurnoToSlot, removeTurnoFromSlot,
-   sbUploadFotoTrabajador, compressImage, saveWorker, showConfirm. */
+   sbUploadFotoTrabajador, compressImage, saveWorker, showConfirm. Solo dentro de Turnos
+   (junto con addTurnoToSlot): curVariante, LOCAL_ID — usados por
+   _refreshWorkerTurnosFromSupabase() para releer los turnos reales al abrir el modal. */
 
 var _previewName = '';
 var _notaRows    = [];
@@ -87,9 +89,40 @@ function _isAdmin() {
 }
 
 /* ── PERFIL / PREVIEW TRABAJADOR ── */
-function openPreview(name) {
+/* Antes de pintar el modal, reconcilia L().data con lo que hay realmente en
+   Supabase para ESTE trabajador en la semana/variante actuales — si L().data
+   quedó desincronizado en memoria (red lenta, pestaña abierta desde hace
+   rato, etc.), el modal mostraba turnos incorrectos aunque BD tuviera los
+   datos buenos. Solo aplica dentro de Turnos: fuera de ahí (Admin/Inicio)
+   L().data es un placeholder vacío sin semana real y no existe addTurnoToSlot
+   (mismo guard que usa toggleSg/saveProfile para detectar el contexto). */
+async function _refreshWorkerTurnosFromSupabase(w) {
+  if (typeof addTurnoToSlot !== 'function') return;
+  if (!w._sbId || !_sb) return;
+  const { data, error } = await _sb.from('turnos').select('*')
+    .eq('trabajador_id', w._sbId)
+    .eq('semana_inicio', curMonday)
+    .eq('variante', curVariante)
+    .eq('local_id', LOCAL_ID);
+  if (error) { console.error('[worker-modal] refrescar turnos:', error.message); return; }
+  ROWS.forEach(r => {
+    for (let d = 0; d < 7; d++) {
+      if (!L().data[r][d]) L().data[r][d] = [];
+      L().data[r][d] = L().data[r][d].filter(n => parse(n).name !== w.name);
+    }
+  });
+  (data || []).forEach(f => {
+    if (!L().data[f.slot]) return;
+    if (!L().data[f.slot][f.dia]) L().data[f.slot][f.dia] = [];
+    const str = f.hora_especial ? `${w.name}:${f.hora_especial}` : w.name;
+    const arr = L().data[f.slot][f.dia];
+    arr.splice(Math.min(f.orden || 0, arr.length), 0, str);
+  });
+}
+async function openPreview(name) {
   _previewName = name;
   const w = getW(name) || {name, sec:'?', photo:null, tel:'', minT:0, maxT:0, unavailMed:[], unavailNoch:[], vacaciones:[]};
+  await _refreshWorkerTurnosFromSupabase(w);
   const t = cntT(name);
 
   /* Snapshot del estado editable-sin-guardar, para poder descartarlo si se cierra con X */
