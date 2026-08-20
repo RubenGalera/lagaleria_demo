@@ -1,3 +1,54 @@
+/* lagaleria_stock.html — lógica de la página (tabs Productos / Pedido / Registro).
+   Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), showToast
+   (toast.js), normalizeText (utils.js), getStockStatus/isPendingForOrderView/
+   markStockActivity (assets/lib/stock-status.js).
+
+   ÍNDICE (línea aprox. de cada sección — el archivo no está reordenado físicamente,
+   solo indexado: initStock() se llama una sola vez desde el listener de
+   DOMContentLoaded al final del fichero, y hay un setInterval justo detrás — mover
+   bloques de sitio arriesgaría ese orden de ejecución sin ganar nada funcional):
+     1. VARIABLES GLOBALES Y CONSTANTES    L.1
+     2. INICIALIZACIÓN                     L.421  (initStock)
+     3. CATEGORÍAS Y FILTROS               L.212  (fetch/dropdown/select de categoría)
+     4. RENDERIZADO DE INVENTARIO          L.585  (renderInventory/_paintInventory/renderProduct)
+     5. MODAL DE PRODUCTO                  L.837  (openProdModal/saveProdModal/deleteProd)
+     6. STEPPER (+/-)                      L.737  (adjustQty)
+     7. PEDIDO — POR CATEGORÍA             L.1076
+     8. PEDIDO — POR PROVEEDOR             L.1175
+     9. BÚSQUEDA Y FILTRO DE PROVEEDOR     L.507  (tab Productos — buscador + panel de proveedor)
+     10. PERMISOS Y ROL                    L.59   (getStockUser/canManageProducts) y L.458 (applyRolePermissions)
+     · PRODUCTOS PUNTUALES (one-off)       L.1441
+     · REGISTRO (histórico de movimientos) L.1473
+
+   VARIABLES GLOBALES DE ESTADO (una línea por variable — su declaración real
+   vive donde tiene más sentido leerla en contexto, no aquí; esto es solo el
+   glosario, ver ÍNDICE de arriba para ubicarlas):
+     prods              {Array}   — productos activos del local (stock_productos, mapeados con sbToLocal)
+     oneoffs            {Array}   — productos puntuales del pedido actual (stock_productos_puntuales)
+     stockCatsAll       {Array}   — todas las categorías activas — alimenta el <select> del modal de producto
+     stockCatsWithProds {Array}   — solo las categorías con ≥1 producto — alimenta los chips de #cat-bar
+     stockProvsAll      {Array}   — todos los proveedores activos — alimenta el <select> del modal de producto
+     stockUbicaciones   {Array}   — todas las ubicaciones (gestionadas en Admin) — alimenta el <select> del modal
+     activeTab          {string}  — 'inv' | 'ped' | 'reg' — tab visible ahora mismo
+     activeCat          {string}  — 'all' | 'rep' | 'sin-cat' | slug — filtro de categoría activo en Productos
+     activeSubCat       {string|null} — slug de subcategoría activa dentro de activeCat (null = agregado del padre)
+     editProdId         {string|null} — id del producto en edición en el modal (null = alta nueva)
+     invMode            {boolean} — true mientras se hace un recuento de inventario (banner + tipo='inventario')
+     regFilter          {string}  — 'all'|'hoy'|'7d'|'30d'|'year' — filtro de fecha del tab Registro
+     regLoadedCount     {number}  — nº de movimientos cargados con el filtro actual (para el texto de confirmar borrado)
+     searchQuery        {string}  — texto del buscador de Productos
+     searchProvId       {string}  — id de proveedor del filtro adicional junto al buscador ('' = todos)
+     pedMode            {string}  — 'cat' | 'prov' — modo de vista del tab Pedido
+     pedProvId          {string|null} — proveedor seleccionado en Pedido/Por proveedor
+     pedQty             {Map}     — productId → cantidad a pedir (solo modo 'prov')
+     pedCatFilter       {string}  — 'all' o slug de categoría — filtro de chips en Pedido/Por categoría
+     pedProvPanelOpen   {boolean} — si el desplegable de selección de proveedor (Pedido) está abierto
+     openDropdownCat    {string|null} — slug de la categoría cuyo dropdown de subcategorías está abierto (Productos)
+     el                 {object}  — caché de referencias a elementos del DOM (listas, banners, inputs de búsqueda...)
+     inputs             {object}  — caché de los <input>/<select> del modal de producto (pm*) y del one-off (oo*)
+   Constantes: WA_ICON_SVG (SVG del icono de WhatsApp), LOC_COLOR_CLASSES (clases de
+   color del badge de ubicación, por posición — ver getLocInfo()). */
+
 let prods     = []
 let oneoffs   = []
 let stockCatsAll       = [] // todas las categorías activas — alimenta el <select> del modal de producto
@@ -5,6 +56,7 @@ let stockCatsWithProds = [] // solo las que tienen ≥1 producto — alimenta lo
 let stockProvsAll      = [] // todos los proveedores activos — alimenta el <select> del modal de producto
 let stockUbicaciones   = [] // todas las ubicaciones (Admin) — alimenta el <select> del modal de producto
 
+/* ─── PERMISOS Y ROL ─── */
 function getStockUser() {
   if (typeof currentUser !== 'undefined') return currentUser
   if (window.parent && window.parent.currentUser) return window.parent.currentUser
@@ -13,6 +65,14 @@ function getStockUser() {
 /* Se recalcula en cada llamada (no cachea el rol) — window.parent.currentUser puede
    cambiar sin que este iframe se recargue (login/logout, cambio de usuario), así que
    cachear el resultado dejaría el botón/modal desincronizados del rol real. */
+/**
+ * ¿Puede el usuario actual crear/editar/archivar productos y asignar pedidos?
+ * Empleado solo puede ajustar cantidades (+/-) desde las cards; el resto de
+ * acciones (abrir el modal de producto, editar Pedido, borrar) se ocultan o
+ * bloquean con un toast cuando esto devuelve false — ver openProdModal(),
+ * onPedProductClick(), renderTab('reg').
+ * @returns {boolean} true para encargado, admin o superadmin.
+ */
 function canManageProducts() {
   const rol = getStockUser()?.rol
   return rol === 'encargado' || rol === 'admin' || rol === 'superadmin'
@@ -149,7 +209,8 @@ function sbToLocal(r) {
   }
 }
 
-/* ─── Categorías (Supabase, gestionadas desde Admin) ─── */
+/* ─── CATEGORÍAS Y FILTROS ─── */
+/* Categorías (Supabase, gestionadas desde Admin) */
 async function fetchStockCategorias() {
   try {
     const { data, error } = await _sb.from('stock_categorias')
@@ -357,7 +418,13 @@ function fillLocSelect() {
     .map(u => `<option value="${u.nombre}">${u.nombre}</option>`).join('')
 }
 
-/* ─── Init ─── */
+/* ─── INICIALIZACIÓN ─── */
+/**
+ * Arranque de la página de Stock — se llama una vez, al DOMContentLoaded
+ * (ver listener al final del archivo). Orden importante: primero categorías/
+ * proveedores/ubicaciones (los `<select>` del modal de producto los
+ * necesitan poblados), luego los productos, y solo entonces se pinta nada.
+ */
 async function initStock() {
   await Promise.all([fetchStockCategorias(), fetchStockProveedores(), fetchStockUbicaciones()])
   fillCatSelect()
@@ -420,6 +487,14 @@ function resetView(){
   setTab('inv')
 }
 
+/**
+ * Cambia el filtro de categoría activo del tab Productos y repinta todo lo
+ * que depende de él (chips, chip "Sin categoría", lista). Es el único sitio
+ * que debe tocar activeCat/activeSubCat directamente — todo lo demás (clicks
+ * en chips, dropdown de subcategoría) pasa por aquí.
+ * @param {string} cat — 'all' | 'rep' | 'sin-cat' | slug de categoría
+ * @param {string} [subCat] — slug de subcategoría, si `cat` tiene hijas
+ */
 function setCat(cat, subCat) {
   closeCatDropdown()
   activeCat = cat
@@ -429,7 +504,7 @@ function setCat(cat, subCat) {
   renderInventory()
 }
 
-/* ─── Búsqueda en tiempo real (tab Productos) ─── */
+/* ─── BÚSQUEDA Y FILTRO DE PROVEEDOR (tab Productos) ─── */
 function onSearchInput(value) {
   searchQuery = value
   if (el.searchClear) el.searchClear.style.display = value ? 'flex' : 'none'
@@ -507,12 +582,24 @@ document.addEventListener('click', (e) => {
   closeFilterPanel()
 })
 
-/* ─── Inventory render ─── */
+/* ─── RENDERIZADO DE INVENTARIO ─── */
+/**
+ * Punto de entrada público para repintar la lista de Productos: delega el
+ * HTML en _paintInventory() y añade el efecto de scroll-to-top que solo
+ * tiene sentido al re-render "de verdad" (cambio de filtro/categoría/
+ * búsqueda), no como una función interna reutilizable.
+ */
 function renderInventory() {
   _paintInventory()
   document.querySelector('#prod-list, #prod-content')?.scrollTo(0, 0)
   window.scrollTo(0, 0) // #prod-list no tiene scroll propio en esta página — el scroll real es el del body del iframe
 }
+/**
+ * Construye el HTML de #prod-list según activeCat/activeSubCat (rep, sin-cat,
+ * una categoría/subcategoría concreta, o "Todo" con jerarquía completa) y los
+ * filtros de búsqueda/proveedor (matchesFilters). Es la función real de
+ * pintado — renderInventory() es la que hay que llamar desde fuera.
+ */
 function _paintInventory() {
   const EMPTY = searchQuery
     ? `<div class="ped-empty"><div class="ped-empty-icon">🔍</div><div class="ped-empty-title">Sin resultados para "${escapeHtml(searchQuery)}"</div></div>`
@@ -647,7 +734,17 @@ function renderProduct(prod) {
   `
 }
 
-/* ─── adjustQty — persiste cantidad + registra movimiento en Supabase ─── */
+/* ─── STEPPER (+/-) ─── */
+/**
+ * Stepper +/- de cada card de producto (Productos y Pedido/Por proveedor).
+ * Optimista: actualiza prod.qty y repinta ANTES de hablar con Supabase, para
+ * que el tap se sienta instantáneo; el UPDATE en `stock_productos` y el
+ * INSERT del movimiento en `stock_movimientos` (para el tab Registro) van en
+ * paralelo detrás. tipo viene de invMode: 'inventario' si se está haciendo un
+ * recuento (toggleInv), 'ajuste' en el uso normal del día a día.
+ * @param {string} id — id del producto
+ * @param {number} delta — +1 o -1
+ */
 async function adjustQty(id, delta) {
   const prod = prods.find(item => item.id === id)
   if (!prod) return
@@ -662,10 +759,14 @@ async function adjustQty(id, delta) {
   const quien = getStockUser()?.nombre || 'Sistema'
   const tipo  = invMode ? 'inventario' : 'ajuste'
   try {
-    await Promise.all([
+    const [updRes, movRes] = await Promise.all([
       _sb.from('stock_productos').update({ cantidad: newQty }).eq('id', id),
       _sb.from('stock_movimientos').insert({ producto_id: id, delta, tipo, quien }),
     ])
+    // Promise.all no rechaza por un {error} de Supabase (solo por fallo de red) —
+    // hay que comprobar cada resultado a mano o un error de escritura pasa desapercibido.
+    if (updRes.error) throw updRes.error
+    if (movRes.error) throw movRes.error
   } catch(e) {
     console.error('[stock] adjustQty:', e)
     showToast('Error al guardar','error')
@@ -733,7 +834,15 @@ function updateInventoryStatus() {
   el.invDot.classList.add('active')
 }
 
-/* ─── Product modal (crear / editar — mismo modal, mismo patrón que adminStock.js) ─── */
+/* ─── MODAL DE PRODUCTO (crear / editar — mismo modal, mismo patrón que adminStock.js) ─── */
+/**
+ * Abre el modal de producto en modo crear (sin id) o editar (con id) —
+ * rellena todos los campos desde `prod` si existe, o los deja vacíos/por
+ * defecto para uno nuevo. Antes de pintar, refresca categorías y
+ * proveedores desde Supabase por si Admin creó alguno mientras esta pestaña
+ * ya estaba abierta. Bloqueada para 'empleado' (solo puede usar el stepper).
+ * @param {string} [id] — id del producto a editar; omitido = alta nueva.
+ */
 async function openProdModal(id) {
   if (getStockUser()?.rol === 'empleado') return // solo +/- de cantidad; sin acceso al modal
 
@@ -784,6 +893,13 @@ function clearFieldError(inputEl) {
   document.getElementById(inputEl.id + '-err')?.classList.remove('show')
 }
 
+/**
+ * Valida y guarda el modal de producto — alta (INSERT) o edición (UPDATE)
+ * según editProdId. Nombre/categoría/unidad son obligatorios (setFieldError
+ * marca el campo en rojo si falta). Editar y desmarcar "Activo" tiene el
+ * mismo efecto que "Eliminar producto": sale de `prods` (desactivado en BD,
+ * no borrado — soft delete), sin pasar por el flujo de confirmación de deleteProd().
+ */
 async function saveProdModal() {
   const name = inputs.pmName.value.trim()
   const qty  = Number(inputs.pmQty.value)
@@ -887,6 +1003,13 @@ async function initPedido() {
   renderPedido()
 }
 
+/**
+ * Repinta el tab Pedido completo: el toggle Por categoría/Por proveedor más
+ * el contenido de la vista activa (renderPedCatView()/renderPedProvView()).
+ * Punto de entrada único — cualquier acción dentro de Pedido que cambie
+ * estado (setPedMode, adjustPedQty, selectPedProv...) termina llamando aquí
+ * en vez de repintar solo su trozo, para no tener dos fuentes de verdad del HTML.
+ */
 function renderPedido() {
   const toggleHtml = `
     <div class="ped-toggle">
@@ -902,9 +1025,13 @@ function setPedMode(mode) {
   renderPedido()
 }
 
-/* Click en una card de Pedido: admin/encargado abren el modal de edición
-   (mismo que en Productos); empleado ve un toast — a diferencia de Productos,
-   aquí el botón/card siempre está visible, solo cambia qué pasa al pulsarla. */
+/**
+ * Handler de click en una card de Pedido. Admin/encargado abren el modal de
+ * edición (mismo openProdModal() que en Productos); empleado ve un toast —
+ * a diferencia de Productos, aquí el botón/card siempre está visible, solo
+ * cambia qué pasa al pulsarla (en Productos directamente no es clicable).
+ * @param {string} id — id del producto
+ */
 function onPedProductClick(id) {
   if (!canManageProducts()) { showToast('Solo admin y encargados pueden editar productos', 'error'); return }
   openProdModal(id)
@@ -946,7 +1073,7 @@ function renderPedCard(p, qtyHtml, extraClass = '') {
   `
 }
 
-/* ─── Pedido — vista Por categoría ─── */
+/* ─── PEDIDO — POR CATEGORÍA ─── */
 let pedCatFilter = 'all' // 'all' o slug de categoría principal — filtro de chips de esta vista
 
 function setPedCatFilter(slug) {
@@ -1045,7 +1172,7 @@ function renderPedCatView() {
   return chipsHtml + oneoffSectionHtml + catSections + bottomButtons
 }
 
-/* ─── Pedido — vista Por proveedor ───
+/* ─── PEDIDO — POR PROVEEDOR ───
    Todo el color/urgencia de aquí en adelante sale de getStockStatus(qty, min)
    — mismo criterio que Productos, sin cálculo alternativo. */
 function pedProvIndicator(provId) {
@@ -1311,7 +1438,8 @@ async function deleteOneoff(id) {
   }
 }
 
-/* ─── Supabase — productos_puntuales ─── */
+/* ─── PRODUCTOS PUNTUALES (one-off) ─── */
+/* Supabase — productos_puntuales */
 async function sbLoadProductosPuntuales() {
   try {
     const { data, error } = await _sb.from('stock_productos_puntuales')
@@ -1342,7 +1470,8 @@ async function sbDeleteProductoPuntual(id) {
   oneoffs = oneoffs.filter(o => o.id !== id)
 }
 
-/* ─── Registro — filtro de tiempo, agrupación día→persona→tipo, agregación ─── */
+/* ─── REGISTRO (histórico de movimientos) ───
+   Filtro de tiempo, agrupación día→persona→tipo, agregación. ── */
 function setRegFilter(f, btn) {
   regFilter = f
   document.querySelectorAll('.reg-fbtn').forEach(b => b.classList.remove('act'))

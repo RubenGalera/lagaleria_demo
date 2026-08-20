@@ -3,15 +3,23 @@
    no el script principal de ningún iframe/página — lo carga lagaleria_stock.html,
    consumida por assets/js/stock.js. Ver docs/ARCHITECTURE.md. */
 
-/* Semáforo de stock:
-   - min = 0                              → siempre 'grn'
-   - qty > min                            → 'grn'
-   - qty en [mitad de min, min]           → 'amb'
-   - qty por debajo de la mitad de min    → 'red'
-   La "mitad" se compara sin división en punto flotante (qty*2 < min) para
-   que el resultado coincida exacto con el redondeo hacia arriba de min/2 —
-   con min=10 el corte rojo/ámbar cae en qty=5 (5*2=10, no <10 → ámbar) y con
-   min=1 cae en qty=0 (0*2=0 <1 → rojo; qty=1 → 1*2=2, no <1 → ámbar). */
+/**
+ * Semáforo de stock — única fuente de verdad del color/urgencia de un
+ * producto en toda la app (Productos, Pedido por categoría, Pedido por
+ * proveedor, alertas de Inicio: todos llaman a esta misma función, nunca
+ * recalculan el umbral por su cuenta).
+ *   - min = 0                           → siempre 'grn'
+ *   - qty > min                         → 'grn'
+ *   - qty en [mitad de min, min]        → 'amb'
+ *   - qty por debajo de la mitad de min → 'red'
+ * La "mitad" se compara sin división en punto flotante (qty*2 < min) para
+ * que el resultado coincida exacto con el redondeo hacia arriba de min/2 —
+ * con min=10 el corte rojo/ámbar cae en qty=5 (5*2=10, no <10 → ámbar) y con
+ * min=1 cae en qty=0 (0*2=0 <1 → rojo; qty=1 → 1*2=2, no <1 → ámbar).
+ * @param {number} qty — cantidad actual
+ * @param {number} min — cantidad mínima configurada
+ * @returns {'grn'|'amb'|'red'}
+ */
 function getStockStatus(qty, min) {
   if (!min || min <= 0) return 'grn'
   if (qty > min) return 'grn'

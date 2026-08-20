@@ -1,5 +1,19 @@
 # CHANGELOG — La Galería Neotaberna
 
+
+## v0.2.30 — Auditoría stock.js + worker-modal.js + refactoring utils (agosto 2026)
+- Auditoría stock.js: índice de secciones, JSDoc en 9 funciones clave, glosario de variables globales, fix manejo de errores en adjustQty() (Promise.all sin catch)
+- Auditoría stock-status.js: JSDoc añadido
+- Auditoría worker-modal.js: índice de 8 secciones, JSDoc en 5 funciones clave, contrato con turnos.js corregido (lagaleria_admin.html añadido, dependencias falsas eliminadas), logs de debug eliminados, .catch() en 5 llamadas fire-and-forget
+- Refactoring: MESES_ES, isoWeekNum(), mondayOfDate() movidas a utils.js — eliminadas copias duplicadas de turnos.js e inicio.js
+- Fix: lagaleria_turnos.html no cargaba utils.js — añadido antes de worker-modal.js y turnos.js
+
+## v0.2.29 — Auditoría turnos.js + fix saveWeekConfig (agosto 2026)
+- Auditoría turnos.js: secciones con índice de navegación, JSDoc en 7 funciones clave, logs de diagnóstico eliminados, código muerto limpiado
+- Fix: saveWeekConfig() en Turnos ahora persiste en localStorage['lg_weekconfig_v1'] — el toast "Configuración guardada ✓" ya es verdad
+- Auditoría worker-modal.js: logs [MODAL SAVE] y [MODAL CANCEL] eliminados, código muerto limpiado
+- MEJORAS.md actualizado: eliminadas las mejoras ya implementadas, reorganizado con pendientes reales
+
 ## v0.2.28 — Fix crítico variantes A/B y estandarización guardado turnos (agosto 2026)
 - Fix crítico de raíz: constraint turnos_unique ahora incluye variante — variante B puede tener los mismos trabajadores en los mismos slots que variante A. Sin este fix, todos los INSERTs de B fallaban con error 409 silencioso
 - Fix: doEliminarVariante usa DELETE+INSERT en vez de UPDATE para promover B→A, evitando violación del índice único

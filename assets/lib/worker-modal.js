@@ -1,14 +1,48 @@
 /* Modal de detalle/edición de trabajador — openPreview, saveProfile y helpers.
-   Implementación canónica compartida entre lagaleria_turnos.html y lagaleria_inicio.html.
-   Inyecta automáticamente el markup de #ov-preview en el body al cargar el DOM.
-   Requiere en el ámbito de página: getW, cntT, L, ROWS, CONFLICTS, parse, ini,
-   isSafeImg, curLocal, curWeek, curYear, curMonday, showOv, closeOv, showToast, buildGrid, renderW,
-   updateStats, renderTrabajadores, renderNotaList, renderVacList, renderSkillsSummary,
-   getDayVacacion, ensureWorkerExtras, _sb. Opcionales: addTurnoToSlot, removeTurnoFromSlot,
-   sbUploadFotoTrabajador, compressImage, saveWorker, showConfirm. Solo dentro de Turnos
-   (junto con addTurnoToSlot): curVariante, LOCAL_ID — usados por
-   _refreshWorkerTurnosFromSupabase() para releer los turnos reales al abrir el modal. */
+   Implementación canónica compartida entre lagaleria_turnos.html y lagaleria_admin.html
+   (NO lagaleria_inicio.html — Inicio no carga este archivo, pese a lo que decía este
+   comentario antes; verificado con los <script> reales de cada HTML). Inyecta
+   automáticamente el markup de #ov-preview en el body al cargar el DOM.
 
+   Requiere en el ámbito de página: getW, cntT, L, ROWS, CONFLICTS, parse, ini, isSafeImg,
+   curLocal, curMonday, showOv, closeOv, showToast, buildGrid, renderW, updateStats,
+   renderTrabajadores, renderNotaList, renderVacList, renderSkillsSummary, getDayVacacion,
+   ensureWorkerExtras, _sb, cleanTel/hashPin (utils.js).
+   En Turnos estas son las implementaciones reales; en Admin, adminWorkers.js aporta
+   stubs de buildGrid/renderW/updateStats/L/ini/parse/getW/cntT (ver comentario "Stubs"
+   en ese archivo) — el modal funciona igual, pero el grid de días queda siempre vacío
+   (solo restricciones genéricas, nunca turnos asignados).
+
+   Opcionales (con guard typeof — la función sigue funcionando sin ellos):
+   addTurnoToSlot, removeTurnoFromSlot (solo existen en turnos.js — su sola presencia es
+   la señal que usa este archivo para "¿estoy en Turnos de verdad?", ver toggleSg()/
+   saveProfile()/_refreshWorkerTurnosFromSupabase()), showConfirm, archiveWorker (llamada
+   desde el botón "Eliminar" del propio HTML de este modal; vive en adminWorkers.js),
+   rol (variable global de solo-Admin, ver _isAdmin()).
+   Solo dentro de Turnos (junto con addTurnoToSlot): curVariante, LOCAL_ID — usados por
+   _refreshWorkerTurnosFromSupabase() para releer los turnos reales al abrir el modal.
+
+   ÍNDICE (línea aprox. — no reordenado físicamente: hay sentencias de nivel
+   superior con efecto secundario repartidas por el fichero, sobre todo la
+   inyección de CSS/HTML de #ov-preview al final, que debe seguir ejecutándose
+   tras definir todo lo demás):
+     1. DEPENDENCIAS Y CONTRATO CON turnos.js    L.1   (este bloque)
+     2. ESTADO INTERNO DEL MODAL                 L.38
+     3. APERTURA Y CIERRE DEL MODAL              L.177 (openPreview) / L.340 (cancelPreview)
+     4. MINI-GRID DE TURNOS (preview)            L.141 (_refreshWorkerTurnosFromSupabase) / L.445 (toggleSg)
+     5. GUARDADO Y CANCELACIÓN                   L.547 (saveProfile) / L.340 (cancelPreview) / L.593-619 (_sync*ToSupabase)
+     6. PERFIL DEL TRABAJADOR                    L.652 (contacto/rol/sección/foto/admin)
+     7. DISPONIBILIDAD Y RESTRICCIONES           L.317 (toggleDisponible) / L.490 (toggleUnavail, prioridad)
+     8. NOTAS (solo estado y persistencia — la UI vive en turnos.js)  L.619 */
+
+/* ── ESTADO INTERNO DEL MODAL ──
+   _previewName: nombre del trabajador que el modal tiene abierto ahora mismo
+   — la mayoría de funciones de este archivo operan sobre getW(_previewName),
+   no reciben el trabajador como parámetro.
+   _notaRows/_notaRowsOriginal: copia editable de w.notas y su snapshot al
+   abrir (para el diff de _syncNotasToSupabase al guardar).
+   _previewSnapshot: snapshot de disponibilidad/prioridad/turnos al abrir el
+   modal (ver openPreview) — lo que cancelPreview() usa para revertir. */
 var _previewName = '';
 var _notaRows    = [];
 var _notaRowsOriginal = [];
@@ -75,8 +109,9 @@ function getHour(name, d) {
 async function sbUpdateTrabajador(id, campos) {
   if (!_sb || !id) { console.warn('[SB] sbUpdateTrabajador: sin conexión o sin id'); return; }
   const { error } = await _sb.from('trabajadores').update(campos).eq('id', id);
-  if (error) { console.error('[SB] sbUpdateTrabajador:', error.message); return; }
-  console.log('[SB] trabajador actualizado:', campos);
+  if (error) console.error('[SB] sbUpdateTrabajador:', error.message);
+  // Se llama en casi cada edición del modal (disponible, tel, min/max, rol, sec, PIN...) —
+  // sin log de éxito a propósito, para no saturar la consola en el uso normal del día a día.
 }
 
 /* ── Detecta rol admin/superadmin en ambos contextos de página ── */
@@ -89,13 +124,20 @@ function _isAdmin() {
 }
 
 /* ── PERFIL / PREVIEW TRABAJADOR ── */
-/* Antes de pintar el modal, reconcilia L().data con lo que hay realmente en
-   Supabase para ESTE trabajador en la semana/variante actuales — si L().data
-   quedó desincronizado en memoria (red lenta, pestaña abierta desde hace
-   rato, etc.), el modal mostraba turnos incorrectos aunque BD tuviera los
-   datos buenos. Solo aplica dentro de Turnos: fuera de ahí (Admin/Inicio)
-   L().data es un placeholder vacío sin semana real y no existe addTurnoToSlot
-   (mismo guard que usa toggleSg/saveProfile para detectar el contexto). */
+/**
+ * Reconcilia L().data con lo que hay realmente en Supabase para ESTE
+ * trabajador, en la semana/variante actuales, justo antes de pintar el
+ * modal. Sin esto, si L().data quedaba desincronizado en memoria (red
+ * lenta, pestaña abierta desde hace rato...), el modal podía mostrar
+ * turnos incorrectos aunque BD tuviera los datos buenos.
+ *
+ * Solo hace algo dentro de Turnos: en Admin no existe addTurnoToSlot (mismo
+ * guard que usan toggleSg()/saveProfile() para detectar el contexto), así
+ * que la función no llega ni a consultar Supabase — el grid de Admin es un
+ * placeholder vacío a propósito (ver adminWorkers.js), no una semana real.
+ *
+ * @param {object} w - Trabajador (de getW/L().staff), con `w._sbId` (UUID) y `w.name`.
+ */
 async function _refreshWorkerTurnosFromSupabase(w) {
   if (typeof addTurnoToSlot !== 'function') return;
   if (!w._sbId || !_sb) return;
@@ -119,6 +161,19 @@ async function _refreshWorkerTurnosFromSupabase(w) {
     arr.splice(Math.min(f.orden || 0, arr.length), 0, str);
   });
 }
+/**
+ * Abre el modal de perfil/preview de un trabajador y lo rellena por
+ * completo: refresca sus turnos desde Supabase (_refreshWorkerTurnosFromSupabase),
+ * toma un snapshot editable-sin-guardar (turnos, días no disponibles,
+ * prioridad — para poder descartarlo con cancelPreview()), y pinta cada
+ * sección del modal (cabecera, mini-grid de turnos, disponibilidad, notas,
+ * skills, vacaciones, botones de admin).
+ *
+ * Si `name` no existe en L().staff (trabajador nuevo sin guardar todavía),
+ * usa un objeto por defecto en memoria en vez de fallar.
+ *
+ * @param {string} name - Nombre del trabajador (clave de búsqueda vía getW()).
+ */
 async function openPreview(name) {
   _previewName = name;
   const w = getW(name) || {name, sec:'?', photo:null, tel:'', minT:0, maxT:0, unavailMed:[], unavailNoch:[], vacaciones:[]};
@@ -272,6 +327,16 @@ function toggleDisponible(el) {
 }
 
 /* ── CERRAR SIN GUARDAR — descarta turnos, días no disponibles y prioridad tocados en esta apertura ── */
+/**
+ * Botón "×" del modal — cierra sin guardar los cambios de disponibilidad/
+ * prioridad (esos sí eran solo memoria, ver toggleUnavail/setPrioridad) y
+ * revierte los turnos del mini-grid a como estaban al abrir (_previewSnapshot,
+ * tomado en openPreview). "Sin guardar" es relativo a los turnos: toggleSg()
+ * ya los persistió al instante en cada click, así que revertir implica
+ * escribir en Supabase también (addTurnoToSlot/removeTurnoFromSlot
+ * compensatorios) — lo único que este flujo garantiza que NUNCA vuelve a
+ * pasar es el guardado diferido de toda la semana del mecanismo antiguo.
+ */
 function cancelPreview() {
   const w = getW(_previewName);
   if (w && _previewSnapshot) {
@@ -285,7 +350,7 @@ function cancelPreview() {
        escribieron, y revertirlos exige escribir también — lo que NUNCA
        vuelve a pasar es el guardado diferido de toda la semana. */
     const canPersist = typeof addTurnoToSlot === 'function' && typeof removeTurnoFromSlot === 'function';
-    let reverted = 0;
+    // Recorre los 4 slots × 7 días y deshace en BD cada diferencia contra el snapshot original.
     ROWS.forEach(r => {
       for (let d = 0; d < 7; d++) {
         if (!L().data[r][d]) L().data[r][d] = [];
@@ -296,21 +361,17 @@ function cancelPreview() {
             if (L().data[r][d][idx] !== orig) {
               L().data[r][d][idx] = orig;
               if (canPersist) { removeTurnoFromSlot(r, d, _previewName); addTurnoToSlot(r, d, _previewName, parse(orig).hour); }
-              reverted++;
             }
           } else {
             L().data[r][d].push(orig);
             if (canPersist) addTurnoToSlot(r, d, _previewName, parse(orig).hour);
-            reverted++;
           }
         } else if (idx >= 0) {
           L().data[r][d].splice(idx, 1);
           if (canPersist) removeTurnoFromSlot(r, d, _previewName);
-          reverted++;
         }
       }
     });
-    console.log('[MODAL CANCEL] revertiendo '+reverted+' slots');
   }
   _previewSnapshot = null;
   closeOv('ov-preview');
@@ -364,13 +425,24 @@ function updateAlert() {
   }
 }
 
-/* ── DISPONIBILIDAD EN PERFIL ── */
+/* ── MINI-GRID DE TURNOS (preview) ── */
+/**
+ * Click en una celda del mini-grid de turnos (#prof-sg) — alterna ese
+ * slot/día para el trabajador en preview y persiste el cambio EN EL ACTO
+ * (addTurnoToSlot/removeTurnoFromSlot), fila a fila, nunca la semana entera.
+ * Si el slot conflictivo (mismo turno, sección opuesta — ver CONFLICTS)
+ * estaba marcado, lo desmarca primero.
+ *
+ * Solo lectura en Admin — addTurnoToSlot() solo existe en turnos.js, así que
+ * es la señal ya establecida en este archivo para "¿soy la página real del
+ * grid?" (ver también saveProfile()/_refreshWorkerTurnosFromSupabase()). En
+ * Admin este grid se queda siempre vacío a propósito (L().data en
+ * adminWorkers.js) — no debe mostrar ni cargar turnos asignados de ninguna
+ * semana, solo sirve para bloquear el click con el aviso de abajo.
+ *
+ * @param {HTMLElement} cell - Celda .sg-cell pulsada (data-row/data-col).
+ */
 function toggleSg(cell) {
-  /* Solo lectura fuera de Turnos (Admin/Inicio) — addTurnoToSlot() solo existe en
-     turnos.js, así que es la señal ya establecida en este archivo para "¿soy la página
-     real del grid?" (ver saveProfile()). Fuera de Turnos este grid se queda siempre
-     vacío a propósito (L().data en adminWorkers.js) — no debe mostrar ni cargar turnos
-     asignados de ninguna semana, solo sirve para bloquear el click con este aviso. */
   if (typeof addTurnoToSlot !== 'function') {
     if (typeof showToast === 'function') showToast('Los turnos se asignan desde el módulo Turnos, dentro de la semana correspondiente. Aquí solo puedes configurar restricciones generales.', 'info');
     return;
@@ -409,6 +481,12 @@ function toggleSg(cell) {
   updateAlert();
 }
 
+/* ── DISPONIBILIDAD Y RESTRICCIONES ──
+   Distinto del mini-grid de arriba: esto es disponibilidad HABITUAL del
+   trabajador (días/franjas en los que nunca puede trabajar, cualquier
+   semana — tabla `disponibilidad`), no la asignación de un turno concreto
+   de esta semana. Ver también toggleDisponible() más arriba (L.296) — el
+   interruptor "Disponible" de la cabecera, un flag global distinto de esto. */
 function toggleUnavail(el) {
   el.classList.toggle('active');
   const d = parseInt(el.dataset.d);
@@ -456,6 +534,16 @@ function renderPrioridad() {
 }
 
 /* ── GUARDAR PERFIL ── */
+/**
+ * Botón "Guardar y cerrar" — valida notas, guarda min/max/rol/sección/
+ * disponibilidad/notas, y cierra el modal. Los turnos del mini-grid NO se
+ * resincronizan aquí: toggleSg() ya los persiste al instante en cada click
+ * (ver comentario más abajo), así que a estas alturas ya están guardados
+ * tanto en memoria como en Supabase — repetirlo sería redundante.
+ * Persistencia selectiva (solo lo que cambió desde openPreview): disponibilidad
+ * vía _syncUnavailToSupabase(), notas vía _syncNotasToSupabase(); rol/sección/
+ * min/max van en un único patch a sbUpdateTrabajador().
+ */
 function saveProfile() {
   const w = getW(_previewName); if (!w) return;
   if (_notaRows.some(n => !n.nota || !n.nota.trim())) {
@@ -482,33 +570,21 @@ function saveProfile() {
   const scrollTop = window.scrollY || document.documentElement.scrollTop;
   _syncUnavailToSupabase(w, _previewSnapshot);
   _syncNotasToSupabase(w);
-  /* Los turnos ya se guardaron uno a uno al hacer click (toggleSg) — este log
-     solo resume, a modo de auditoría, cuántos altas/bajas netas hubo durante
-     la apertura del modal, comparando contra el snapshot tomado en openPreview(). */
-  if (_previewSnapshot) {
-    let added = 0, removed = 0;
-    ROWS.forEach(r => {
-      for (let d = 0; d < 7; d++) {
-        const orig = _previewSnapshot.shifts[r][d];
-        const now = (L().data[r][d] || []).some(n => parse(n).name === _previewName);
-        if (!orig && now) added++;
-        else if (orig && !now) removed++;
-      }
-    });
-    console.log('[MODAL SAVE] trabajador='+_previewName+' slots añadidos='+added+' eliminados='+removed);
-  }
   _previewSnapshot = null;
   closeOv('ov-preview'); buildGrid(); renderW(); updateStats();
   if (gs) gs.scrollLeft = scrollLeft;
   window.scrollTo(0, scrollTop);
   if (w._sbId) {
+    // Patch parcial — solo min/max/prioridad siempre, más rol/sección si el rol puede editarlos.
     var patch = { min_turnos: w.minT, max_turnos: w.maxT, prioridad: w.prioridad || 'eventual' };
     if (isAdmin) { patch.rol = w.rol; patch.seccion = w.sec; }
-    console.log('[DEBUG saveProfile] enviando a Supabase → id:', w._sbId, 'patch:', JSON.stringify(patch));
     sbUpdateTrabajador(w._sbId, patch);
     _notifyWorkerUpdated();
   } else {
-    console.warn('[DEBUG saveProfile] w._sbId es falsy — NO se llama a Supabase. w:', JSON.stringify(w));
+    // Caso real, no solo teórico: un trabajador creado con addWorker() (turnos.js, alta
+    // rápida sin pasar por Supabase) no tiene _sbId — "Guardar y cerrar" no tiene nada
+    // que actualizar en BD, solo el estado en memoria de esta sesión.
+    console.warn('[worker-modal] saveProfile: sin _sbId, no se persiste en Supabase —', w.name);
   }
   if (typeof showToast === 'function') showToast('Perfil guardado ✓', 'success');
 }
@@ -521,16 +597,23 @@ function _syncUnavailToSupabase(w, snapshot) {
     const after = w[key] || [];
     after.filter(d => !before.includes(d)).forEach(d => {
       _sb?.from('disponibilidad').insert({trabajador_id:w._sbId, dia_semana:d, turno})
-        .then(({error}) => { if (error) console.error('[SB] insert dispo:', error.message); });
+        .then(({error}) => { if (error) console.error('[SB] insert dispo:', error.message); })
+        .catch(e => console.error('[SB] insert dispo:', e));
     });
     before.filter(d => !after.includes(d)).forEach(d => {
       _sb?.from('disponibilidad').delete().eq('trabajador_id',w._sbId).eq('dia_semana',d).eq('turno',turno)
-        .then(({error}) => { if (error) console.error('[SB] delete dispo:', error.message); });
+        .then(({error}) => { if (error) console.error('[SB] delete dispo:', error.message); })
+        .catch(e => console.error('[SB] delete dispo:', e));
     });
   });
 }
 
-/* ── Persiste a Supabase solo las notas que cambiaron desde la apertura del modal
+/* ── NOTAS ──
+   Este archivo solo gestiona el ESTADO (_notaRows/_notaRowsOriginal, arriba)
+   y la PERSISTENCIA de las notas — la UI para añadir/editar filas
+   (renderNotaList, addNotaRow, _notaAvailSlots) vive en turnos.js, no aquí
+   (es una de las funciones "requeridas" del contrato del cabecero). */
+/* Persiste a Supabase solo las notas que cambiaron desde la apertura del modal
    (diff contra _notaRowsOriginal, tomado en openPreview) — mismo patrón que
    _syncUnavailToSupabase(). Una fila vaciada (nota="") se trata como eliminada. */
 function _syncNotasToSupabase(w) {
@@ -548,21 +631,27 @@ function _syncNotasToSupabase(w) {
       const orig = origById[n._sbId];
       if (orig && (orig.nota !== n.nota || orig.turno !== n.turno || orig.d !== n.d)) {
         _sb?.from('trabajador_notas').update({turno:n.turno, nota:n.nota, dia_semana:n.d}).eq('id', n._sbId)
-          .then(({error}) => { if (error) console.error('[SB] update trabajador_notas:', error.message); });
+          .then(({error}) => { if (error) console.error('[SB] update trabajador_notas:', error.message); })
+          .catch(e => console.error('[SB] update trabajador_notas:', e));
       }
     } else {
       _sb?.from('trabajador_notas').insert({trabajador_id:w._sbId, turno:n.turno, nota:n.nota, dia_semana:n.d}).select('id').single()
-        .then(({data, error}) => { if (error) console.error('[SB] insert trabajador_notas:', error.message); else if (data) n._sbId = data.id; });
+        .then(({data, error}) => { if (error) console.error('[SB] insert trabajador_notas:', error.message); else if (data) n._sbId = data.id; })
+        .catch(e => console.error('[SB] insert trabajador_notas:', e));
     }
   });
   _notaRowsOriginal.forEach(n => {
     if (n._sbId && !keptIds.has(n._sbId)) {
       _sb?.from('trabajador_notas').delete().eq('id', n._sbId)
-        .then(({error}) => { if (error) console.error('[SB] delete trabajador_notas:', error.message); });
+        .then(({error}) => { if (error) console.error('[SB] delete trabajador_notas:', error.message); })
+        .catch(e => console.error('[SB] delete trabajador_notas:', e));
     }
   });
 }
 
+/* ── PERFIL DEL TRABAJADOR ──
+   Teléfono, rol, sección, foto y acciones de admin (invitar/resetear PIN) —
+   todo lo que identifica al trabajador, más que su disponibilidad/turnos. ── */
 /* ── CONTACTO ── */
 function startEditTel() {
   const td = document.getElementById('prev-tel-display');

@@ -1,6 +1,30 @@
 /* lagaleria_turnos.html — lógica de la página.
-   Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), DatePicker (date-picker.js).
-   Expone funciones/variables en scope global para que worker-modal.js y date-picker.js puedan usarlas (sin IIFE/module). */
+   Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), DatePicker
+   (date-picker.js), MESES_ES/isoWeekNum/mondayOfDate (utils.js).
+   Expone funciones/variables en scope global para que worker-modal.js y date-picker.js puedan usarlas (sin IIFE/module).
+
+   ÍNDICE (línea aprox. de cada sección — el archivo no está reordenado físicamente,
+   solo indexado, para no arriesgar el orden de ejecución de las sentencias de
+   nivel superior que hay repartidas por el fichero — ver INICIALIZACIÓN):
+     · CARGA DE DATOS (Supabase)              L.45
+     · EDICIÓN DE TURNOS (guardado inmediato) L.322
+     · VARIANTES A/B (Plan B de turnos)       L.421
+     · CONSTANTES Y DATOS LOCALES             L.601
+     · ESTADO Y UTILIDADES (L(), cntT()...)   L.663
+     · RENDERIZADO DEL GRID                   L.721
+     · DRAG & DROP                            L.824
+     · NOTA ESPECIAL (día+turno+texto libre)  L.852
+     · TIME PICKER                            L.896
+     · CONFIRM DIALOG / ARCHIVAR TRABAJADOR   L.984
+     · MODALES: AÑADIR AL TURNO / TRABAJADORES / EVENTOS  L.1085
+     · VISTA PERSONA                          L.1239
+     · UI: SEMANA, MODAL, EXPORTAR            L.1297
+     · VACACIONES                             L.1589
+     · INICIALIZACIÓN (arranque de la página) L.1575
+     · ROLES Y SKILLS                         L.1714 / L.1744
+     · SLOT TIMES / WEEK CONFIG               L.1821
+     · PLANTILLAS                             L.1931
+     · AUTOGENERADOR                          L.1954 */
 
 
 /* Diccionario nombre ↔ UUID — se puebla en sbInitTrabajadores() */
@@ -18,6 +42,8 @@ function _myTrabajadorId() {
   if (!u) try { var s = localStorage.getItem('lg_session'); if (s) u = JSON.parse(s); } catch(e) {}
   return (u && u._sbId) || null;
 }
+
+/* ── CARGA DE DATOS (SUPABASE) ── */
 
 /* Admin: trae AMBAS variantes de golpe (loadWeekFromSupabase filtra en JS
    la que toque ver, y de paso deriva weekHasVariantB/curVarianteActiva sin
@@ -211,6 +237,16 @@ async function sbBorrarTrabajadorDefinitivo(id) {
 }
 
 /* ── CARGA DE SEMANA DESDE SUPABASE ── */
+/**
+ * Carga turnos + eventos de una semana desde Supabase y repuebla
+ * locals.galeria.data/eventos, dejando el grid listo para pintar.
+ * De paso deriva el estado de variantes (weekHasVariantB, curVarianteActiva
+ * y, si la semana no tiene B, fuerza curVariante='A') a partir de las filas
+ * reales — es la única función que recalcula ese estado desde BD, por eso
+ * se llama tras cualquier operación que pueda haberlo cambiado (activar,
+ * eliminar o crear una variante; cambiar de semana).
+ * @param {string} semanaInicio — lunes de la semana a cargar, 'YYYY-MM-DD'
+ */
 async function loadWeekFromSupabase(semanaInicio) {
   const finDt = new Date(semanaInicio + 'T00:00:00Z');
   finDt.setUTCDate(finDt.getUTCDate() + 6);
@@ -284,7 +320,7 @@ function eventosToPickerDates() {
 
 /* ── /SUPABASE Fase 1 ── */
 
-/* ── GUARDADO FILA A FILA ──
+/* ── EDICIÓN DE TURNOS (GUARDADO INMEDIATO) ──
    BUG encontrado (y ahora eliminado de raíz): el mecanismo anterior
    (scheduleAutosave + setTimeout de 2s, delete+insert de TODA la semana)
    tenía una ventana de pérdida de datos — si el admin navegaba (cambiaba de
@@ -294,13 +330,22 @@ function eventosToPickerDates() {
    INSTANTE, fila a fila — nunca se borra+reinserta la semana entera, así
    que nunca hay nada "pendiente" que se pueda perder o pisar al navegar. */
 
-/* Añade una fila — usada por toggleSg()/cancelPreview() (worker-modal.js) y
-   por las operaciones masivas de abajo (a través de sbBulkInsertTurnos). */
+/**
+ * Inserta un turno (una fila en la tabla `turnos`) en el instante en que el
+ * usuario asigna un trabajador a un slot — no hay guardado diferido: si esta
+ * llamada no se hace, el alta no existe en BD aunque se vea en el grid.
+ * Usada por toggleSg()/cancelPreview() (worker-modal.js) y por las
+ * operaciones masivas de abajo (a través de sbBulkInsertTurnos).
+ * @param {string} slot — 'sm'|'sn'|'cm'|'cn' (Sala/Cocina × Mediodía/Noche)
+ * @param {number} dia — 0=lunes ... 6=domingo
+ * @param {string} nombre — nombre del trabajador (se resuelve a su UUID via sbNombreToId)
+ * @param {string} [horaEspecial] — hora de entrada distinta a la del slot, si aplica
+ */
 async function addTurnoToSlot(slot, dia, nombre, horaEspecial) {
   if (!_sb) { console.warn('[turnos] addTurnoToSlot: Supabase no disponible'); return; }
   const trabajador_id = sbNombreToId(nombre);
   if (!trabajador_id) return;
-  console.log('[TURNO ADD] slot='+slot+' dia='+dia+' trabajador='+nombre);
+  // INSERT real e inmediato — sin este guardado no habría persistencia hasta cerrar el modal.
   const orden = (L().data[slot][dia] || []).findIndex(n => parse(n).name === nombre);
   const { error } = await _sb.from('turnos').insert({
     local_id: LOCAL_ID, semana_inicio: curMonday, slot, dia, trabajador_id,
@@ -310,21 +355,31 @@ async function addTurnoToSlot(slot, dia, nombre, horaEspecial) {
   });
   if (error) console.error('[turnos] addTurnoToSlot:', error.message);
 }
+/**
+ * Elimina la fila de `turnos` correspondiente a un trabajador en un slot —
+ * contraparte de addTurnoToSlot(), misma filosofía de guardado inmediato.
+ * @param {string} slot — 'sm'|'sn'|'cm'|'cn'
+ * @param {number} dia — 0=lunes ... 6=domingo
+ * @param {string} nombre — nombre del trabajador a quitar de ese slot/día
+ */
 async function removeTurnoFromSlot(slot, dia, nombre) {
   if (!_sb) { console.warn('[turnos] removeTurnoFromSlot: Supabase no disponible'); return; }
   const trabajador_id = sbNombreToId(nombre);
   if (!trabajador_id) return;
-  console.log('[TURNO DEL] slot='+slot+' dia='+dia+' trabajador='+nombre);
+  // DELETE real e inmediato, acotado a local_id+semana+variante+slot+dia+trabajador — nunca toca otras filas.
   const { error } = await _sb.from('turnos').delete()
     .eq('local_id', LOCAL_ID).eq('semana_inicio', curMonday).eq('variante', curVariante)
     .eq('slot', slot).eq('dia', dia).eq('trabajador_id', trabajador_id);
   if (error) console.error('[turnos] removeTurnoFromSlot:', error.message);
 }
-/* Alta masiva (autogenerar / cargar plantilla) — un único INSERT con varias
-   filas en vez de N llamadas sueltas, pero sigue sin tocar ninguna fila que
-   no sea nueva (nunca borra nada). items: [{slot, dia, name, hour?}]. El
-   orden de cada fila se lee de su posición ya insertada en L().data (llamar
-   después de hacer todos los push() correspondientes). */
+/**
+ * Alta masiva de turnos (autogenerar / cargar plantilla) — un único INSERT
+ * con varias filas en vez de N llamadas sueltas a addTurnoToSlot(), pero
+ * sigue sin tocar ninguna fila que no sea nueva (nunca borra nada). El orden
+ * de cada fila se lee de su posición ya insertada en L().data, así que debe
+ * llamarse después de hacer todos los push() correspondientes.
+ * @param {Array<{slot:string, dia:number, name:string, hour?:string}>} items
+ */
 async function sbBulkInsertTurnos(items) {
   if (!_sb || !items.length) return;
   const activa = curVariante === curVarianteActiva;
@@ -343,11 +398,16 @@ async function sbBulkInsertTurnos(items) {
   const { error } = await _sb.from('turnos').insert(rows);
   if (error) console.error('[turnos] sbBulkInsertTurnos:', error.message);
 }
-/* Reordenar dentro de una celda (drag & drop) no añade/quita filas — solo
-   actualiza el campo orden de cada trabajador ya presente en ese slot/día. */
+/**
+ * Reordena (drag & drop) los trabajadores dentro de una misma celda —
+ * no añade ni quita filas, solo actualiza el campo `orden` de cada
+ * trabajador ya presente en ese slot/día, uno por UPDATE en paralelo.
+ * @param {string} slot — 'sm'|'sn'|'cm'|'cn'
+ * @param {number} dia — 0=lunes ... 6=domingo
+ */
 async function reorderSlot(slot, dia) {
   if (!_sb) return;
-  console.log('[TURNO REORDER] slot='+slot+' dia='+dia);
+  // Cada trabajador del slot/día recibe un UPDATE con su nueva posición (orden=i).
   const nombres = (L().data[slot][dia] || []).map(n => parse(n).name);
   await Promise.all(nombres.map((nombre, i) => {
     const trabajador_id = sbNombreToId(nombre);
@@ -357,18 +417,19 @@ async function reorderSlot(slot, dia) {
       .eq('slot', slot).eq('dia', dia).eq('trabajador_id', trabajador_id);
   }));
 }
-/* ── /GUARDADO FILA A FILA ── */
+/* ── /EDICIÓN DE TURNOS ── */
 
-/* ── PLAN B DE TURNOS (variantes A/B) — solo admin/superadmin ── */
+/* ── VARIANTES A/B (Plan B de turnos) — solo admin/superadmin ── */
 
-/* Crea la variante B vacía y cambia el grid a verla/editarla. No escribe nada
-   en BD todavía — la fila de "+ Añadir producto puntual"-equivalente aquí es
-   que B empieza a existir de verdad en cuanto el primer turno se autoguarde
-   en ella (mismo criterio que "una semana sin turnos" ya no se distingue hoy
-   de "una semana que no existe": no hay una tabla de "semanas", solo filas de
-   turnos). Si el admin crea B y no añade nada, al recargar la página los
-   chips A/B no reaparecerán — no hay forma de persistir "existe pero vacía"
-   sin una fila real. */
+/**
+ * Crea la variante B (vacía) de la semana actual y cambia el grid a
+ * verla/editarla. No escribe nada en BD todavía — B empieza a existir de
+ * verdad en cuanto el primer turno se autoguarde en ella (mismo criterio que
+ * "una semana sin turnos" ya no se distingue hoy de "una semana que no
+ * existe": no hay una tabla de "semanas", solo filas de turnos). Si el admin
+ * crea B y no añade nada, al recargar la página los chips A/B no
+ * reaparecerán — no hay forma de persistir "existe pero vacía" sin una fila real.
+ */
 function crearVarianteB(){
   if(!_isAdmin() || weekHasVariantB) return;
   weekHasVariantB = true;
@@ -424,6 +485,16 @@ function onEliminarVariante(v){
     ()=>doEliminarVariante(v, esActiva)
   );
 }
+/**
+ * Elimina una variante de la semana actual. B es siempre la alternativa, A
+ * la principal — por eso las dos ramas no son simétricas:
+ *  - v==='A': B pasa a ocupar su lugar (se borra B, se reinserta como A,
+ *    activa=true) — nunca queda una semana cuya única variante sea 'B'.
+ *  - v==='B': comportamiento simple, se borra B y A sigue siendo A (con
+ *    reactivación previa si B era la activa).
+ * @param {'A'|'B'} v — variante a eliminar
+ * @param {boolean} esActiva — si v es la variante actualmente activa=true
+ */
 async function doEliminarVariante(v, esActiva){
   closeOv('ov-confirm');
   if(!_sb){ showToast('Sin conexión'); return; }
@@ -526,7 +597,7 @@ function renderVariantChips(){
     </button>
   `;
 }
-/* ── /PLAN B DE TURNOS ── */
+/* ── /VARIANTES A/B ── */
 
 /* ── CONSTANTES Y DATOS LOCALES ── */
 const DAYS_S=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
@@ -590,7 +661,19 @@ const locals={
   }
 };
 
-/* ── ESTADO Y UTILIDADES ── */
+/* ── ESTADO Y UTILIDADES ──
+   Nombres cortos deliberados, no renombrados en esta limpieza: L(), cntT(),
+   parse(), ROWS, curMonday y curVariante están en la lista de "globals
+   requeridos" del cabecero de assets/lib/worker-modal.js y se llaman así,
+   literalmente, en decenas de sitios de ese archivo también — renombrarlos
+   aquí sin tocar worker-modal.js (y cualquier otro consumidor futuro)
+   rompería la app. Quedan documentados en vez de renombrados:
+     L()         → devuelve el objeto del local actual (locals[curLocal]):
+                   {staff, data:{sm/sn/cm/cn:[[...7 días]]}, eventos}.
+     cntT(name)  → cuenta en cuántos slots de la semana actual aparece ese
+                   trabajador ("count Turnos").
+     curMonday   → lunes de la semana mostrada ('YYYY-MM-DD').
+     curVariante → variante ('A'|'B') que se está viendo/editando ahora. */
 let curLocal="galeria",curSort="td",curSec="all",curSearch="",_evPhotoIdx=null,curPage="turnos";
 function L(){return locals[curLocal];}
 function ini(n){return n.split(":")[0].trim().split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();}
@@ -636,7 +719,7 @@ function updateStats(){
   if(sev) sev.textContent=L().eventos.length;
 }
 
-/* ── GRID: BUILD Y RENDER ── */
+/* ── RENDERIZADO DEL GRID ── */
 const BAND_LBL_CLS={sm:'band-label-sm',sn:'band-label-sn',cm:'band-label-cm',cn:'band-label-cn'};
 var slotTimes = {sm:'12:30', sn:'20:00', cm:'12:00', cn:'20:00'};
 const SLOT_NAMES = {sm:'Sala mediodía', sn:'Sala noche', cm:'Cocina mediodía', cn:'Cocina noche'};
@@ -767,14 +850,6 @@ function setupDrag(chip,cell,slot,dia){
   });
 }
 
-
-
-
-
-
-
-
-
 /* ── NOTA ESPECIAL — fusión de la antigua "hora especial de entrada" + "notas":
    una fila = día + turno + texto libre, los 3 obligatorios (ver saveProfile). ── */
 /* Días/turnos donde el trabajador tiene turno asignado esta semana — {d: ['med','noch']} */
@@ -885,11 +960,6 @@ function confirmTp(){
   }
   closeTp();
 }
-
-
-
-
-
 
 document.getElementById("photo-input").addEventListener("change",function(){
   const file=this.files[0];if(!file)return;
@@ -1225,32 +1295,28 @@ function resetView(){
   document.querySelectorAll('.overlay.show').forEach(function(m){m.classList.remove('show');});
 }
 
+/* ── UI: SEMANA, MODAL, EXPORTAR ──
+   Agrupa (sin ser un bloque físicamente contiguo — ver ÍNDICE al inicio del
+   archivo) todo lo que no es datos/grid/variantes: navegación de semana
+   (aquí abajo), TIME PICKER y CONFIRM DIALOG (más arriba, L.822/915) y
+   exportar WhatsApp/PDF/enlace/imagen (más abajo, L.1378). */
 /* ── NAVEGACIÓN DE SEMANA ── */
-/* revisar: MESES_ES e isoWeekNum()/isoWeekYear()/mondayOfDate() duplican logica de assets/lib/date-picker.js (_isoWeekNum/_mondayOf/MESES_ES), pero esas son privadas dentro de su IIFE y no se exponen via window.DatePicker — no se puede reutilizar sin ampliar la API publica del modulo compartido (fuera de alcance de este cambio) */
-const MESES_ES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+/* MESES_ES, isoWeekNum() y mondayOfDate() viven ahora en assets/lib/utils.js
+   (compartidas con inicio.js, que tenía su propia copia — ver ahí). MESES_CORTO
+   e isoWeekYear() se quedan aquí: no están duplicadas en ningún otro archivo.
+   TODO: date-picker.js sigue teniendo su propia copia privada de estas tres
+   (_isoWeekNum/_mondayOf/MESES_ES, dentro de su IIFE) — deliberadamente no
+   se ha tocado: ese componente se documenta a sí mismo como "sin dependencias
+   externas", y hacerlo depender de utils.js sería un cambio de diseño, no
+   solo mover una utilidad duplicada. */
 const MESES_CORTO=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
-function isoWeekNum(dateStr){
-  const [y,m,d]=dateStr.split('-').map(Number);
-  const dt=new Date(Date.UTC(y,m-1,d));
-  const day=dt.getUTCDay()||7;
-  dt.setUTCDate(dt.getUTCDate()+4-day);
-  const y0=new Date(Date.UTC(dt.getUTCFullYear(),0,1));
-  return Math.ceil((((dt-y0)/86400000)+1)/7);
-}
 function isoWeekYear(dateStr){
   const [y,m,d]=dateStr.split('-').map(Number);
   const dt=new Date(Date.UTC(y,m-1,d));
   const day=dt.getUTCDay()||7;
   dt.setUTCDate(dt.getUTCDate()+4-day);
   return dt.getUTCFullYear();
-}
-function mondayOfDate(dateStr){
-  const [y,m,d]=dateStr.split('-').map(Number);
-  const dt=new Date(Date.UTC(y,m-1,d));
-  const dow=dt.getUTCDay()||7;
-  dt.setUTCDate(dt.getUTCDate()-(dow-1));
-  return dt.toISOString().split('T')[0];
 }
 function weekMondayStr(isoYear,isoWeek){
   const jan4=new Date(Date.UTC(isoYear,0,4));
@@ -1508,9 +1574,6 @@ sbInitTrabajadores().then(()=>changeWeek(0)); /* carga diccionario nombre↔UUID
    (addTurnoToSlot/removeTurnoFromSlot), no hay nada pendiente que flushear
    al cerrar la pestaña. */
 
-
-
-
 /* ── VACACIONES ── */
 function countVacDays(vacaciones){
   if(!vacaciones||!vacaciones.length)return 0;
@@ -1665,9 +1728,6 @@ function ensureWorkerExtras(w){
     Object.assign(w.skills,defaults);
   }
 }
-
-
-
 
 /* ── SKILLS MODAL ── */
 function ensureSkills(w){
@@ -1856,6 +1916,7 @@ async function limpiarSemana(){
   }
 }
 
+/* ── PLANTILLAS ── */
 /* "Cargar plantilla" — superpone sobre lo que ya haya en el grid (no borra),
    filtrando trabajadores archivados/de vacaciones/no-disponibles ese día. */
 async function handleCargarPlantilla(){
@@ -1878,6 +1939,7 @@ async function handleCargarPlantilla(){
   closeOv('ov-generar');
 }
 
+/* ── AUTOGENERADOR ── */
 /* "Automático" — ejecuta el autogenerador existente sin cambios de lógica
    (runTurnoAutogenCore, en turnoAutogen.js) y cierra el modal al terminar.
    runTurnoAutogenCore() solo AÑADE asignaciones (nunca quita ni pisa las que
@@ -1901,6 +1963,7 @@ function handleAutomatico(){
   }, 50);
 }
 
+/* ── /AUTOGENERADOR — vuelta a PLANTILLAS ── */
 /* "Guardar plantilla" — no cierra el modal, para poder encadenar con
    "Cargar plantilla"/"Automático" sin tener que reabrirlo. */
 async function handleGuardarPlantilla(){
@@ -2018,7 +2081,16 @@ function removeWcEntry(day, slot, idx){
   renderWeekConfig();
 }
 
+/* Misma clave y mismo formato que saveWeekConfigLocal() en
+   assets/lib/adminWeekConfig.js — los dos editores de WeekConfig (este, en
+   Turnos, y el de Admin) leen y escriben el mismo localStorage['lg_weekconfig_v1'],
+   así que un cambio guardado desde cualquiera de los dos es visible en el otro. */
 function saveWeekConfig(){
+  try {
+    localStorage.setItem('lg_weekconfig_v1', JSON.stringify(weekConfig));
+  } catch(e) {
+    console.warn('[weekConfig] saveWeekConfig failed', e);
+  }
   closeOv('ov-week-cfg');
   showToast('Configuración guardada ✓');
 }

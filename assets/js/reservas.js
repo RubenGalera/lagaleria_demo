@@ -77,12 +77,17 @@ async function sbDeleteReserva(sbId){
   }catch(e){ console.error('sbDeleteReserva',e); return false; }
 }
 
-/* ── EVENTOS desde Supabase ── */
-async function sbLoadEventos(fecha){
+/* ── EVENTOS desde Supabase ──
+   opts: {fecha} fecha exacta · {desde} fecha>=desde · {hasta} fecha<hasta · {desc} orden fecha DESC (por defecto ASC).
+   Sin opts trae todos los eventos del local (sin acotar por fecha). */
+async function sbLoadEventos(opts){
+  opts = opts||{};
   try{
     var q = _sb.from('eventos').select('*').eq('local_id',LOCAL_ID);
-    if(fecha) q = q.eq('fecha', fecha);
-    const {data,error} = await q.order('hora');
+    if(opts.fecha) q = q.eq('fecha', opts.fecha);
+    if(opts.desde) q = q.gte('fecha', opts.desde);
+    if(opts.hasta) q = q.lt('fecha', opts.hasta);
+    const {data,error} = await q.order('fecha',{ascending:!opts.desc}).order('hora');
     if(error) throw error;
     const evList = data||[];
 
@@ -225,12 +230,15 @@ async function sbDeleteAsistente(sbId){
   }catch(e){ console.error('sbDeleteAsistente',e); return false; }
 }
 
-/* ── INIT con Supabase ── */
+/* ── INIT con Supabase ──
+   Solo se cargan eventos activos (fecha>=hoy) — los pasados se cargan aparte,
+   bajo demanda, al pulsar "Ver eventos pasados" (ver toggleEventosPasados()),
+   para no sobrecargar la vista inicial. */
 async function initSupabase(){
   const [sbZonas, sbRes, sbEv] = await Promise.all([
     sbLoadZonas(),
     sbLoadReservas(),
-    sbLoadEventos(),
+    sbLoadEventos({desde:hoyStr()}),
   ]);
   if(sbZonas.length) zonas = sbZonas;
   reservas = sbRes;
@@ -239,6 +247,46 @@ async function initSupabase(){
   renderRes();
   renderEventos();
   if(window.DatePicker) DatePicker.setEvents(eventosToPickerDates());
+}
+
+/* ── EVENTOS PASADOS — colapsados, carga perezosa ── */
+let eventosPasadosLoaded   = false;
+let eventosPasadosExpanded = false;
+async function toggleEventosPasados(){
+  eventosPasadosExpanded = !eventosPasadosExpanded;
+  const list  = document.getElementById('ev-past-list');
+  const empty = document.getElementById('ev-past-empty');
+  const lbl   = document.getElementById('ev-past-toggle-lbl');
+  const icon  = document.getElementById('ev-past-icon');
+  if(!eventosPasadosExpanded){
+    if(list) list.style.display='none';
+    if(empty) empty.style.display='none';
+    if(lbl) lbl.textContent='Ver eventos pasados';
+    if(icon) icon.textContent='📁';
+    return;
+  }
+  if(lbl) lbl.textContent='Ocultar eventos pasados';
+  if(icon) icon.textContent='📂';
+  if(!eventosPasadosLoaded){
+    const pasados = await sbLoadEventos({hasta:hoyStr(), desc:true});
+    /* Merge en el mismo array eventos[] — así openEvDetail/openEditEvento/
+       saveEvento/delEvento (todos hacen eventos.find(id)) funcionan igual
+       para un evento pasado sin tocar ni un solo sitio más. */
+    const existingIds = new Set(eventos.map(e=>e.id));
+    pasados.forEach(ev=>{ if(!existingIds.has(ev.id)) eventos.push(ev); });
+    eventosPasadosLoaded = true;
+    if(window.DatePicker) DatePicker.setEvents(eventosToPickerDates());
+  }
+  if(list) list.style.display='';
+  renderEventosPasados();
+}
+function renderEventosPasados(){
+  const list=document.getElementById('ev-past-list');
+  const empty=document.getElementById('ev-past-empty');
+  if(!list) return;
+  const pastEvs=eventos.filter(ev=>ev.fecha<hoyStr()).sort((a,b)=>b.fecha.localeCompare(a.fecha)||(b.hora||'').localeCompare(a.hora||''));
+  if(empty) empty.style.display=pastEvs.length?'none':'block';
+  list.innerHTML=pastEvs.map(ev=>evCardHtml(ev,true)).join('');
 }
 
 /* Convierte eventos[] (con fecha real 'YYYY-MM-DD') en [{date}] para el DatePicker */
@@ -705,31 +753,35 @@ let eventos = [
 ];
 
 /* ── RENDER EVENTOS ── */
+/* isPast: misma card que un evento activo, solo cambia la opacidad y un
+   badge "Pasado" — sin duplicar el markup entre renderEventos() y
+   renderEventosPasados(). */
+function evCardHtml(ev,isPast){
+  const tipo=TIPOS_EVENTO[ev.tipo]||TIPOS_EVENTO.evento;
+  const zonasBloq=(ev.zonasIds||[]).map(id=>zonas.find(z=>z.id===id)).filter(Boolean);
+  const totalPax=(ev.asistentes||[]).filter(a=>!a.dudoso).reduce((s,a)=>s+1+(a.acomp||0),0);
+  const aforoWarn=ev.aforo&&totalPax>ev.aforo;
+  return`<div class="ev-card${isPast?' ev-card-past':''}" onclick="openEvDetail('${ev.id}')">
+    <span class="ev-card-icon">${tipo.icon}</span>
+    <div class="ev-card-body">
+      <div class="ev-card-name">${ev.nombre}</div>
+      <div class="ev-card-meta">
+        <span>${formatDayFull(ev.fecha)}${ev.hora?' · '+ev.hora:''}</span>
+        ${ev.precio?`<span>· 💶 ${ev.precio}€ p.p.</span>`:''}
+        ${totalPax?`<span style="${aforoWarn?'color:var(--red)':''}">· 👥 ${totalPax}${ev.aforo?' / '+ev.aforo:''}${aforoWarn?' ⚠️':''}</span>`:''}
+        ${isPast?'<span class="ev-past-badge">Pasado</span>':''}
+      </div>
+      ${zonasBloq.length?`<div class="ev-card-zonas">${zonasBloq.map(z=>`<span class="ev-zona-tag">${z.emoji} ${z.nombre}</span>`).join('')}</div>`:''}
+    </div>
+    <span style="color:var(--faint);font-size:18px;flex-shrink:0">›</span>
+  </div>`;
+}
 function renderEventos(){
   const list=document.getElementById('ev-list');
   const empty=document.getElementById('ev-empty');
   const dayEvs=eventos.filter(ev=>ev.fecha>=hoyStr()).sort((a,b)=>a.fecha.localeCompare(b.fecha)||(a.hora||'').localeCompare(b.hora||''));
   if(empty) empty.style.display=dayEvs.length?'none':'block';
-  list.innerHTML=dayEvs.map(ev=>{
-    const tipo=TIPOS_EVENTO[ev.tipo]||TIPOS_EVENTO.evento;
-    const zonasBloq=(ev.zonasIds||[]).map(id=>zonas.find(z=>z.id===id)).filter(Boolean);
-    const totalPax=(ev.asistentes||[]).filter(a=>!a.dudoso).reduce((s,a)=>s+1+(a.acomp||0),0);
-    const pagados=(ev.asistentes||[]).filter(a=>a.pago==='pagado').length;
-    const aforoWarn=ev.aforo&&totalPax>ev.aforo;
-    return`<div class="ev-card" onclick="openEvDetail('${ev.id}')">
-      <span class="ev-card-icon">${tipo.icon}</span>
-      <div class="ev-card-body">
-        <div class="ev-card-name">${ev.nombre}</div>
-        <div class="ev-card-meta">
-          <span>${formatDayFull(ev.fecha)}${ev.hora?' · '+ev.hora:''}</span>
-          ${ev.precio?`<span>· 💶 ${ev.precio}€ p.p.</span>`:''}
-          ${totalPax?`<span style="${aforoWarn?'color:var(--red)':''}">· 👥 ${totalPax}${ev.aforo?' / '+ev.aforo:''}${aforoWarn?' ⚠️':''}</span>`:''}
-        </div>
-        ${zonasBloq.length?`<div class="ev-card-zonas">${zonasBloq.map(z=>`<span class="ev-zona-tag">${z.emoji} ${z.nombre}</span>`).join('')}</div>`:''}
-      </div>
-      <span style="color:var(--faint);font-size:18px;flex-shrink:0">›</span>
-    </div>`;
-  }).join('');
+  list.innerHTML=dayEvs.map(ev=>evCardHtml(ev,false)).join('');
 }
 
 /* ── OPEN / SAVE EVENTO ── */
@@ -875,6 +927,7 @@ async function saveEvento(){
   evImages = (savedEv.imagenes||[]).map(function(url){return {url:url, blob:null};});
   closeModal('ov-evento');
   renderEventos();
+  renderEventosPasados();
   rebuildZonaBar();
   toast(isEditing?'Evento actualizado ✓':'Evento creado ✓');
 }
@@ -892,6 +945,7 @@ function confirmDelEvento(){
   eventos=eventos.filter(x=>x.id!==editingEventoId);
   closeModal('ov-evento');
   renderEventos();
+  renderEventosPasados();
   rebuildZonaBar();
   toast('Evento eliminado');
   if(toDelEv && toDelEv._sbId && typeof sbDeleteEvento==='function') sbDeleteEvento(toDelEv._sbId);
@@ -1095,7 +1149,7 @@ async function saveAsistente(){
     const a=ev.asistentes.find(x=>x.id===editingAsiId);
     if(a) Object.assign(a,data);
     closeModal('ov-asistente');
-    renderEvStats(ev);renderAsistentes(ev);renderEventos();
+    renderEvStats(ev);renderAsistentes(ev);renderEventos();renderEventosPasados();
     toast('Asistente actualizado ✓');
     if(a&&a._sbId&&ev._sbId){
       sbSaveAsistente(a,ev._sbId).then(function(r){
@@ -1115,7 +1169,7 @@ async function saveAsistente(){
     }
     ev.asistentes.push(newA);
     closeModal('ov-asistente');
-    renderEvStats(ev);renderAsistentes(ev);renderEventos();
+    renderEvStats(ev);renderAsistentes(ev);renderEventos();renderEventosPasados();
     toast('Asistente añadido ✓');
   }
 }
@@ -1132,6 +1186,7 @@ async function confirmDelAsistente(){
   renderEvStats(ev);
   renderAsistentes(ev);
   renderEventos();
+  renderEventosPasados();
   toast('Asistente eliminado');
 }
 

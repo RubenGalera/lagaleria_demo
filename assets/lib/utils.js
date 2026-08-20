@@ -83,3 +83,59 @@ async function hashPin(pin) {
 function normalizeText(str) {
   return (str || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
 }
+
+/**
+ * Nombres de los 12 meses en español, en minúsculas — para construir
+ * etiquetas de fecha ("22 de junio").
+ *
+ * Quién la llama:
+ * - turnos.js (weekLabel): etiqueta "22 jun – 28 jun" del selector de semana
+ *   (en realidad usa MESES_CORTO, propio de turnos.js, no este array — este
+ *   es el de nombre completo, para textos más largos).
+ */
+const MESES_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+
+/**
+ * Número de semana ISO-8601 (1-53) de una fecha. La semana ISO empieza en
+ * lunes y la semana 1 es la que contiene el primer jueves del año — por eso
+ * el cálculo ajusta al jueves de esa semana antes de contar desde el 1 de enero.
+ *
+ * Quién la llama:
+ * - turnos.js (weekLabel, vía curWeek): número de semana mostrado junto a la
+ *   fecha en el selector de semana ("Sem 26").
+ * - inicio.js (_renderHeader): "Semana 26" en la cabecera del dashboard.
+ *
+ * @param {string} dateStr - Fecha en formato 'YYYY-MM-DD'.
+ * @returns {number} Número de semana ISO (1-53).
+ */
+function isoWeekNum(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  const day = dt.getUTCDay() || 7
+  dt.setUTCDate(dt.getUTCDate() + 4 - day)
+  const y0 = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1))
+  return Math.ceil((((dt - y0) / 86400000) + 1) / 7)
+}
+
+/**
+ * Lunes de la semana ISO a la que pertenece una fecha — la semana ISO
+ * siempre empieza en lunes, así que esto retrocede desde `dateStr` hasta
+ * el lunes de esa misma semana (o se queda igual si ya es lunes).
+ *
+ * Quién la llama:
+ * - turnos.js (curMonday, changeWeek, _applyWeek): fecha ancla de la semana
+ *   mostrada en el grid de Turnos — todo el módulo de variantes A/B y
+ *   guardado de turnos se indexa por este valor (turnos.semana_inicio).
+ * - inicio.js (initDashboard): calcula la semana actual para "Tu semana" y
+ *   la card de turnos de hoy.
+ *
+ * @param {string} dateStr - Fecha en formato 'YYYY-MM-DD'.
+ * @returns {string} Lunes de esa semana ISO, en formato 'YYYY-MM-DD'.
+ */
+function mondayOfDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  const dow = dt.getUTCDay() || 7
+  dt.setUTCDate(dt.getUTCDate() - (dow - 1))
+  return dt.toISOString().split('T')[0]
+}

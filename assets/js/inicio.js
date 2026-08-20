@@ -1,5 +1,6 @@
 /* lagaleria_inicio.html — dashboard de Inicio (rediseño mockup v7).
-   Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), toast/showModal/closeModal (ui-helpers.js), cleanTel (utils.js).
+   Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), toast/showModal/closeModal (ui-helpers.js),
+   cleanTel/isoWeekNum/mondayOfDate (utils.js).
    Expone funciones/variables globales (initDashboard, navTo, goToTurnos, navToEvento, navToStockReponer,
    openContactosPanel, openProveedoresPanel, etc.) en window — sin IIFE/module — para que window.parent y
    los iframes puedan usarlas.
@@ -8,23 +9,9 @@
    depende de que otro iframe ya esté cargado. */
 
 
-/* ── Fecha / semana ISO — mismo algoritmo que turnos.js (mondayOfDate/isoWeekNum), replicado aquí
-   porque esta página no carga turnos.js. ── */
-function mondayOfDate(dateStr){
-  var p=dateStr.split('-').map(Number), y=p[0], m=p[1], d=p[2];
-  var dt=new Date(Date.UTC(y,m-1,d));
-  var dow=dt.getUTCDay()||7;
-  dt.setUTCDate(dt.getUTCDate()-(dow-1));
-  return dt.toISOString().split('T')[0];
-}
-function isoWeekNum(dateStr){
-  var p=dateStr.split('-').map(Number), y=p[0], m=p[1], d=p[2];
-  var dt=new Date(Date.UTC(y,m-1,d));
-  var day=dt.getUTCDay()||7;
-  dt.setUTCDate(dt.getUTCDate()+4-day);
-  var y0=new Date(Date.UTC(dt.getUTCFullYear(),0,1));
-  return Math.ceil((((dt-y0)/86400000)+1)/7);
-}
+/* mondayOfDate/isoWeekNum viven ahora en assets/lib/utils.js — antes eran una
+   copia local (mismo algoritmo que turnos.js), duplicada porque esta página
+   no carga turnos.js; ahora ambas cargan utils.js en su lugar. */
 function _todayDowIdx(){ var jsDay=new Date().getDay(); return jsDay===0?6:jsDay-1; } // 0=Lunes...6=Domingo, igual que turnos.dia
 var MESES_ABR=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 var DIAS_LARGOS=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
