@@ -1,15 +1,45 @@
 /* lagaleria_inicio.html — dashboard de Inicio (rediseño mockup v7).
-   Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), toast/showModal/closeModal (ui-helpers.js),
-   cleanTel/isoWeekNum/mondayOfDate (utils.js).
+
+   Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js),
+   showModal (ui-helpers.js — llamado desde este .js con guard typeof;
+   closeModal, del mismo archivo, se usa solo desde el HTML del modal,
+   onclick="closeModal(...)", nunca desde este .js), cleanTel/isoWeekNum/
+   mondayOfDate (utils.js), getStockStatus (assets/lib/stock-status.js —
+   mismo criterio de semáforo rojo/ámbar/verde que Stock/Pedido, ver
+   _loadAlertaStock()).
+
+   Dependencias del SHELL (window.parent = index.html, el documento que
+   monta este archivo dentro de un iframe — nunca están garantizadas si esta
+   página se abre suelta, por eso todo acceso va en try/catch):
+     window.parent.currentUser        — sesión activa, ver _getCurrentUser()
+     window.parent.goTo(page)         — cambia de iframe/pestaña, ver navTo()
+     window.parent.document.getElementById('fr-'+page) — referencia directa
+       al <iframe> de otra sección, para llamar a una función suya
+       (goToSection/openEvDetail/setCat) tras el cambio de pestaña.
+
    Expone funciones/variables globales (initDashboard, navTo, goToTurnos, navToEvento, navToStockReponer,
    openContactosPanel, openProveedoresPanel, etc.) en window — sin IIFE/module — para que window.parent y
    los iframes puedan usarlas.
    A diferencia de la versión anterior (que "espiaba" el estado en memoria de los iframes hermanos con un
    fallback a Supabase), esta versión consulta Supabase directamente para cada card — más simple y no
-   depende de que otro iframe ya esté cargado. */
+   depende de que otro iframe ya esté cargado.
+
+   ÍNDICE (línea aprox. — no reordenado físicamente):
+     1. CONSTANTES Y ESTADO             L.45  (_todayDowIdx, MESES_ABR, DIAS_LARGOS,
+                                                _formatFechaCorta, _getCurrentUser, showToast...)
+     2. NAVEGACIÓN (navTo)              L.87  (navTo, goToTurnos, navToEvento, navToStockReponer)
+     3. INICIALIZACIÓN Y CARGA DE DATOS L.129 (listener load, initDashboard, _renderAllEmpty)
+        · Header                        L.177 (_renderHeader, _weekRangeLabel)
+     4. TU SEMANA (mini-grid)           L.205
+     5. TURNOS DE HOY                   L.294
+     6. RESERVAS HOY                    L.340
+     7. PRÓXIMO EVENTO                  L.415
+     8. ALERTAS                         L.464
+     9. CONTACTOS Y PROVEEDORES         L.573 */
 
 
-/* mondayOfDate/isoWeekNum viven ahora en assets/lib/utils.js — antes eran una
+/* ── CONSTANTES Y ESTADO ──
+   mondayOfDate/isoWeekNum viven ahora en assets/lib/utils.js — antes eran una
    copia local (mismo algoritmo que turnos.js), duplicada porque esta página
    no carga turnos.js; ahora ambas cargan utils.js en su lugar. */
 function _todayDowIdx(){ var jsDay=new Date().getDay(); return jsDay===0?6:jsDay-1; } // 0=Lunes...6=Domingo, igual que turnos.dia
@@ -38,6 +68,22 @@ function _escHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
 function _uniq(arr){ var seen={},out=[]; arr.forEach(function(x){ if(x&&!seen[x]){seen[x]=true;out.push(x);} }); return out; }
 
 /* ── Navegación entre iframes ─────────────────────────────────────────── */
+/**
+ * Lleva al usuario a otra pestaña del shell y, opcionalmente, a una sección
+ * concreta dentro de ella — usado en el onclick de las cards de Inicio
+ * ("Reservas hoy" → Reservas/res, alertas → Turnos/Stock...).
+ *
+ * El cambio de pestaña (window.parent.goTo) es síncrono, pero el iframe
+ * destino puede tardar en montar su DOM — por eso goToSection() se llama
+ * 400ms después, dando tiempo a que exista fr.contentWindow.goToSection.
+ * Si el shell no existe (página abierta suelta) o el iframe no expone esa
+ * función, falla en silencio (try/catch) en vez de romper la navegación
+ * básica, que sí puede ya haber funcionado.
+ *
+ * @param {string} page - Id de la pestaña destino ('turnos'|'reservas'|'stock'|...).
+ * @param {string} [section] - Sección a la que saltar dentro de esa pestaña
+ *   (se le pasa tal cual a goToSection() del iframe destino).
+ */
 function navTo(page, section){
   try{
     window.parent.goTo(page);
@@ -79,6 +125,7 @@ function navToStockReponer(){
   }catch(e){}
 }
 
+/* ── INICIALIZACIÓN Y CARGA DE DATOS ── */
 window.addEventListener('load', function(){
   try{ if(new URLSearchParams(window.location.search).get('mock')==='1') showMockBadge(); }catch(e){}
   setTimeout(initDashboard, 300);
@@ -142,6 +189,19 @@ function _weekRangeLabel(monday){
 }
 
 /* ── Tu semana ─────────────────────────────────────────────────────────── */
+/**
+ * Pinta el mini-grid "Tu semana": dos filas (Mediodía/Noche) × 7 días con un
+ * check en los días donde el usuario tiene turno activo, y una celda de
+ * vacaciones (🌴) en los días sin turno que caen dentro de un periodo de
+ * `trabajadores_vacaciones` — nunca sobrescribe un día con turno real, la
+ * marca de vacaciones solo se pinta si ese día no tiene check.
+ * Sin sesión (myId null) muestra un estado vacío pidiendo iniciar sesión,
+ * sin llegar a consultar Supabase.
+ *
+ * @param {string} monday - Lunes de la semana actual, 'YYYY-MM-DD'.
+ * @param {number} todayIdx - Día de hoy (0=lunes...6=domingo) para resaltarlo.
+ * @param {string|null} myId - trabajador_id (UUID) del usuario logueado.
+ */
 async function _loadTuSemana(monday, todayIdx, myId){
   var grid=document.getElementById('week-grid'); if(!grid) return;
   var legend=document.getElementById('week-legend');
@@ -219,6 +279,18 @@ function _slotNamesHtml(list, myId){
     return p.id===myId ? '<span class="name-me">'+esc+'</span>' : esc;
   }).join(', ');
 }
+/**
+ * Pinta la card "Turnos de hoy": una fila por slot (Sala med/noc, Cocina
+ * med/noc) con los nombres asignados hoy (el propio usuario resaltado, ver
+ * _slotNamesHtml) y, si el slot no cubre el mínimo de WeekConfig
+ * (_requiredForToday), cuántos huecos faltan y un punto de aviso (dot-warn).
+ * Segunda query encadenada (no en el Promise.all de initDashboard) porque
+ * necesita los trabajador_id de la primera para resolver sus nombres.
+ *
+ * @param {string} monday - Lunes de la semana actual, 'YYYY-MM-DD'.
+ * @param {number} todayIdx - Día de hoy (0=lunes...6=domingo) a consultar.
+ * @param {string|null} myId - trabajador_id del usuario logueado, para resaltar su nombre.
+ */
 async function _loadTurnosHoy(monday, todayIdx, myId){
   var card=document.getElementById('turnos-hoy-card'); if(!card) return;
   var res = await _sb.from('turnos').select('slot, trabajador_id')
@@ -229,6 +301,7 @@ async function _loadTurnosHoy(monday, todayIdx, myId){
   var nameById={};
   if(ids.length){
     var tRes=await _sb.from('trabajadores').select('id, nombre').in('id', ids);
+    if(tRes.error) console.error('[inicio] turnos hoy (nombres):', tRes.error.message);
     (tRes.data||[]).forEach(function(t){ nameById[t.id]=t.nombre; });
   }
   var bySlot={sm:[],sn:[],cm:[],cn:[]};
@@ -256,6 +329,14 @@ async function _loadTurnosHoy(monday, todayIdx, myId){
 }
 
 /* ── Reservas hoy ──────────────────────────────────────────────────────── */
+/**
+ * Pinta la card "Reservas hoy": total de mesas/aforo del local, y una fila
+ * por franja (Mediodía/Noche, corte a las 16:00) con nº de reservas, barra
+ * de ocupación y badge de pendientes de confirmar — ver _resRow(), que hace
+ * el pintado real de cada fila. Las canceladas se excluyen de todo el cómputo.
+ *
+ * @param {string} todayStr - Fecha de hoy, 'YYYY-MM-DD'.
+ */
 async function _loadReservasHoy(todayStr){
   var card=document.getElementById('reservas-card'); if(!card) return;
   var results = await Promise.all([
@@ -283,6 +364,21 @@ async function _loadReservasHoy(todayStr){
     _resRow('Mediodía', med.length, medMesas, totalMesas, medPend)+
     _resRow('Noche', noc.length, nocMesas, totalMesas, nocPend);
 }
+/**
+ * HTML de una fila de _loadReservasHoy() (Mediodía o Noche). Sin reservas
+ * (`count===0`) pinta un estado vacío en verde "Día libre" en vez de la
+ * barra — evitar una barra al 0% que se leería como "todo ocupado" por
+ * error. Con reservas, calcula % de ocupación (para el color de la barra:
+ * normal / 'warn' >80% / 'full' 100%) y añade el badge naranja ⏳ solo si
+ * `pending` > 0 (reservas con estado='pendiente' sin confirmar).
+ *
+ * @param {string} label - 'Mediodía' | 'Noche'.
+ * @param {number} count - Nº de reservas (no canceladas) de esa franja.
+ * @param {number} mesasOcupadas - Suma de mesas reservadas en esa franja.
+ * @param {number} totalMesas - Mesas totales del local (todas las zonas activas).
+ * @param {number} pending - Cuántas de esas reservas están sin confirmar.
+ * @returns {string} HTML de la fila.
+ */
 function _resRow(label, count, mesasOcupadas, totalMesas, pending){
   if(count===0){
     return '<div class="reservas-row">'+
@@ -307,23 +403,36 @@ function _resRow(label, count, mesasOcupadas, totalMesas, pending){
 }
 
 /* ── Próximo evento ────────────────────────────────────────────────────── */
+/**
+ * Pinta la card "Próximo evento": el primer evento con fecha >= hoy (nunca
+ * pasados), con su nº de asistentes confirmados (dudosos excluidos) frente
+ * al aforo de las zonas que tenga asociadas, y un badge "Hoy"/"Mañana"/fecha
+ * corta (_dateBadge). Sin eventos futuros, oculta toda la sección
+ * (#evento-sec) en vez de mostrar una card vacía.
+ *
+ * @param {string} todayStr - Fecha de hoy, 'YYYY-MM-DD'.
+ */
 async function _loadProximoEvento(todayStr){
   var sec=document.getElementById('evento-sec'), card=document.getElementById('evento-card');
   if(!sec||!card) return;
   var res = await _sb.from('eventos').select('id, descripcion, fecha, hora')
     .eq('local_id',LOCAL_ID).gte('fecha',todayStr).order('fecha').order('hora').limit(1);
-  if(res.error || !res.data || !res.data.length){ sec.style.display='none'; return; }
+  if(res.error){ console.error('[inicio] próximo evento:', res.error.message); sec.style.display='none'; return; }
+  if(!res.data || !res.data.length){ sec.style.display='none'; return; }
   var ev=res.data[0];
   var results = await Promise.all([
     _sb.from('evento_asistentes').select('acompanantes, dudoso').eq('evento_id', ev.id),
     _sb.from('evento_zonas').select('zona_id').eq('evento_id', ev.id),
   ]);
   var asiRes=results[0], zonasRes=results[1];
+  if(asiRes.error) console.error('[inicio] próximo evento (asistentes):', asiRes.error.message);
+  if(zonasRes.error) console.error('[inicio] próximo evento (zonas):', zonasRes.error.message);
   var totalPax=(asiRes.data||[]).filter(function(a){return !a.dudoso;}).reduce(function(s,a){return s+1+(Number(a.acompanantes)||0);},0);
   var aforo=null;
   var zonaIds=(zonasRes.data||[]).map(function(z){return z.zona_id;});
   if(zonaIds.length){
     var zpaxRes = await _sb.from('zonas').select('pax').in('id', zonaIds);
+    if(zpaxRes.error) console.error('[inicio] próximo evento (aforo):', zpaxRes.error.message);
     aforo=(zpaxRes.data||[]).reduce(function(s,z){return s+(z.pax||0);},0);
   }
   var badge=_dateBadge(ev.fecha, todayStr);
@@ -361,6 +470,13 @@ function _renderAlertCard(el, n, label, variant, emptyLabel){
     el.innerHTML='<div class="alert-n ok">✓</div><div class="alert-bottom"><div class="alert-txt">'+_escHtml(emptyLabel)+'</div><i class="ti ti-chevron-right alert-arr" aria-hidden="true"></i></div>';
   }
 }
+/**
+ * Cuenta productos bajo mínimos y pinta la card "Stock" con _renderAlertCard()
+ * — rojo con el nº si hay alguno, verde "Stock en orden" si no. Usa
+ * getStockStatus() (assets/lib/stock-status.js) para decidir qué cuenta como
+ * "bajo mínimos" (red o amb), el mismo criterio que Stock/Pedido — nunca un
+ * cálculo propio que pudiera divergir del resto de la app.
+ */
 async function _loadAlertaStock(){
   var el=document.getElementById('alert-stock'); if(!el) return;
   var res = await _sb.from('stock_productos').select('cantidad, minimo').eq('local_id',LOCAL_ID).eq('activo',true);
@@ -382,6 +498,8 @@ async function _countConflictosTurnos(monday){
       _sb.from('disponibilidad').select('trabajador_id, dia_semana, turno').in('trabajador_id', ids),
     ]);
     var trabRes=results[0], dispoRes=results[1];
+    if(trabRes.error) throw trabRes.error;
+    if(dispoRes.error) throw dispoRes.error;
     var maxById={};
     (trabRes.data||[]).forEach(function(t){ maxById[t.id]=t.max_turnos; });
     var dispoSet={};
@@ -404,8 +522,15 @@ async function _loadAlertaConflictos(monday){
   var n=await _countConflictosTurnos(monday);
   _renderAlertCard(el, n, 'conflicto'+(n===1?'':'s')+' en turnos', 'warn', 'Turnos sin conflictos');
 }
-/* Solo se muestra si hay pendientes — a diferencia de las otras dos alertas
-   no tiene estado "ok" visible, se oculta del todo (no es una card fija). */
+/**
+ * Cuenta reservas de hoy con estado='pendiente' y muestra (u oculta) la
+ * card "Reservas por confirmar". A diferencia de _loadAlertaStock()/
+ * _loadAlertaConflictos(), esta alerta no tiene estado "ok" visible: si
+ * n===0 se oculta del todo (display:none) en vez de pintar una card verde
+ * fija — no es una de las dos alertas permanentes del dashboard.
+ *
+ * @param {string} todayStr - Fecha de hoy, 'YYYY-MM-DD'.
+ */
 async function _loadAlertaReservas(todayStr){
   var el=document.getElementById('alert-reservas'); if(!el) return;
   var res = await _sb.from('reservas').select('id').eq('local_id',LOCAL_ID).eq('fecha',todayStr).eq('estado','pendiente');

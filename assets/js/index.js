@@ -1,9 +1,54 @@
 /* index.html — shell de la app (login, navegación entre iframes, perfil, notificaciones).
    Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), toast/showModal/closeModal/stepField/formatDateLabel (ui-helpers.js), MOCK_PROFILES (assets/mock/profiles.js).
-   Expone funciones/variables globales (goTo, applySession, sbVerifyLogin, ls_init, currentUser, etc.) en window — sin IIFE/module — para que los iframes (fr-turnos, fr-reservas, fr-admin, fr-inicio) puedan llamarlas via window.parent.*  */
+   Expone funciones/variables globales (goTo, applySession, sbVerifyLogin, ls_init, currentUser, etc.) en window — sin IIFE/module — para que los iframes (fr-turnos, fr-reservas, fr-admin, fr-inicio) puedan llamarlas via window.parent.*
+
+   NOMBRES: cada mini-feature tiene su propio prefijo de función en vez de
+   (o además de) el `_` de "privado" que usan turnos.js/stock.js/worker-modal.js/
+   inicio.js — ls_ (login steps), pin_ (teclado PIN), cp_ (cambio de PIN),
+   ob_ (onboarding), prf_ (mi perfil), sa_ (superadmin), aj_ (ajustes),
+   notif_ (notificaciones), inv_ (invite link). Es deliberado y consistente:
+   con 9 features sin relación entre sí en un solo archivo, el prefijo dice
+   "a qué feature pertenece esta función" — algo que un `_` genérico no
+   puede expresar. La única inconsistencia real encontrada: ZONAS (12
+   funciones, L.470) es la única mini-feature comparable que NO tiene
+   prefijo propio (podría ser zon_/zona_) — no se ha renombrado porque
+   exigiría tocar también los onclick="..." de index.html, fuera de lo que
+   este archivo por sí solo puede garantizar sin riesgo.
+
+   ÍNDICE (línea aprox. — no reordenado físicamente; el archivo es mucho más
+   grande de lo que sugiere una lectura rápida, son 9 mini-features aparte
+   del login/navegación — Zonas, Mi Perfil, Notificaciones, Superadmin,
+   Ajustes, PIN, Cambio de PIN, Onboarding, Invite Link):
+     1. CONSTANTES Y CONFIGURACIÓN    L.48  (isSafeImg...) / L.161 (currentUser,
+                                              locales mock) — el resto de constantes
+                                              (LS_KEY, PAGES, *_DEFAULTS, PIN_LEN...)
+                                              se declaran junto a su sección, no aquí.
+     2. LOGIN — SPLASH Y TELÉFONO     L.1029 (LOGIN STEPS: ls_init/ls_show/
+                                              ls_onTelInput/ls_goPin/ls_back)
+     3. LOGIN — PIN Y SESIÓN          L.104 (sbVerifyLogin) / L.243 (applySession) /
+                                              L.929 (PIN LOGIN: pin_press/pin_submit) /
+                                              L.1237 (CAMBIO DE PIN, primer acceso)
+     4. SESIÓN Y ROLES                L.243 (applySession) / L.319 (doLogout)
+     5. NAVEGACIÓN ENTRE IFRAMES      L.365
+     6. SHELL — HEADER Y AVATAR       L.51  (_renderHeaderAvatar) / L.452 (PERFIL SHEET)
+     7. UTILIDADES                    L.48  (isSafeImg) / L.83 (getActiveLocal) / L.463 (rolLabel)
+     · OFFLINE DETECTION              L.335
+     · CERRAR TODO                    L.469
+     · ZONAS                          L.482
+     · MI PERFIL                      L.606
+     · NOTIFICACIONES                 L.794
+     · SUPERADMIN PANEL               L.814
+     · AJUSTES                        L.860
+     · ONBOARDING PRIMER ACCESO       L.1307
+     · INVITE LINK                    L.1419
+
+   Ver el flujo de login completo documentado justo antes de ls_init(). */
 
 
+/* ── UTILIDADES ── */
 function isSafeImg(u){return typeof u==='string'&&u.trim()!==''&&!u.includes('${');}
+
+/* ── SHELL — HEADER Y AVATAR ── */
 /* Avatar del header (esquina superior derecha) — foto si existe, si no las iniciales. */
 function _renderHeaderAvatar(){
   var av=document.getElementById('header-avatar');if(!av||!currentUser)return;
@@ -113,6 +158,7 @@ async function sbVerifyLogin(tel, pin){
 }
 
 
+/* ── CONSTANTES Y CONFIGURACIÓN ── */
 var currentUser = null; // se rellena al hacer login
 
 /* Restore saved tel on load */
@@ -178,6 +224,22 @@ var LS_KEY = 'ag_session';
    ahora mismo: en vez de "id"/"local_id" es porque así los usan ya decenas
    de sitios en el resto de módulos (worker-modal.js, admin.js, turnos.js…);
    renombrarlos ahora sería un cambio grande y ajeno a este flujo de login. */
+/**
+ * Punto de llegada común de todo el login (ver FLUJO DE LOGIN en ls_init())
+ * y también del auto-login al recargar con sesión guardada
+ * (ls_refreshAndApply). Efectos, en orden: rellena currentUser; pinta
+ * avatar/botón superadmin; guarda sesión en localStorage ('lg_session'
+ * siempre, para que los iframes hermanos la lean vía window.parent.currentUser;
+ * LS_KEY solo si `remember`); carga la config del local (sbLoadLocal);
+ * muestra/oculta pestañas según el rol (Inicio, Admin — crea el iframe de
+ * Admin al vuelo la primera vez que hace falta); navega a la pestaña por
+ * defecto (goTo); refresca permisos de Stock si ya estaba cargado de una
+ * sesión anterior; hace la transición visual login→app; y comprueba el
+ * onboarding de primer acceso.
+ * @param {object} profile - Perfil normalizado (de sbVerifyLogin/MOCK_PROFILES/cp_submit):
+ *   {nombre, initials, rol, seccion, localId, _sbId, tel, email, foto_url, visible}.
+ * @param {boolean} [remember] - Si true, la sesión sobrevive a recargar la página (LS_KEY).
+ */
 function applySession(profile, remember){
   currentUser = {
     nombre:   profile.nombre,
@@ -247,6 +309,13 @@ function applySession(profile, remember){
 
 /* auto-login — se ejecuta desde ls_init (DOMContentLoaded), no antes */
 
+/**
+ * Cierra la sesión: borra currentUser y ambas claves de localStorage
+ * (LS_KEY — "recordar sesión" — y 'lg_session' — la que leen los
+ * iframes), cierra cualquier modal abierto (closeAll) y hace la
+ * transición visual inversa a applySession() (app → pantalla de login,
+ * de vuelta al primer paso, ls-tel).
+ */
 function doLogout(){
   /* limpiar sesión guardada */
   try{ localStorage.removeItem(LS_KEY); }catch(e){}
@@ -311,6 +380,19 @@ window.addEventListener('message', function(e){
   }
 });
 
+/**
+ * Cambia qué pestaña/iframe se ve. Los iframes (Turnos, Admin...) son
+ * hermanos que quedan vivos en memoria mientras dura la sesión — goTo()
+ * solo alterna la clase .active, nunca recarga un iframe. También: cierra
+ * DatePicker/detalle de mesas abiertos en el iframe que se abandona
+ * (evita popups huérfanos visibles tras cambiar de pestaña); llama a
+ * resetView() del iframe destino, si la expone, para que siempre aparezca
+ * en su vista por defecto; y, si hay un guardado de trabajador pendiente
+ * de reflejar en Admin o Turnos (pendingWorkerReload, marcado por el
+ * listener de postMessage 'worker_updated' más arriba), dispara el
+ * refresco real justo al entrar en esa pestaña — no antes, no si no hace falta.
+ * @param {string} page - Id de la pestaña destino ('inicio'|'turnos'|'reservas'|'stock'|'admin').
+ */
 function goTo(page){
   PAGES.forEach(function(p){
     var fr = document.getElementById('fr-'+p);
@@ -602,6 +684,7 @@ async function prf_deletePhoto(){
       _prf_syncSession();
       _renderHeaderAvatar();
     }catch(e){
+      console.error('prf_deletePhoto',e);
       toast('Error al quitar foto: '+(e.message||String(e)));
     }
   }
@@ -635,6 +718,7 @@ async function prf_saveProfile(){
         var res=await _sb.from('trabajadores').update(payload).eq('id',currentUser._sbId);
         if(res.error)throw res.error;
       }catch(e){
+        console.error('prf_saveProfile',e);
         toast('Error al guardar: '+(e.message||String(e)));
         if(saveBtn)saveBtn.disabled=false;
         return;
@@ -652,10 +736,12 @@ async function prf_saveProfile(){
           var urlRes=_sb.storage.from('avatares').getPublicUrl(path);
           var photoUrl=urlRes.data&&urlRes.data.publicUrl?urlRes.data.publicUrl+'?t='+Date.now():null;
           if(photoUrl){
-            await _sb.from('trabajadores').update({foto_url:photoUrl}).eq('id',currentUser._sbId);
+            var fotoRes=await _sb.from('trabajadores').update({foto_url:photoUrl}).eq('id',currentUser._sbId);
+            if(fotoRes.error)throw fotoRes.error;
             currentUser.foto_url=photoUrl;
           }
         }catch(photoErr){
+          console.error('prf_saveProfile (foto)',photoErr);
           toast('Foto no guardada: '+(photoErr.message||String(photoErr)));
         }
       }
@@ -697,6 +783,7 @@ async function toggleMiVisibilidad(el){
       if(frTurnos&&frTurnos.contentWindow&&typeof frTurnos.contentWindow.sbInitTrabajadores==='function') frTurnos.contentWindow.sbInitTrabajadores();
     }catch(e){}
   }catch(e){
+    console.error('toggleMiVisibilidad',e);
     el.checked=prev!==false;
     currentUser.visible=prev;
     _prf_syncSession();
@@ -928,12 +1015,69 @@ function forgot_whatsapp(){
   window.open('https://wa.me/' + adminTel + '?text=' + msg, '_blank');
 }
 
+/**
+ * Alias legacy de pin_submit() — el login real ya no se dispara con un botón
+ * "Entrar" propio (se envía solo al completar el 4º dígito del PIN, ver
+ * pin_press()), esta función se conserva porque el listener de Enter global
+ * (más abajo, "Permitir Enter en el formulario de login") todavía la llama
+ * por su nombre histórico.
+ */
 function doLogin(){
-  /* Legacy — redirige a pin_submit */
   pin_submit();
 }
 
-/* ══ LOGIN STEPS ══ */
+/* ══ LOGIN STEPS ══
+   FLUJO DE LOGIN COMPLETO (ls_init(), abajo, es el punto de entrada — se
+   llama una sola vez, en DOMContentLoaded):
+
+   1. ls_init() decide qué pantalla mostrar primero, por prioridad:
+      a) ?tel=X en la URL (enlace de invitación de prev_sendInvite(),
+         worker-modal.js) → rellena el teléfono y, tras 1200ms, salta
+         DIRECTO a la pantalla de PIN (ls_goPin). Gana siempre, incluso si
+         hay una sesión guardada de OTRO usuario en este dispositivo — ver
+         el comentario dentro de ls_init().
+      b) Si no hay ?tel= pero sí sesión guardada (localStorage[LS_KEY]) →
+         muestra el spinner de carga y llama a ls_refreshAndApply(cached):
+         reverifica esos datos contra Supabase con un timeout de 5s
+         (Promise.race) y, si responde a tiempo, aplica la versión fresca;
+         si no hay red o hay timeout, aplica igualmente la versión
+         cacheada (con un toast avisando) — nunca deja al usuario
+         atascado en el spinner por falta de conexión.
+      c) Sin ?tel= y sin sesión → pantalla de teléfono normal (ls-tel), tras
+         1500ms (tiempo del splash inicial, #ls-splash, visible por
+         defecto en el HTML).
+   2. Pantalla de teléfono (ls-tel): el usuario escribe su móvil y pulsa
+      "Continuar" (ls_goPin) → pasa a la pantalla de PIN (ls-pin).
+   3. Pantalla de PIN (ls-pin): pin_press() acumula dígitos; al llegar a 4
+      (PIN_LEN) dispara pin_submit() automáticamente, sin botón "Entrar".
+      pin_submit() tiene DOS caminos:
+      a) Atajo de desarrollo: si el teléfono es literalmente 'admin' /
+         'superadmin' / 'encargado' / 'trabajador' Y el PIN es '1234' →
+         usa MOCK_PROFILES en vez de Supabase (TODO: quitar en producción).
+      b) Camino real: sbVerifyLogin(tel, pin) contra la tabla
+         `trabajadores` — compara el teléfono normalizado (cleanTel) y el
+         hash del PIN (hashPin, mismo algoritmo que al invitar). Según su
+         `status`: 'not_found'/'pending'/'wrong_pin'/'error' → pin_error()
+         + toast explicando qué pasó; 'must_change_pin' → guarda el
+         trabajador en _pendingWorker y abre la pantalla de cambio de PIN
+         (cp_open); 'ok' → applySession(profile, remember).
+   4. Cambio de PIN obligatorio (ls-change-pin, solo si must_change_pin
+      era true — primer acceso con el PIN temporal "1234"): cp_submit()
+      pide el PIN nuevo dos veces, lo hashea y hace UPDATE de
+      pin_hash/must_change_pin/activo antes de poder continuar — entonces
+      sí llama a applySession() con los datos de _pendingWorker.
+   5. applySession(profile, remember) es el final común de TODOS los
+      caminos anteriores: rellena currentUser, pinta el header/avatar,
+      decide qué pestañas ve el rol, guarda la sesión en localStorage
+      (siempre en 'lg_session' para los iframes; también en LS_KEY si
+      `remember` estaba marcado) y hace la transición visual de la
+      pantalla de login a la app. */
+/**
+ * Punto de entrada del login — decide qué pantalla mostrar primero (ver el
+ * FLUJO DE LOGIN completo justo arriba). Se registra una sola vez, como
+ * listener de DOMContentLoaded (al final de este archivo), nunca se llama
+ * a mano desde otro sitio.
+ */
 function ls_init(){
   /* Enlace de invitación con teléfono prellenado (?tel=...) — lo genera
      prev_sendInvite() en worker-modal.js al enviar la invitación por
@@ -988,6 +1132,7 @@ async function ls_refreshAndApply(cached){
     ]);
     hideRing();
     if(result.error || !result.data){
+      console.error('ls_refreshAndApply: sin datos frescos, usando sesión cacheada —', result.error && result.error.message);
       toast('Sin conexión — usando datos de la última sesión');
       applySession(cached);
       return;

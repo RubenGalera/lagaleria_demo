@@ -1,5 +1,10 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.31 — Auditoría inicio.js + index.js (agosto 2026)
+- Auditoría inicio.js: índice de 9 secciones, JSDoc en 8 funciones, dependencias externas documentadas, fix manejo de errores en Promise.all de _countConflictosTurnos, 5 huecos de error logging cubiertos
+- Auditoría index.js: índice con 16 secciones reales, JSDoc en 5 funciones clave, flujo de login documentado completo (incluyendo rama ?tel=, must_change_pin y mock profiles de desarrollo), fix prf_saveProfile foto URL actualizaba memoria aunque fallara BD, 6 huecos de error logging cubiertos
+- Convención de prefijos por feature documentada en index.js: ls_, prf_, pin_, cp_, ob_, sa_, aj_, notif_, inv_
+- Deuda técnica documentada: date-picker.js con copias privadas de utils (intencional), Zonas sin prefijo propio, prev_sendInvite/prev_resetPin con prefijo inconsistente
 
 ## v0.2.30 — Auditoría stock.js + worker-modal.js + refactoring utils (agosto 2026)
 - Auditoría stock.js: índice de secciones, JSDoc en 9 funciones clave, glosario de variables globales, fix manejo de errores en adjustQty() (Promise.all sin catch)
