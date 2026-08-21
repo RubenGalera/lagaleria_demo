@@ -72,6 +72,26 @@ async function sbLoadEventos(desde, hasta) {
   return data || [];
 }
 
+/**
+ * Fechas (solo la columna `fecha`, sin el resto de columnas de sbLoadEventos)
+ * de todos los eventos del año actual + el siguiente — usado únicamente para
+ * pintar los puntos del DatePicker, que necesita cubrir cualquier mes al que
+ * el usuario navegue, no solo los 7 días de la semana cargada en el grid
+ * (eso lo sigue resolviendo sbLoadEventos/loadWeekFromSupabase aparte).
+ * @returns {Promise<{date:string}[]>} — formato que espera DatePicker.setEvents().
+ */
+async function sbLoadTodosLosEventos() {
+  if (!_sb) { console.warn('sbLoadTodosLosEventos: Supabase no disponible'); return []; }
+  const { data, error } = await _sb.from('eventos')
+    .select('fecha')
+    .eq('local_id', LOCAL_ID)
+    .gte('fecha', `${new Date().getFullYear()}-01-01`)
+    .lte('fecha', `${new Date().getFullYear() + 1}-12-31`)
+    .order('fecha');
+  if (error) { console.warn('sbLoadTodosLosEventos:', error.message); return []; }
+  return (data || []).map(e => ({ date: e.fecha }));
+}
+
 async function sbInitTrabajadores() {
   if (!_sb) { console.warn('[SB] sbInitTrabajadores: _sb no disponible'); return; }
 
@@ -308,7 +328,11 @@ async function loadWeekFromSupabase(semanaInicio) {
     .sort((a, b) => a.dia - b.dia);
 
   buildGrid(); renderW(); updateStats();
-  if (window.DatePicker) DatePicker.setEvents(eventosToPickerDates());
+  /* No se llama a DatePicker.setEvents() aquí: sobreescribiría los puntos de
+     todo el año (cargados una vez en la inicialización, ver
+     sbLoadTodosLosEventos()) con solo los 7 días de esta semana — el
+     DatePicker necesita ver eventos de cualquier mes al que el usuario
+     navegue, no solo el de la semana activa en el grid. */
 }
 
 /* Convierte locals.galeria.eventos (dia relativo a curMonday) en [{date:'YYYY-MM-DD'}] para el DatePicker */
@@ -1556,6 +1580,7 @@ DatePicker.init({
   onChange:function(d){ _applyWeek(d); }
 });
 sbInitTrabajadores().then(()=>changeWeek(0)); /* carga diccionario nombre↔UUID, actualiza label y carga semana actual */
+sbLoadTodosLosEventos().then(evs=>{ if(window.DatePicker) DatePicker.setEvents(evs); }); /* puntos del año completo en el DatePicker, ver comentario en loadWeekFromSupabase() */
 /* Sin listener de beforeunload: cada alta/baja ya se guarda al instante
    (addTurnoToSlot/removeTurnoFromSlot), no hay nada pendiente que flushear
    al cerrar la pestaña. */

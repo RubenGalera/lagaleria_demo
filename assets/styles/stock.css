@@ -25,12 +25,6 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .oneoff-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
 .oneoff-modal-bg.show{display:flex}
 .oneoff-modal{background:var(--surf);border-radius:14px;padding:20px;width:100%;max-width:480px;border-top:1px solid var(--brd2);max-height:90vh;overflow-y:auto}
-.logo-g{display:flex;flex-direction:column;align-items:center;line-height:1}
-.logo-g-neo{font-size:7px;letter-spacing:2.5px;color:var(--acc);text-transform:uppercase;margin-bottom:1px}
-.logo-g-main{font-size:16px;color:var(--acc);font-family:Georgia,serif;letter-spacing:4px}
-.logo-g-deco{display:flex;align-items:center;gap:4px;margin-top:1px}
-.logo-g-line{width:18px;height:.5px;background:rgba(197,166,105,.4)}
-.logo-g-sub{font-size:6px;letter-spacing:2px;color:var(--acc);opacity:.6;text-transform:uppercase}
 /* .main-tabs, .mtab, .cat-bar, .cpill* → assets/styles/components.css */
 .toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 14px}
 .toolbar-right{display:flex;gap:6px}

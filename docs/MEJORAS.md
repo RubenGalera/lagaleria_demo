@@ -7,13 +7,11 @@ Prioridad:
 
 ---
 
-Añadir en docs/MEJORAS.md en la sección "Accesibilidad y UX":
-
-- Validación visual de campos obligatorios (*): patrón implementado en el modal 
+❓ PARCIAL — Validación visual de campos obligatorios (*): patrón implementado en el modal 
   de producto (components.css — .required-mark, .field-error, .field-error-msg, 
-  .field-required-legend). Replicar progresivamente en todos los modales del proyecto:
-  modal de trabajador, modal de asistente de evento, modal de proveedor/contacto, 
-  modal de reserva, modal de evento. Aplicar cuando se toque cada modal.
+  .field-required-legend). Nota: solo existe en el modal de producto (stock.js) —
+  pendiente replicar a: modal de trabajador, modal de asistente de evento,
+  modal de proveedor/contacto, modal de reserva. Aplicar cuando se toque cada modal.
 
 
 ## Navegación
@@ -21,26 +19,19 @@ Añadir en docs/MEJORAS.md en la sección "Accesibilidad y UX":
 | 🟢 | Responsive del grid de trabajadores (vista Persona en Turnos): 1 columna en móvil, 2 en tablet (768px), 3+ en desktop (≥1024px).
 
 ## Inicio — Cards del dashboard
-| 🟢 | Card "Próxima Reserva": valorar si tiene suficiente valor o quitarla para ganar espacio.
-| 🟢 | Card "Reservas hoy": conectar con BD real para mostrar zonas + disponibilidad de mesas. Al pulsar llevar a Reservas/Reservas.
-| 🟢 | Card "Eventos hoy": mostrar nombre del evento si hay uno, "Sin eventos" si no. Al pulsar llevar a Reservas/Eventos.
-| 🟢 | Card "Stock crítico": texto "Sin productos bajo mínimos" si todo está bien. Badge ámbar si hay productos bajo mínimos, rojo si hay alguno agotado. Al pulsar llevar a Stock/Pedido.
-| 🟢 | Card "Turnos planificados": al pulsar llevar a Turnos/Semana.
+| 🟢 | ❓ PARCIAL — Card "Próximo evento" (antes "Eventos hoy"): mostrar nombre del evento si hay uno, "Sin eventos" si no. Al pulsar llevar a Reservas/Eventos. Nota: implementada como "próximo evento" (no restringida a hoy); si no hay evento oculta la sección entera en vez de mostrar "Sin eventos".
+| 🟢 | ❓ PARCIAL — Card "Stock crítico": texto "Sin productos bajo mínimos" si todo está bien. Badge ámbar si hay productos bajo mínimos, rojo si hay alguno agotado. Al pulsar llevar a Stock/Pedido. Nota: no distingue ámbar de rojo — siempre pinta rojo si hay algo bajo mínimo o agotado.
 
 ## Turnos
-| 🟢 | Icono de guardado (disquete) debería estar en el shell (index) a la izquierda del botón de perfil, no dentro del iframe de Turnos.
-| 🟢 | Vista Persona — pendiente de diseño y conexión real con BD.
-| 🟢 | WeekConfig: añadir editor de hora de entrada y salida por turno.
+| 🟢 | ❓ PARCIAL — WeekConfig: añadir editor de hora de entrada y salida por turno. Nota: existe un editor de hora (editTime(), turnos.js), pero solo edita una hora por turno, no entrada+salida separadas.
 
 ## Reservas
-| 🟡 | Sistema de bloqueo de zonas por eventos: al crear un evento en una zona, bloquear esa zona para nuevas reservas ese día/turno. Si ya existe una reserva, mostrar warning para reubicarla. Eventos tienen prioridad sobre Reservas.
-| 🟢 | Estado vacío de Reservas: cuando no hay reservas ese día mostrar estado visual centrado (emoji + texto + botón "Nueva reserva") en vez de secciones MEDIODÍA/NOCHE vacías.
-| 🟢 | Modal de Evento: añadir campo "zonas ocupadas" (chips de zona) y campo "mesas" (número editable) que se descuenta del total disponible del local.
+| 🟡 | Sistema de bloqueo de zonas por eventos: al crear un evento en una zona, bloquear esa zona para nuevas reservas ese día/turno. Si ya existe una reserva, mostrar warning para reubicarla. Eventos tienen prioridad sobre Reservas. Nota: zonasBlockedHoy() (reservas.js) ya calcula las zonas bloqueadas pero no se llama desde ningún sitio — código muerto, sin efecto real todavía.
+| 🟢 | ❓ PARCIAL — Modal de Evento: añadir campo "zonas ocupadas" (chips de zona) y campo "mesas" (número editable) que se descuenta del total disponible del local. Nota: chips de zonas ocupadas implementados (#ev-zona-pills, tabla evento_zonas); campo "mesas" pendiente.
 | 🟡 | Página pública de inscripción a eventos: URL pública por evento (sin login) donde el cliente ve el cartel, el menú y rellena nombre, teléfono y número de acompañantes. Los datos se guardan directamente en la tabla de asistentes pendientes de confirmar por el admin. Requiere rutas públicas — mejor implementar con Next.js en la migración a React.
 
 ## Stock
 | 🟠 | Pedido: filtro por proveedor — dropdown en cabecera para ver solo productos de ese proveedor y enviar WhatsApp dirigido a su número de teléfono. Al filtrar, mostrar dos grupos: 1) Productos bajo mínimos (rojo, arriba) con cantidad sugerida automática precargada (hasta cubrir el mínimo) editable con +/-, stock actual y mínimo visibles como referencia; 2) Resto de productos del proveedor (gris, abajo) con cantidad 0 editable con +/-, stock actual y mínimo visibles como referencia. Solo los productos con cantidad > 0 se incluyen en el mensaje de WhatsApp.
-| 🟢 | Productos puntuales en Pedido: al pulsar sobre una card, abrir modal de edición con campos rellenos (mismo modal que añadir, pero con datos precargados).
 | 🟢 | Productos archivados: mostrarlos agrupados al final de su categoría en gris, no mezclados con los activos.
 | 🟢 | Etiqueta de tipo de producto en card de inventario: actualmente eliminada. Revisar si es necesario recuperarla cuando se implemente el filtro por proveedor en Pedidos.
 | 🟡 | Ciclo completo de pedidos — guardar pedido al enviarlo por WhatsApp (estado: pendiente → en_reparto → recibido), vista de pedidos en reparto en el dashboard de Inicio, y confirmación de recepción que suma automáticamente las cantidades al stock. Permite verificar que lo recibido coincide con lo pedido y editar diferencias antes de confirmar. Solo accesible para Admin y Encargado. Requiere tabla `pedidos` en BD con estado, proveedor_id, fecha y productos en JSON.
@@ -49,6 +40,9 @@ Añadir en docs/MEJORAS.md en la sección "Accesibilidad y UX":
 ## Admin
 | 🟢 | Descripción de cards "Stock · Categorías" y "Stock · Proveedores": revisar que el texto descriptivo esté actualizado.
 | 🟢 | Stock · Ubicaciones: card en Admin para que cada local gestione sus propias ubicaciones (crear/editar/borrar/reordenar). Necesario cuando la app escale a múltiples locales. La tabla stock_ubicaciones ya existe con local_id — solo falta la UI de gestión.
+
+## Futuro (multi-local)
+- Selector de local dinámico: N locales desde Supabase, no clases CSS hardcodeadas por local. Logo por local: imagen PNG desde Supabase. Colores ya preparados via sbLoadLocal() con --nav/--acc/--surf-nav/--nav-brd.
 
 ## Notificaciones (sistema futuro)
 | 🟡 | Notificar al admin cada lunes que puede planificar los turnos de la semana siguiente. Al pulsar, llevar directamente a Turnos/semana siguiente.
@@ -69,8 +63,7 @@ Los siguientes componentes tienen estilos distintos en cada página que debería
 - `.modal-sub` — font-size inconsistente entre turnos.css y components.css.
 
 ### Duplicaciones JS
-- `getAuthToken()` y `supaFetch()` — reimplementadas casi idénticas en inicio.js y admin.js en paralelo al cliente _sb de supabase-client.js. Candidato a extraer a módulo compartido.
-- `MESES_ES`, `isoWeekNum()`, `isoWeekYear()`, `mondayOfDate()` — duplicados entre turnos.js y date-picker.js (privados en IIFE, no expuestos). Exponer en API pública de DatePicker y eliminar copias de turnos.js.
+- ❓ PARCIAL — `MESES_ES`, `isoWeekNum()`, `isoWeekYear()`, `mondayOfDate()` — duplicados entre turnos.js y date-picker.js (privados en IIFE, no expuestos). Exponer en API pública de DatePicker y eliminar copias de turnos.js. Nota: turnos.js ya usa las copias de utils.js (isoWeekNum/mondayOfDate/MESES_ES), esa parte de la duplicación está resuelta — pero date-picker.js sigue con su propia copia privada en IIFE, así que la duplicación no ha desaparecido, solo cambió de sitio (utils.js ↔ date-picker.js).
 
 ### Duplicación interna en admin.css
 `.acc-block`, `.acc-block-title`, `.vac-section` y `.modal-note` definidos dos veces dentro del mismo archivo. No es duplicado con components.css, es consigo mismo. Se conservó para no alterar qué regla gana la cascada.
@@ -184,7 +177,7 @@ añade en mejoras, que la ubicacion del trabajador deberia ser mas determinante,
 
 
 
-añade tb en mejoras que actualemnte en el modal de trabajadores, en hora especial de entrada, se añade una etiqueta sobre el trabajador indicadndo la hora extra que le corresponde ese turno, hay dos cosas que quiero tener en cuenta para esta etiqueta, La primera esq actualmente se ve doble en el grid, si pones a las 14:00, se ve tambien en el turno de noche, que debe entrar a esa hora, cuando deberia interpretar que ese texto deberia salir solo en el turno de medio dia por logia horaria. como segundo es que en algunos casos a los trabajadores no solo se les pone hora en el grid, sino tb algun texto tipo (sala) para dar indicaciones adicionales de donde va en ese turno, deberiamosa añadir un boton de + Añadir nota especial con un texto para ese turno
+**Pendiente:** Botón "+ Añadir nota especial" en el modal de restricciones del trabajador — permite al admin añadir una nota visible en el chip del grid para un día/turno concreto.
 
 ---
 

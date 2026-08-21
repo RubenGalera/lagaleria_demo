@@ -7,26 +7,6 @@
 :root{ --faint:#5a6a70; }
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;transition:background .3s,color .3s;padding-bottom:0}
 
-/* ── NAVBAR ── */
-.logo-g{display:flex;flex-direction:column;align-items:center;line-height:1}
-.logo-g-neo{font-size:7px;letter-spacing:2.5px;color:var(--acc);text-transform:uppercase;margin-bottom:1px}
-.logo-g-main{font-size:16px;color:var(--acc);font-family:Georgia,serif;letter-spacing:4px}
-.logo-g-deco{display:flex;align-items:center;gap:4px;margin-top:1px}
-.logo-g-line{width:18px;height:.5px;background:rgba(197,166,105,.4)}
-.logo-g-sub{font-size:6px;letter-spacing:2px;color:var(--acc);opacity:.6;text-transform:uppercase}
-.logo-s{display:flex;flex-direction:column;align-items:center;line-height:1}
-.logo-s-main{font-size:18px;color:#fff;font-family:Georgia,serif;letter-spacing:2px;font-weight:700}
-.logo-s-sub{font-size:7px;letter-spacing:2px;color:rgba(255,255,255,.65);text-transform:uppercase;margin-top:2px}
-/* local switcher — responsive */
-.local-sw{display:flex;gap:3px;background:rgba(0,0,0,.25);border-radius:8px;padding:3px}
-.lbtn{border:none;border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer;font-weight:600;background:transparent;color:rgba(255,255,255,.45);transition:all .2s;white-space:nowrap}
-.lbtn.active-g{background:var(--acc);color:var(--surf2)}
-.lbtn.active-s{background:#fff;color:#A32B2A}
-/* compact selector for small screens */
-.local-sel-wrap{display:none}
-.local-sel{background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:5px 10px;font-size:12px;color:#fff;font-weight:600;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;padding-right:24px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 6px center}
-@media(max-width:360px){.local-sw{display:none}.local-sel-wrap{display:block}}
-
 /* ── BOTTOM NAV ── */
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;height:var(--bnav-h);background:var(--surf2);border-top:1px solid var(--border);display:flex;z-index:100;transition:background .3s}
 .bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;padding:6px 4px;border:none;background:transparent;position:relative}
