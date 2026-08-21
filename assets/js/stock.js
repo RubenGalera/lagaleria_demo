@@ -765,7 +765,7 @@ async function adjustQty(id, delta) {
   try {
     const [updRes, movRes] = await Promise.all([
       _sb.from('stock_productos').update({ cantidad: newQty }).eq('id', id),
-      _sb.from('stock_movimientos').insert({ producto_id: id, delta, tipo, quien }),
+      _sb.from('stock_movimientos').insert({ producto_id: id, delta, tipo, quien, local_id: LOCAL_ID }),
     ])
     // Promise.all no rechaza por un {error} de Supabase (solo por fallo de red) —
     // hay que comprobar cada resultado a mano o un error de escritura pasa desapercibido.
@@ -1541,19 +1541,20 @@ async function renderRegistro() {
   el.regList.innerHTML = '<div class="reg-loading">Cargando registro...</div>'
   el.regTotalLbl.textContent = ''
 
-  if (!prods.length) {
-    el.regList.innerHTML = '<div class="reg-empty"><div class="reg-empty-icon">📝</div><div class="reg-empty-title">Sin registro</div><div class="reg-empty-sub">Los ajustes de inventario aparecerán aquí.</div></div>'
-    return
-  }
-
   let rows = []
   try {
-    const prodIds = prods.map(p => p.id)
-    const range   = getRegFilterRange()
+    /* Sin filtro por producto_id/prodIds a propósito: prods solo trae
+       productos activos (initStock() filtra .eq('activo', true)), pero el
+       Registro es un histórico — un movimiento de un producto ya archivado
+       debe seguir apareciendo. local_id ya aísla correctamente por tenant,
+       así que no hace falta cruzar con la lista de productos activos (y
+       cruzarla los ocultaba: los 13 movimientos existentes son de dos
+       productos ya archivados, por eso el tab se veía vacío). */
+    const range = getRegFilterRange()
     let query = _sb
       .from('stock_movimientos')
-      .select('id, producto_id, delta, tipo, quien, created_at, productos(nombre, unidad)')
-      .in('producto_id', prodIds)
+      .select('id, producto_id, delta, tipo, quien, created_at, stock_productos(nombre, unidad)')
+      .eq('local_id', LOCAL_ID)
       .order('created_at', { ascending: false })
     if (range.from) query = query.gte('created_at', range.from)
     if (range.to)   query = query.lte('created_at', range.to)
@@ -1599,7 +1600,7 @@ async function renderRegistro() {
     const typeMap = person.types[row.tipo]
     if (!typeMap) continue
     const pid = row.producto_id
-    if (!typeMap.has(pid)) typeMap.set(pid, { delta: 0, nombre: row.productos?.nombre || 'Producto', unidad: row.productos?.unidad || '' })
+    if (!typeMap.has(pid)) typeMap.set(pid, { delta: 0, nombre: row.stock_productos?.nombre || 'Producto', unidad: row.stock_productos?.unidad || '' })
     typeMap.get(pid).delta += row.delta
   }
 
@@ -1698,11 +1699,13 @@ function closeClearRegConfirm() {
 }
 async function confirmClearReg() {
   closeClearRegConfirm()
-  const prodIds = prods.map(p => p.id)
-  if (!prodIds.length) { showToast('No hay movimientos que borrar','info'); return }
   try {
+    /* Mismo criterio que renderRegistro(): local_id aísla por tenant, sin
+       cruzar con prods (solo activos) — si no, "Borrar todo" no tocaba los
+       movimientos de productos ya archivados aunque el contador sí los
+       incluyera. */
     const range = getRegFilterRange()
-    let query = _sb.from('stock_movimientos').delete().in('producto_id', prodIds)
+    let query = _sb.from('stock_movimientos').delete().eq('local_id', LOCAL_ID)
     if (range.from) query = query.gte('created_at', range.from)
     if (range.to)   query = query.lte('created_at', range.to)
     const { error } = await query

@@ -1,5 +1,39 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.36 — Registro de Stock funcional (agosto 2026)
+- Fix crítico: stock_movimientos sin local_id — añadida columna via SQL y poblada en registros existentes
+- Fix: renderRegistro() usaba nombre de tabla incorrecto 'productos' en vez de 'stock_productos' — error PGRST200 silencioso
+- Fix: renderRegistro() excluía movimientos de productos archivados — eliminado filtro por prodIds, local_id es suficiente para aislar por local
+- Fix: adjustQty() no incluía local_id en el INSERT a stock_movimientos — nuevos movimientos ya se guardan correctamente
+- Fix: confirmClearReg() tenía el mismo bug de filtrado — corregido de paso
+- Registro muestra historial completo incluyendo productos archivados
+- MEJORAS.md actualizado: contraste completo, 9 puntos resueltos eliminados, 7 actualizados a parcial
+- APP_VERSION actualizada a v0.2.36
+
+## v0.2.35 — Fixes menores + limpieza + date-picker eventos (agosto 2026)
+- Fix: date-picker de Turnos muestra puntos de evento en todos los meses — sbLoadTodosLosEventos() carga todos los eventos del local al inicializar
+- Eliminado trabajador duplicado "Jaime" de BD (sustituido por "x (Jaime)" activo)
+- Limpieza: código muerto .logo-g/.logo-s/.lbtn/.local-sel eliminado de turnos.css y stock.css
+- Fix: reservas.css .step-btn usa var(--surf2) — confirmado ya aplicado en refactor anterior
+- MEJORAS.md actualizado: 9 puntos resueltos eliminados, 7 actualizados a parcial con notas, contraste completo contra CHANGELOG y código
+- APP_VERSION actualizada a v0.2.35
+
+No tocar nada más del archivo.
+
+## v0.2.34 — Segunda pasada modo claro + unificación tokens superficie (agosto 2026)
+- Refactoring: var(--nav) → var(--surf2) en 23 elementos de admin.css, turnos.css, stock.css, reservas.css e inicio.css — --nav queda exclusivo para identidad del local (header/footer)
+- rgba(255,255,255,.XX) → rgba(0,0,0,.XX) en estados :active y borders — visibles en ambos temas
+- Hardcodeados semánticos → tokens: .tab-dot.red/amb usan var(--red)/var(--amb), .sg-cell.unavail usa var(--red), .inv-dot-blue usa var(--sm-text), .inv-banner usa var(--surf2)
+- Sistema de superficie unificado: --surf (principal), --surf2 (secundaria), --nav (local) con semántica clara
+
+## v0.2.33 — Fixes modo claro + unificación toast + productos temporales editables (agosto 2026)
+- Fix modo claro: .pin-btn, #_toast, .toast, .mclose, .step-btn usan var(--surf2) en vez de var(--nav)
+- Sistema de toast unificado: toast.js es la única fuente de verdad para todos los iframes — eliminados showToast() locales de turnos.js e inicio.js, ui-helpers.js sin hardcodeados, #_toast sin estilos inline en todos los HTML
+- toast.js busca #_toast en document y window.parent.document — funciona desde cualquier iframe
+- Productos temporales editables: al pulsar sobre uno se abre el modal con datos rellenos, saveOneoff() hace INSERT o UPDATE según contexto
+- stopPropagation en botón ✕ de producto temporal para no abrir el modal al borrar
+- Fix: turnos.html #toast renombrado a #_toast, cargado toast.js
+
 ## v0.2.32 — Panel de ajustes, modo claro y sistema de tokens por local (agosto 2026)
 - Panel de Ajustes completo: selector Oscuro/Claro/Sistema, vibración al pulsar, sonido de notificaciones, cambiar PIN, versión
 - Modo claro implementado con tokens CSS completos — fondo crema cálido, cards blancas, alertas con colores semánticos
