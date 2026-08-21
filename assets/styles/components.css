@@ -262,7 +262,7 @@
 
 .main-tabs {
   display: flex;
-  background: var(--surf);
+  background: var(--surf-nav);
   border-bottom: 1px solid var(--brd);
   position: sticky;
   top: 0;

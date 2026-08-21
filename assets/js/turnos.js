@@ -1,6 +1,7 @@
 /* lagaleria_turnos.html — lógica de la página.
    Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), DatePicker
-   (date-picker.js), MESES_ES/isoWeekNum/mondayOfDate (utils.js).
+   (date-picker.js), MESES_ES/isoWeekNum/mondayOfDate/haptic (utils.js), playTap
+   (sounds.js).
    Expone funciones/variables en scope global para que worker-modal.js y date-picker.js puedan usarlas (sin IIFE/module).
 
    ÍNDICE (línea aprox. de cada sección — el archivo no está reordenado físicamente,
@@ -693,22 +694,6 @@ function setPage(p){
   document.getElementById("bnav-"+p).classList.add("active");
 }
 
-/* ── SELECTOR DE LOCAL ── */
-function setLocal(local){
-  curLocal=local;const isG=local==="galeria";
-  document.getElementById("navbar").style.background=isG?"#22292D":"#A32B2A";
-  document.getElementById("logo-area").innerHTML=isG?
-    `<div class="logo-g"><div class="logo-g-neo">— NEOTABERNA —</div><div class="logo-g-main">LA GALERÍA</div><div class="logo-g-deco"><div class="logo-g-line"></div><div class="logo-g-sub">— Y ALGO MÁS —</div><div class="logo-g-line"></div></div></div>`:
-    `<div class="logo-s"><div class="logo-s-main">LA SALA</div><div class="logo-s-sub">VUELTA AL ORIGEN · BAR</div></div>`;
-  document.getElementById("btn-g").className="lbtn"+(isG?" active-g":"");
-  document.getElementById("btn-s").className="lbtn"+(isG?"":" active-s");
-  document.documentElement.style.setProperty("--acc",isG?"#C5A669":"#A32B2A");
-  document.documentElement.style.setProperty("--acc-bg",isG?"rgba(197,166,105,0.12)":"rgba(163,43,42,0.1)");
-  document.documentElement.style.setProperty("--acc-bd",isG?"rgba(197,166,105,0.35)":"rgba(163,43,42,0.3)");
-  document.body.classList.toggle("sala-theme",!isG);
-  buildGrid();renderW();updateStats();
-}
-
 /* ── ESTADÍSTICAS ── */
 function updateStats(){
   const sw=document.getElementById("st-w");
@@ -810,7 +795,7 @@ function buildGrid(){
           chip.title='Trabajador archivado — turno histórico, solo lectura';
           chip.onclick=()=>{ if(typeof showToast==='function') showToast(name+' está archivado — este turno es histórico, solo lectura'); };
         } else {
-          chip.onclick=()=>openPreview(name);
+          chip.onclick=()=>{ if(typeof haptic==='function') haptic(); if(typeof playTap==='function') playTap(); openPreview(name); };
           setupDrag(chip,cell,r,d);
         }
         cell.appendChild(chip);

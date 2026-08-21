@@ -1,5 +1,20 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.32 — Panel de ajustes, modo claro y sistema de tokens por local (agosto 2026)
+- Panel de Ajustes completo: selector Oscuro/Claro/Sistema, vibración al pulsar, sonido de notificaciones, cambiar PIN, versión
+- Modo claro implementado con tokens CSS completos — fondo crema cálido, cards blancas, alertas con colores semánticos
+- Anti-FOUT: script inline en los 6 HTML aplica el tema antes del primer pintado
+- Sistema de tokens por local: --nav, --acc, --surf-nav, --nav-brd derivados de Supabase (tabla locales) — un solo punto de cambio para personalizar el local
+- Componente .modal unificado en components.css — eliminadas copias redundantes en index.css, stock.css y reservas.css
+- #profile-sheet y subnavegador siguen el tema del usuario (--surf), header mantiene color del local (--nav)
+- Haptic feedback: haptic() en utils.js conectado en Turnos, Stock, worker-modal e index
+- sounds.js: playTap() y playNotif() con Web Audio API — singleton AudioContext, sin archivos externos
+- Badge "Próximamente" en toggle de sonido de notificaciones
+- Cambiar PIN con teclado numérico (mismo patrón que onboarding)
+- Eliminado sistema legacy sala-theme (setLocal, body.sala-theme, .navbar)
+- Limpieza: #save-indicator (código muerto), --gold reemplazado por var(--acc), fallbacks hardcodeados eliminados
+- Fix: todos los colores de chips/celdas del grid de Turnos tokenizados (--chip-name-txt, --sm-bg/sn/cm/cn en light-theme más saturados)
+
 ## v0.2.31 — Auditoría inicio.js + index.js (agosto 2026)
 - Auditoría inicio.js: índice de 9 secciones, JSDoc en 8 funciones, dependencias externas documentadas, fix manejo de errores en Promise.all de _countConflictosTurnos, 5 huecos de error logging cubiertos
 - Auditoría index.js: índice con 16 secciones reales, JSDoc en 5 funciones clave, flujo de login documentado completo (incluyendo rama ?tel=, must_change_pin y mock profiles de desarrollo), fix prf_saveProfile foto URL actualizaba memoria aunque fallara BD, 6 huecos de error logging cubiertos

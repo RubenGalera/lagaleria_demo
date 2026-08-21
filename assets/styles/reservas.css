@@ -73,8 +73,7 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 /* OVERLAY / MODAL */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
 /* .overlay.show{display:flex} -> ya en components.css, idéntico */
-.modal{background:var(--nav);border:1px solid var(--brd2);border-radius:14px;padding:18px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto}
-/* .modal-hdr, .modal-title, .modal-sub -> ya en components.css, valores idénticos (15px===var(--fs-md), 11px===var(--fs-sm)) */
+/* .modal, .modal-hdr, .modal-title, .modal-sub -> ya en components.css, valores idénticos (15px===var(--fs-md), 11px===var(--fs-sm)) */
 .mclose{background:none;border:none;font-size:22px;color:var(--dim);cursor:pointer;line-height:1;padding:0 2px}
 
 /* FORM */

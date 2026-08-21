@@ -2,8 +2,10 @@
    Requiere: assets/styles/tokens.css, assets/styles/components.css (cargados antes).
    :root local traduce los nombres de variable del mockup aprobado a los tokens reales
    de la app (ver tokens.css) — no son duplicados, es la capa de mapeo del diseño.
-   Colores dados como hex literal en el encargo (no tokens existentes): dorado de "Tu
-   semana"/nombre propio #c9a84c/#2c2410, y barras de Reservas hoy #1D9E75/#EF9F27. */
+   Colores dados como hex literal en el encargo (no tokens existentes): texto sobre
+   dorado de "Tu semana"/nombre propio #2c2410, y barras de Reservas hoy #1D9E75/#EF9F27.
+   El dorado en sí (antes --gold:#c9a84c fijo) ahora es var(--acc) — mismo valor en
+   claro, se une al acento oscuro del resto de la app en oscuro en vez de quedar fijo. */
 
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -32,8 +34,7 @@
   --bg-vacation: rgba(99,179,237,.18);
   --text-vacation: #63b3ed;
 
-  /* dorado específico de "Tu semana" / nombre propio — dado como hex exacto */
-  --gold: #c9a84c;
+  /* texto sobre el dorado de "Tu semana" / nombre propio — dado como hex exacto */
   --gold-text: #2c2410;
   --res-ok: #1D9E75;
   --res-warn: #EF9F27;
@@ -74,12 +75,12 @@ body{display:flex;flex-direction:column}
 .week-range{font-size:11px;color:var(--text-muted);white-space:nowrap}
 .week-grid{display:grid;grid-template-columns:36px repeat(7,1fr);font-size:11px}
 .wg-head{padding:6px 0;text-align:center;color:var(--text-muted);font-weight:500;border-bottom:0.5px solid var(--border)}
-.wg-head.today{color:var(--gold)}
+.wg-head.today{color:var(--acc)}
 .wg-row-lbl{padding:7px 8px;color:var(--text-secondary);font-size:10px;font-weight:500;display:flex;align-items:center;border-top:0.5px solid var(--border)}
 .wg-cell{border-top:0.5px solid var(--border);border-left:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;padding:6px 2px}
 .wg-check{width:18px;height:18px;border-radius:4px;background:var(--bg-success);display:flex;align-items:center;justify-content:center}
 .wg-check i{font-size:11px;color:var(--text-success)}
-.wg-check.me{background:var(--gold)}
+.wg-check.me{background:var(--acc)}
 .wg-check.me i{color:var(--gold-text)}
 .wg-check.vac{background:var(--bg-vacation);font-size:11px}
 .week-legend{display:flex;gap:12px;padding:8px 2px 0;font-size:10px;color:var(--text-muted);flex-wrap:wrap}
@@ -91,7 +92,7 @@ body{display:flex;flex-direction:column}
 .turnos-slot+.turnos-slot{border-top:0.5px solid var(--border)}
 .slot-tag{font-size:10px;font-weight:500;color:var(--text-muted);letter-spacing:0.03em;width:64px;flex-shrink:0;padding-top:1px}
 .slot-names{font-size:12px;color:var(--text-primary);flex:1;line-height:1.5}
-.name-me{color:var(--gold);font-weight:500}
+.name-me{color:var(--acc);font-weight:500}
 .slot-dot{width:6px;height:6px;border-radius:50%;margin-top:4px;flex-shrink:0}
 .dot-ok{background:var(--res-ok)}
 .dot-warn{background:var(--res-warn)}

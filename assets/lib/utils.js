@@ -85,6 +85,52 @@ function normalizeText(str) {
 }
 
 /**
+ * Vibración táctil breve al pulsar un elemento — respeta la preferencia
+ * "Vibración al pulsar" del panel de Ajustes (aj_prefs.haptic). Lee
+ * localStorage['aj_prefs'] directamente (misma clave que aj_loadPrefs()/
+ * aj_savePrefs() en index.js) en vez de pedírsela al shell vía window.parent:
+ * localStorage es compartido entre documentos del mismo origen, así que cada
+ * iframe (Turnos, Stock...) puede leerla sin depender de que el shell exista
+ * o esté accesible. Si el usuario nunca ha tocado el toggle (aj_prefs.haptic
+ * === undefined), usa hapticDefaultOn() — ON en móvil, OFF en desktop. No
+ * hace nada si el dispositivo no soporta vibración (desktop) — nunca lanza,
+ * seguro de llamar desde cualquier handler de click.
+ *
+ * Quién la llama:
+ * - turnos.js (buildGrid): al pulsar un chip de trabajador en el grid.
+ * - stock.js (adjustQty/adjustPedQty, saveProdModal): al pulsar +/- de
+ *   cantidad y al guardar un producto.
+ * - worker-modal.js (saveProfile): al pulsar "Guardar y cerrar".
+ * - index.js: listener global de tap del shell (nav inferior, botones del
+ *   header), y aj_save() al activar el toggle (vibración de confirmación).
+ *
+ * @param {number} [ms=10] - Duración de la vibración en milisegundos.
+ */
+function haptic(ms) {
+  try {
+    if (!navigator.vibrate) return
+    var raw = localStorage.getItem('aj_prefs')
+    var prefs = raw && raw !== 'undefined' ? JSON.parse(raw) : {}
+    var enabled = prefs.haptic !== undefined ? prefs.haptic : hapticDefaultOn()
+    if (enabled) navigator.vibrate(ms || 10)
+  } catch (e) {}
+}
+/**
+ * Default de "Vibración al pulsar" cuando el usuario nunca lo ha tocado en
+ * Ajustes: ON en móvil, OFF en desktop. Detección por user-agent (no
+ * matchMedia/pointer) porque así lo pide el diseño aprobado del panel de
+ * Ajustes — /Mobi|Android/i cubre Android e iOS (Safari en iPhone/iPad
+ * incluye "Mobi" en su UA). También la usa index.js (ajustes_openModal) para
+ * que el estado inicial del toggle coincida con lo que haptic() va a hacer
+ * de verdad — si no, el switch podría mostrarse en OFF mientras el móvil ya
+ * vibra por defecto.
+ * @returns {boolean}
+ */
+function hapticDefaultOn() {
+  try { return /Mobi|Android/i.test(navigator.userAgent) } catch (e) { return false }
+}
+
+/**
  * Nombres de los 12 meses en español, en minúsculas — para construir
  * etiquetas de fecha ("22 de junio").
  *

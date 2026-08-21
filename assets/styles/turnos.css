@@ -8,7 +8,6 @@
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;transition:background .3s,color .3s;padding-bottom:0}
 
 /* ── NAVBAR ── */
-.navbar{background:var(--nav);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.07);position:sticky;top:0;z-index:100;transition:background .3s}
 .logo-g{display:flex;flex-direction:column;align-items:center;line-height:1}
 .logo-g-neo{font-size:7px;letter-spacing:2.5px;color:var(--acc);text-transform:uppercase;margin-bottom:1px}
 .logo-g-main{font-size:16px;color:var(--acc);font-family:Georgia,serif;letter-spacing:4px}
@@ -97,8 +96,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .t-ibox.moon-o{background:rgba(224,112,0,.15);border:1px solid rgba(224,112,0,.4)}
 .t-ibox.sun-b::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--sm-text);display:block}
 .t-ibox.sun-r::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--cm-text);display:block}
-.t-ibox.moon-g::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--sn-text);box-shadow:-2px -1px 0 2px #1a2a1a;display:block;margin-left:2px}
-.t-ibox.moon-o::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--cn-text);box-shadow:-2px -1px 0 2px #2a1400;display:block;margin-left:2px}
+.t-ibox.moon-g::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--sn-text);box-shadow:-2px -1px 0 2px var(--sn-bg);display:block;margin-left:2px}
+.t-ibox.moon-o::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--cn-text);box-shadow:-2px -1px 0 2px var(--cn-bg);display:block;margin-left:2px}
 .t-time{font-size:12px;color:var(--txt,#f0ece4);font-weight:500;line-height:1;text-align:left;cursor:pointer}
 .t-sect{font-size:8px;color:var(--dim);font-weight:700;letter-spacing:.8px;text-transform:uppercase;line-height:1;text-align:left}
 /* grid-cols removed */
@@ -124,18 +123,18 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .band-label-cn{color:var(--cn-text)}
 .turno-row{display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));gap:4px}
 .cell{border-radius:7px;padding:5px;display:flex;flex-direction:column;gap:3px;min-height:72px}
-.cell-sm{background:var(--sm-bg);border:1px solid #2a4a5a;border-top:2px solid var(--sm-bd)}
-.cell-sn{background:var(--sn-bg);border:1px solid #2a4a2a;border-top:2px solid var(--sn-bd)}
-.cell-cm{background:var(--cm-bg);border:1px solid #5a1a1a;border-top:2px solid var(--cm-bd)}
-.cell-cn{background:var(--cn-bg);border:1px solid #6a3a00;border-top:2px solid var(--cn-bd)}
+.cell-sm{background:var(--sm-bg);border:1px solid var(--sm-bd);border-top:2px solid var(--sm-bd)}
+.cell-sn{background:var(--sn-bg);border:1px solid var(--sn-bd);border-top:2px solid var(--sn-bd)}
+.cell-cm{background:var(--cm-bg);border:1px solid var(--cm-bd);border-top:2px solid var(--cm-bd)}
+.cell-cn{background:var(--cn-bg);border:1px solid var(--cn-bd);border-top:2px solid var(--cn-bd)}
 .chip{display:flex;align-items:center;gap:3px;border-radius:5px;padding:5px 7px;min-height:26px;cursor:pointer;user-select:none;min-width:0;overflow:hidden}
 .chip:active{opacity:.7}
 .chip-sm{background:var(--sm-bg);border:1px solid var(--sm-bd)}
 .chip-sn{background:var(--sn-bg);border:1px solid var(--sn-bd)}
 .chip-cm{background:var(--cm-bg);border:1px solid var(--cm-bd)}
 .chip-cn{background:var(--cn-bg);border:1px solid var(--cn-bd)}
-.chip-name{font-size:13px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#d0dde2}
-.chip-name.chip-name-me{color:#c9a84c;font-weight:500}
+.chip-name{font-size:13px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:var(--chip-name-txt)}
+.chip-name.chip-name-me{color:var(--chip-name-me-txt);font-weight:500}
 .chip-tag{font-size:9px;padding:1px 5px;border-radius:3px;white-space:nowrap;flex-shrink:0;background:var(--acc-bg);color:var(--acc);border:1px solid var(--acc-bd)}
 .chip-tag.chip-nota{max-width:52px;overflow:hidden;text-overflow:ellipsis}
 /* Trabajador archivado con turno histórico esta semana — solo lectura (ver isArchivedName() en turnos.js) */
@@ -369,26 +368,6 @@ tr.wr td:last-child{border-radius:0 8px 8px 0;border:1px solid var(--border);bor
 /* ── MODAL CONFIRMACIÓN ── */
 .confirm-modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;width:100%;max-width:340px;text-align:center}
 
-/* ── TEMA SALA (light) ── */
-body.sala-theme{--bg:#f5f5f0;--surface:#fff;--border:#e0ddd6;--border2:#ccc9c0;--text:#1a1a18;--muted:#666;--dim:#888;--faint:#aaa;--sm-bg:#daeaf5;--sm-bd:#2a7ab0;--sn-bg:#d5ead5;--sn-bd:#2a6e2a;--cm-bg:#fae0e0;--cm-bd:#bb2222;--cn-bg:#fde8cc;--cn-bd:#c06000}
-body.sala-theme .chip-sm{background:#c5dff0;border-color:var(--sm-text)}
-body.sala-theme .chip-sn{background:#c5e5c5;border-color:var(--sn-text)}
-body.sala-theme .chip-cm{background:#f5c5c5;border-color:var(--cm-text)}
-body.sala-theme .chip-cn{background:#fad5a0;border-color:var(--cn-text)}
-body.sala-theme .chip-name{color:#222}
-body.sala-theme .chip-name.chip-name-me{color:#c9a84c}
-body.sala-theme .mclose,.sala-theme .wbtn,.sala-theme .stat,.sala-theme .modal,.sala-theme .ev-detail-modal,.sala-theme .confirm-modal{background:#fff}
-body.sala-theme .w-preview,.sala-theme .ev-item,.sala-theme .ev-form,.sala-theme .pitem,.sala-theme .aw-item,.sala-theme .hora-row{background:#efefea}
-body.sala-theme .w-tel-display{color:#1a1a18}
-body.sala-theme tr.wr td{background:#fff}
-body.sala-theme .t-ibox.moon-g::after{box-shadow:-2px -1px 0 2px #d5ead5}
-body.sala-theme .t-ibox.moon-o::after{box-shadow:-2px -1px 0 2px #fde8cc}
-body.sala-theme select,.sala-theme .sort-sel,.sala-theme .psearch,.sala-theme .mtab,.sala-theme .wbtn{background:#fff;color:#1a1a18}
-body.sala-theme .pnew-input,.sala-theme .pnew-sel,.sala-theme .sg-cell,.sala-theme .hora-inp,.sala-theme .hora-sel,.sala-theme .ev-edit-input,.sala-theme .ev-edit-sel,.sala-theme .ev-input,.sala-theme .ev-sel,.sala-theme .minmax-inp{background:#fff;color:#1a1a18}
-body.sala-theme .bottom-nav{background:#8a1f1f;border-top-color:rgba(255,255,255,.1)}
-body.sala-theme .bnav-item .bnav-icon,.sala-theme .bnav-item .bnav-label{color:rgba(255,255,255,.4)}
-body.sala-theme .bnav-item.active .bnav-icon,.sala-theme .bnav-item.active .bnav-label{color:#fff}
-body.sala-theme .ev-no-img{background:#fff}
 input[type=file]{display:none}
 
 
@@ -631,11 +610,4 @@ input[type=file]{display:none}
   .vchip-full{display:none}
   .vchip-short{display:inline}
 }
-
-/* ── SAVE INDICATOR ── */
-#save-indicator{display:flex;align-items:center;justify-content:center;width:26px;height:26px;color:#C9A84C;opacity:.35;transition:opacity .3s,color .3s;flex-shrink:0;cursor:default}
-#save-indicator.saving{opacity:1;animation:save-pulse 1.2s ease-in-out infinite}
-#save-indicator.saved{opacity:1}
-#save-indicator.save-err{color:#cc6060;opacity:1}
-@keyframes save-pulse{0%,100%{opacity:.5}50%{opacity:1}}
 

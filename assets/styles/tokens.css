@@ -7,10 +7,12 @@
   --surf:  #1a2226;
   --surf2: #22292D;
   --nav:   #22292D;
+  --surf-nav: #1a2226; /* subnavegador (.main-tabs) — mismo valor que --surf actual */
 
   /* Bordes */
   --brd:  #2e3a3f;
   --brd2: #3a4a50;
+  --nav-brd: #3a4a50;
 
   /* Texto */
   --txt:   #f0ece4;
@@ -49,6 +51,12 @@
   --cm-text: #cc4444; --cm-bg: #2a0e0e; --cm-bd: rgba(180,50,50,.4);
   --cn-text: #e07000; --cn-bg: #2a1400; --cn-bd: rgba(200,100,0,.4);
 
+  /* Nombre de trabajador dentro del chip del grid de Turnos (.chip-name en
+     turnos.css) — no es --txt porque el chip tiene su propio fondo pastel
+     por slot (--sm/sn/cm/cn-bg), no el fondo general de la página. */
+  --chip-name-txt:    #d0dde2;
+  --chip-name-me-txt: #c9a84c; /* dorado — resalte "soy yo", igual en ambos temas */
+
   /* Aliases de compatibilidad — lagaleria_turnos.html usa estos nombres */
   --surface: var(--surf);
   --border:  var(--brd);
@@ -81,4 +89,58 @@
   --fs-md:  15px;
   --fs-lg:  18px;
   --fs-xl:  22px;
+}
+
+/* ── TEMA CLARO ──
+   Se activa poniendo la clase .light-theme en <html> (:root) — index.js
+   (aj_setTheme/_applyTheme) la añade ahí y en el <html> de cada iframe activo;
+   el <head> de cada página además tiene un script inline, ANTES de esta hoja
+   de estilos, que lee localStorage['aj_prefs'].theme y aplica la clase
+   síncronamente para no pintar nunca el tema oscuro por defecto y luego
+   cambiar (FOUT). .dark-theme (mismo mecanismo, tema oscuro explícito) no
+   necesita bloque propio aquí: :root ya son los valores oscuros por defecto.
+
+   --bg/--surf/--surf2/--txt/--muted/--dim/--brd/--brd2/--nav/--acc son los
+   del mockup aprobado (ahí llamados --surf-2/--txt-sec/--txt-muted/--brd-2 —
+   mismos valores, nombres alineados con los tokens ya existentes en este
+   archivo en vez de duplicarlos). El resto (--faint, rojo/ámbar/verde/evento/
+   tipos de turno, --overlay-bg) no estaba en el mockup pero se deriva igual:
+   sin esto, Stock/Turnos/Reservas se quedarían con badges de colores
+   pensados para fondo oscuro (mismo tipo de bug que el de #profile-sheet/
+   #_toast ya corregido una vez en el shell). */
+:root.light-theme {
+  --bg:    #f5f3ef;
+  --surf:  #ffffff;
+  --surf2: #f0ede8;
+  --nav:   #ffffff;
+
+  --brd:  #e0d8cc;
+  --brd2: #ccc4b4;
+
+  --txt:   #1a1810;
+  --muted: #4a4535;
+  --dim:   #8a7f6a;
+  --faint: #b0a690;
+
+  --acc:    #c9a84c;
+  --acc-bg: rgba(201,168,76,0.12);
+  --acc-bd: rgba(201,168,76,0.35);
+
+  --red:    #c23636; --red-bg: rgba(194,54,54,0.1);   --red-bd: rgba(194,54,54,0.3);
+  --amb:    #a8730f; --amb-bg: rgba(168,115,15,0.1);  --amb-bd: rgba(168,115,15,0.3);
+  --grn:    #2f7a3f; --grn-bg: rgba(47,122,63,0.1);   --grn-bd: rgba(47,122,63,0.25);
+
+  --color-event:    #c23a78;
+  --color-event-bg: rgba(194,58,120,0.1);
+  --color-event-bd: rgba(194,58,120,0.3);
+
+  --sm-text: #2e6a8a; --sm-bg: #d0e6f5; --sm-bd: rgba(46,106,138,.3);
+  --sn-text: #2f6b2f; --sn-bg: #d0ebd0; --sn-bd: rgba(47,107,47,.3);
+  --cm-text: #b03030; --cm-bg: #f5d0d0; --cm-bd: rgba(176,48,48,.3);
+  --cn-text: #a85800; --cn-bg: #f5e0c0; --cn-bd: rgba(168,88,0,.3);
+
+  --chip-name-txt:    #1a1810; /* texto oscuro sobre fondo pastel */
+  --chip-name-me-txt: #c9a84c; /* dorado — igual en ambos temas */
+
+  --overlay-bg: rgba(20,16,8,.55);
 }

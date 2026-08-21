@@ -25,7 +25,6 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .oneoff-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
 .oneoff-modal-bg.show{display:flex}
 .oneoff-modal{background:var(--surf);border-radius:14px;padding:20px;width:100%;max-width:480px;border-top:1px solid var(--brd2);max-height:90vh;overflow-y:auto}
-.navbar{background:var(--nav);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.07);position:sticky;top:0;z-index:100}
 .logo-g{display:flex;flex-direction:column;align-items:center;line-height:1}
 .logo-g-neo{font-size:7px;letter-spacing:2.5px;color:var(--acc);text-transform:uppercase;margin-bottom:1px}
 .logo-g-main{font-size:16px;color:var(--acc);font-family:Georgia,serif;letter-spacing:4px}
@@ -162,10 +161,9 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 /* ─── Pedido: icono de categoría junto al nombre (reutilizado en renderPedCard) ─── */
 .ped-cat-icon{margin-right:5px;font-size:12px}
 
-/* .mtab, .tab-badge → assets/styles/components.css */
+/* .mtab, .tab-badge, .modal → assets/styles/components.css */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
 .modal-bg.show{display:flex}
-.modal{background:var(--surf);border-radius:14px;padding:20px;width:100%;max-width:480px;border:1px solid var(--brd2);max-height:90vh;overflow-y:auto}
 .modal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .modal-title{font-size:15px;font-weight:700;color:var(--txt)}
 /* .modal-cls → assets/styles/components.css */

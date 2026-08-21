@@ -1,5 +1,5 @@
 /* index.html — shell de la app (login, navegación entre iframes, perfil, notificaciones).
-   Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), toast/showModal/closeModal/stepField/formatDateLabel (ui-helpers.js), MOCK_PROFILES (assets/mock/profiles.js).
+   Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), toast/showModal/closeModal/stepField/formatDateLabel (ui-helpers.js), MOCK_PROFILES (assets/mock/profiles.js), haptic (assets/lib/utils.js), playTap/initAudio (assets/lib/sounds.js).
    Expone funciones/variables globales (goTo, applySession, sbVerifyLogin, ls_init, currentUser, etc.) en window — sin IIFE/module — para que los iframes (fr-turnos, fr-reservas, fr-admin, fr-inicio) puedan llamarlas via window.parent.*
 
    NOMBRES: cada mini-feature tiene su propio prefijo de función en vez de
@@ -17,36 +17,49 @@
 
    ÍNDICE (línea aprox. — no reordenado físicamente; el archivo es mucho más
    grande de lo que sugiere una lectura rápida, son 9 mini-features aparte
-   del login/navegación — Zonas, Mi Perfil, Notificaciones, Superadmin,
-   Ajustes, PIN, Cambio de PIN, Onboarding, Invite Link):
-     1. CONSTANTES Y CONFIGURACIÓN    L.48  (isSafeImg...) / L.161 (currentUser,
-                                              locales mock) — el resto de constantes
+   del login/navegación — Zonas, Mi Perfil, Cambiar PIN, Notificaciones,
+   Superadmin, Ajustes, PIN, Cambio de PIN, Onboarding, Invite Link):
+     1. CONSTANTES Y CONFIGURACIÓN    L.48  (isSafeImg, APP_VERSION...) / L.166
+                                              (currentUser, locales mock) — el resto
                                               (LS_KEY, PAGES, *_DEFAULTS, PIN_LEN...)
-                                              se declaran junto a su sección, no aquí.
-     2. LOGIN — SPLASH Y TELÉFONO     L.1029 (LOGIN STEPS: ls_init/ls_show/
+                                              se declara junto a su sección, no aquí.
+     2. LOGIN — SPLASH Y TELÉFONO     L.1234 (LOGIN STEPS: ls_init/ls_show/
                                               ls_onTelInput/ls_goPin/ls_back)
-     3. LOGIN — PIN Y SESIÓN          L.104 (sbVerifyLogin) / L.243 (applySession) /
-                                              L.929 (PIN LOGIN: pin_press/pin_submit) /
-                                              L.1237 (CAMBIO DE PIN, primer acceso)
-     4. SESIÓN Y ROLES                L.243 (applySession) / L.319 (doLogout)
-     5. NAVEGACIÓN ENTRE IFRAMES      L.365
+     3. LOGIN — PIN Y SESIÓN          L.104 (sbVerifyLogin) / L.248 (applySession) /
+                                              L.1092 (PIN LOGIN: pin_press/pin_submit) /
+                                              L.1390 (CAMBIO DE PIN, primer acceso)
+     4. SESIÓN Y ROLES                L.248 (applySession) / L.324 (doLogout)
+     5. NAVEGACIÓN ENTRE IFRAMES      L.367
      6. SHELL — HEADER Y AVATAR       L.51  (_renderHeaderAvatar) / L.452 (PERFIL SHEET)
      7. UTILIDADES                    L.48  (isSafeImg) / L.83 (getActiveLocal) / L.463 (rolLabel)
      · OFFLINE DETECTION              L.335
      · CERRAR TODO                    L.469
      · ZONAS                          L.482
-     · MI PERFIL                      L.606
-     · NOTIFICACIONES                 L.794
-     · SUPERADMIN PANEL               L.814
-     · AJUSTES                        L.860
-     · ONBOARDING PRIMER ACCESO       L.1307
-     · INVITE LINK                    L.1419
+     · MI PERFIL                      L.611
+     · CAMBIAR PIN (ya logueado)      L.823 — distinto de L.1390: aquí currentUser
+                                              ya tiene sesión, solo hace UPDATE de
+                                              pin_hash (sin applySession/must_change_pin).
+                                              Mismo teclado numérico que el onboarding
+                                              (ob_pinPress, L.1500) pero estado propio.
+     · NOTIFICACIONES                 L.912
+     · SUPERADMIN PANEL               L.932
+     · AJUSTES                        L.978 (tema: aj_setTheme/_applyTheme/
+                                              _resolveTheme, con propagación en vivo
+                                              a los iframes de PAGES y listener de
+                                              matchMedia para 'system')
+     · ONBOARDING PRIMER ACCESO       L.1460
+     · INVITE LINK                    L.1572
 
    Ver el flujo de login completo documentado justo antes de ls_init(). */
 
 
 /* ── UTILIDADES ── */
 function isSafeImg(u){return typeof u==='string'&&u.trim()!==''&&!u.includes('${');}
+
+/* Versión mostrada en Ajustes → Acerca de (ajustes_openModal). Actualizar en
+   cada release junto al tag del CHANGELOG — no se deriva de package.json ni
+   de git porque el shell corre como HTML estático, sin build step. */
+var APP_VERSION = 'v0.2.31';
 
 /* ── SHELL — HEADER Y AVATAR ── */
 /* Avatar del header (esquina superior derecha) — foto si existe, si no las iniciales. */
@@ -72,6 +85,8 @@ async function sbLoadLocal(){
       /* Apply colors */
       document.documentElement.style.setProperty('--nav', data.color_nav||'#22292D');
       document.documentElement.style.setProperty('--acc', data.color_acc||'#C5A669');
+      document.documentElement.style.setProperty('--surf-nav', data.color_surf_nav||'#1a2226');
+      document.documentElement.style.setProperty('--nav-brd', data.color_nav_brd||'#3a4a50');
       /* Store for iframes */
       window._activeLocal = data;
     }
@@ -791,6 +806,111 @@ async function toggleMiVisibilidad(el){
   }
 }
 
+/* ── Cambiar PIN (usuario ya logueado, desde Ajustes → Sesión) ──
+   Reutiliza el componente de teclado numérico del onboarding de primer
+   acceso (ob_pinPress/ob_pinDel/ob_pinRender, más abajo — mismo .pin-dots/
+   .pin-pad/.pin-btn) — NO el flujo cp_open/cp_submit (ese usa inputs de
+   texto y depende de _pendingWorker porque corre ANTES de que exista sesión;
+   este ya tiene currentUser con sesión abierta). Estado propio (_cmp*) para
+   no compartirlo con _newPin/_newPinConfirm del onboarding — evita que
+   cambiar el PIN desde Ajustes interfiera si el onboarding llegara a estar
+   montado a la vez (no debería ocurrir en la práctica, pero son módulos
+   independientes y no cuesta nada mantenerlos así). A diferencia del stub
+   del onboarding (que solo guarda en localStorage), aquí sí se hashea con
+   hashPin() y se persiste en Supabase — currentUser ya tiene sesión real. */
+var _cmpNewPin = '';
+var _cmpNewPinConfirm = '';
+var _cmpConfirming = false;
+
+function prf_changePin_open(){
+  closeModal('ov-ajustes');
+  _cmpNewPin=''; _cmpNewPinConfirm=''; _cmpConfirming=false;
+  var lbl=document.getElementById('cmp-pin-label');
+  if(lbl) lbl.textContent='Introduce tu nuevo PIN';
+  prf_changePin_render();
+  showModal('ov-change-mypin');
+}
+
+function prf_changePin_press(digit){
+  if(!_cmpConfirming){
+    if(_cmpNewPin.length>=4) return;
+    _cmpNewPin += digit; prf_changePin_render();
+    if(_cmpNewPin.length===4){
+      _cmpConfirming=true; _cmpNewPinConfirm=''; prf_changePin_render();
+      var lbl=document.getElementById('cmp-pin-label');
+      if(lbl) lbl.textContent='Confirma tu PIN';
+    }
+  } else {
+    if(_cmpNewPinConfirm.length>=4) return;
+    _cmpNewPinConfirm += digit; prf_changePin_render();
+    if(_cmpNewPinConfirm.length===4){
+      if(_cmpNewPinConfirm===_cmpNewPin) prf_changePin_submit(_cmpNewPin);
+      else prf_changePin_mismatch();
+    }
+  }
+}
+
+function prf_changePin_del(){
+  if(!_cmpConfirming) _cmpNewPin=_cmpNewPin.slice(0,-1);
+  else _cmpNewPinConfirm=_cmpNewPinConfirm.slice(0,-1);
+  prf_changePin_render();
+}
+
+function prf_changePin_render(){
+  var len=_cmpConfirming?_cmpNewPinConfirm.length:_cmpNewPin.length;
+  for(var i=0;i<4;i++){
+    var dot=document.getElementById('cmp-pdot-'+i);
+    if(dot){ dot.classList.toggle('filled',i<len); dot.classList.remove('error'); }
+  }
+}
+
+/* Paso 2 no coincide con paso 1 → toast + vuelta al paso 1 (a diferencia del
+   onboarding, que solo reintenta el paso 2 contra el mismo PIN nuevo). */
+function prf_changePin_mismatch(){
+  for(var i=0;i<4;i++){
+    var dot=document.getElementById('cmp-pdot-'+i);
+    if(dot) dot.classList.add('error');
+  }
+  toast('Los PIN no coinciden — vuelve a intentarlo');
+  setTimeout(function(){
+    _cmpConfirming=false; _cmpNewPin=''; _cmpNewPinConfirm='';
+    var lbl=document.getElementById('cmp-pin-label');
+    if(lbl) lbl.textContent='Introduce tu nuevo PIN';
+    prf_changePin_render();
+  }, 500);
+}
+
+/**
+ * Hashea y guarda el nuevo PIN de currentUser en `trabajadores.pin_hash`.
+ * @param {string} pin - PIN de 4 dígitos ya confirmado (coincide con el paso 1).
+ * @returns {Promise<void>}
+ */
+async function prf_changePin_submit(pin){
+  if(!currentUser||!currentUser._sbId||!_sb){
+    toast('Sesión no disponible — vuelve a intentarlo');
+    closeModal('ov-change-mypin');
+    return;
+  }
+  if(typeof haptic==='function') haptic();
+
+  try{
+    var newHash=await hashPin(pin);
+    var res=await _sb.from('trabajadores').update({pin_hash:newHash}).eq('id',currentUser._sbId);
+    if(res.error) throw res.error;
+  }catch(e){
+    console.error('prf_changePin_submit',e);
+    toast('Error al guardar el PIN — inténtalo de nuevo');
+    _cmpConfirming=false; _cmpNewPin=''; _cmpNewPinConfirm='';
+    var lbl=document.getElementById('cmp-pin-label');
+    if(lbl) lbl.textContent='Introduce tu nuevo PIN';
+    prf_changePin_render();
+    return;
+  }
+
+  closeModal('ov-change-mypin');
+  toast('PIN actualizado ✓');
+}
+
 /* ══ NOTIFICACIONES ══ */
 var NOTIF_DEFAULTS={notif_reserva_nueva:true,notif_reserva_cambio:true,notif_stock_minimos:true,notif_stock_critico:true,notif_turno_nuevo:true,notif_turno_cambio:true,notif_evento_nuevo:true};
 function notif_openModal(){
@@ -858,26 +978,21 @@ function sa_clearCache(){
 
 
 /* ══ AJUSTES ══ */
-var AJ_DEFAULTS = { aj_sound:true, aj_vibration_notif:true, aj_vibration_tap:false };
+var AJ_DEFAULTS = { sound:false };
 var AJ_KEY = 'aj_prefs';
 
 function ajustes_openModal(){
   var prefs = aj_loadPrefs();
-  /* Theme */
   var theme = prefs.theme || 'dark';
   document.querySelectorAll('.aj-theme-btn').forEach(function(btn){
     btn.classList.toggle('active', btn.getAttribute('data-theme') === theme);
   });
-  /* Toggles */
-  ['aj_sound','aj_vibration_notif','aj_vibration_tap'].forEach(function(key){
-    var el = document.getElementById(key.replace(/_/g,'-').replace('aj-','aj-'));
-    /* find by id */
-    var elId = key === 'aj_sound' ? 'aj-sound'
-             : key === 'aj_vibration_notif' ? 'aj-vibration-notif'
-             : 'aj-vibration-tap';
-    var cb = document.getElementById(elId);
-    if(cb) cb.checked = prefs[key] !== undefined ? prefs[key] : AJ_DEFAULTS[key];
-  });
+  var hapticCb = document.getElementById('aj-haptic');
+  if(hapticCb) hapticCb.checked = prefs.haptic !== undefined ? prefs.haptic : (typeof hapticDefaultOn==='function' && hapticDefaultOn());
+  var soundCb = document.getElementById('aj-sound');
+  if(soundCb) soundCb.checked = prefs.sound !== undefined ? prefs.sound : AJ_DEFAULTS.sound;
+  var verEl = document.getElementById('aj-version');
+  if(verEl) verEl.textContent = APP_VERSION;
   showModal('ov-ajustes');
 }
 
@@ -885,27 +1000,70 @@ function aj_setTheme(theme){
   var prefs = aj_loadPrefs();
   prefs.theme = theme;
   aj_savePrefs(prefs);
-  /* Update active button */
   document.querySelectorAll('.aj-theme-btn').forEach(function(btn){
     btn.classList.toggle('active', btn.getAttribute('data-theme') === theme);
   });
-  /* Apply theme — light is TODO, dark is default */
-  if(theme === 'light'){
-    toast('Tema claro — próximamente');
-  } else {
-    /* dark / system → keep current */
-    document.body.removeAttribute('data-theme');
-  }
+  _applyTheme(theme);
+}
+
+/**
+ * Resuelve 'system' contra prefers-color-scheme — 'dark'/'light' se
+ * devuelven tal cual, sin consultar el SO.
+ * @param {string} theme - 'dark'|'light'|'system'
+ * @returns {'dark'|'light'}
+ */
+function _resolveTheme(theme){
+  if(theme === 'light' || theme === 'dark') return theme;
+  var isLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+  return isLight ? 'light' : 'dark';
+}
+
+/**
+ * Aplica el tema resuelto al <html> del shell y al de cada iframe activo
+ * (PAGES) — para cuando el usuario cambia el ajuste con la app ya abierta.
+ * La carga inicial de cada documento (shell o iframe) NO pasa por aquí: ya
+ * se resuelve sola, síncronamente y antes del primer pintado, con el script
+ * anti-FOUT del <head> de cada página (lee el mismo localStorage['aj_prefs']
+ * por su cuenta — ver comentario completo en index.html <head>).
+ * @param {string} theme - 'dark'|'light'|'system'
+ */
+function _applyTheme(theme){
+  var effective = _resolveTheme(theme);
+  var addCls = effective === 'light' ? 'light-theme' : 'dark-theme';
+  var rmCls  = effective === 'light' ? 'dark-theme' : 'light-theme';
+  document.documentElement.classList.remove(rmCls);
+  document.documentElement.classList.add(addCls);
+  PAGES.forEach(function(page){
+    try{
+      var fr = document.getElementById('fr-'+page);
+      var doc = fr && fr.contentDocument;
+      if(!doc || !doc.documentElement) return;
+      doc.documentElement.classList.remove(rmCls);
+      doc.documentElement.classList.add(addCls);
+    }catch(e){}
+  });
+}
+
+/* Tema 'system' en vivo: si el usuario tiene elegida esta opción, reacciona
+   a cambios de prefers-color-scheme del sistema operativo mientras la app
+   está abierta (sin esto, el tema quedaría fijo hasta el próximo recargar).
+   Se registra una sola vez al cargar el script — comprueba la preferencia
+   guardada CADA VEZ que dispara, así que no hace falta añadir/quitar el
+   listener al entrar o salir de 'system'. */
+if(window.matchMedia){
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function(){
+    var prefs = aj_loadPrefs();
+    if((prefs.theme || 'dark') === 'system') _applyTheme('system');
+  });
 }
 
 function aj_save(key, value){
   var prefs = aj_loadPrefs();
   prefs[key] = value;
   aj_savePrefs(prefs);
-  /* Apply immediately */
-  if(key === 'aj_vibration_tap' && value && navigator.vibrate){
-    navigator.vibrate(30);
-  }
+  /* Vibración de confirmación al activar el toggle — mismo haptic() (utils.js)
+     que usa el resto de la app, no un navigator.vibrate() suelto aparte. */
+  if(key === 'haptic' && value && typeof haptic==='function') haptic(30);
 }
 
 function aj_loadPrefs(){
@@ -919,12 +1077,18 @@ function aj_savePrefs(prefs){
   try{ localStorage.setItem(AJ_KEY, JSON.stringify(prefs)); }catch(e){}
 }
 
-/* Apply vibration on tap if enabled */
+/* Vibración/sonido al tap en cualquier punto del shell (nav inferior,
+   header...) — los iframes no reciben este listener (documentos aparte),
+   por eso Turnos/Stock llaman a haptic()/playTap() (utils.js/sounds.js)
+   directamente en sus propios handlers. initAudio() solo hace falta una vez
+   (el primer click "despierta" el AudioContext, ver sounds.js) — el resto
+   de clicks no lo vuelven a llamar, aunque tampoco pasaría nada si lo
+   hicieran (resume() en un contexto ya activo no hace nada). */
+var _audioInited = false;
 document.addEventListener('click', function(){
-  try{
-    var prefs = aj_loadPrefs();
-    if(prefs.aj_vibration_tap && navigator.vibrate) navigator.vibrate(10);
-  }catch(e){}
+  if(typeof haptic==='function') haptic();
+  if(typeof playTap==='function') playTap();
+  if(!_audioInited && typeof initAudio==='function'){ _audioInited=true; initAudio(); }
 });
 /* ══ PIN LOGIN ══ */
 var _pin = '';

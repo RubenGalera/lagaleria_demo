@@ -7,7 +7,7 @@
    Requiere en el ámbito de página: getW, cntT, L, ROWS, CONFLICTS, parse, ini, isSafeImg,
    curLocal, curMonday, showOv, closeOv, showToast, buildGrid, renderW, updateStats,
    renderTrabajadores, renderNotaList, renderVacList, renderSkillsSummary, getDayVacacion,
-   ensureWorkerExtras, _sb, cleanTel/hashPin (utils.js).
+   ensureWorkerExtras, _sb, cleanTel/hashPin/haptic (utils.js), playTap (sounds.js).
    En Turnos estas son las implementaciones reales; en Admin, adminWorkers.js aporta
    stubs de buildGrid/renderW/updateStats/L/ini/parse/getW/cntT (ver comentario "Stubs"
    en ese archivo) — el modal funciona igual, pero el grid de días queda siempre vacío
@@ -550,6 +550,8 @@ function saveProfile() {
     if (typeof showToast === 'function') showToast('Completa el texto de cada nota especial o elimínala', 'error');
     return;
   }
+  if (typeof haptic === 'function') haptic();
+  if (typeof playTap === 'function') playTap();
   w.minT = parseInt(document.getElementById('prev-min').value) || 0;
   w.maxT = parseInt(document.getElementById('prev-max').value) || 0;
   /* rol: solo se toca si la fila era visible/editable (admin/superadmin) — para

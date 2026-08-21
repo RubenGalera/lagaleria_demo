@@ -1,7 +1,7 @@
 /* lagaleria_stock.html — lógica de la página (tabs Productos / Pedido / Registro).
    Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), showToast
-   (toast.js), normalizeText (utils.js), getStockStatus/isPendingForOrderView/
-   markStockActivity (assets/lib/stock-status.js).
+   (toast.js), normalizeText/haptic (utils.js), getStockStatus/isPendingForOrderView/
+   markStockActivity (assets/lib/stock-status.js), playTap (assets/lib/sounds.js).
 
    ÍNDICE (línea aprox. de cada sección — el archivo no está reordenado físicamente,
    solo indexado: initStock() se llama una sola vez desde el listener de
@@ -746,6 +746,8 @@ function renderProduct(prod) {
  * @param {number} delta — +1 o -1
  */
 async function adjustQty(id, delta) {
+  if (typeof haptic === 'function') haptic()
+  if (typeof playTap === 'function') playTap()
   const prod = prods.find(item => item.id === id)
   if (!prod) return
   const newQty = Math.max(0, prod.qty + delta)
@@ -917,6 +919,8 @@ async function saveProdModal() {
   if (hasRequiredError) { showToast('Completa los campos obligatorios antes de guardar','error'); return }
 
   if (Number.isNaN(qty)) { showToast('Completa la cantidad','error'); return }
+  if (typeof haptic === 'function') haptic()
+  if (typeof playTap === 'function') playTap()
   const subCatVisible = document.getElementById('pm-subcat-field')?.style.display !== 'none'
   const subCatVal = subCatVisible ? (inputs.pmSubCat?.value || '') : ''
   const payload = {
@@ -1194,6 +1198,8 @@ function selectPedProv(id) {
 }
 
 function adjustPedQty(id, delta) {
+  if (typeof haptic === 'function') haptic()
+  if (typeof playTap === 'function') playTap()
   const cur = pedQty.get(id) || 0
   pedQty.set(id, Math.max(0, cur + delta))
   renderPedido()

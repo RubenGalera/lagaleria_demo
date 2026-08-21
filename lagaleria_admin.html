@@ -2,6 +2,8 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<!-- Anti-FOUT tema claro — ver comentario completo en index.html <head> -->
+<script>(function(){try{var p=JSON.parse(localStorage.getItem('aj_prefs')||'{}');var t=p.theme||'dark';var light=t==='light'||(t==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches);document.documentElement.classList.add(light?'light-theme':'dark-theme');}catch(e){}})();</script>
 <link rel="stylesheet" href="assets/styles/tokens.css">
 <link rel="stylesheet" href="assets/styles/components.css">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0">
@@ -262,6 +264,7 @@
 <script src="assets/lib/adminWorkers.js"></script>
 <script src="assets/lib/adminStock.js"></script>
 <script src="assets/lib/adminContactos.js"></script>
+<script src="assets/lib/sounds.js"></script>
 <script src="assets/lib/worker-modal.js"></script>
 
 <script src="assets/js/admin.js"></script>

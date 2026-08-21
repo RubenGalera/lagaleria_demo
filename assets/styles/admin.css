@@ -231,7 +231,6 @@ body{display:flex;flex-direction:column}
 
 .confirm-modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;width:100%;max-width:340px;text-align:center}
 
-body.sala-theme{--bg:#f5f5f0;--surface:#fff;--border:#e0ddd6;--border2:#ccc9c0;--text:#1a1a18;--muted:#666;--dim:#888;--faint:#aaa;--sm-bg:#daeaf5;--sm-bd:#2a7ab0;--sn-bg:#d5ead5;--sn-bd:#2a6e2a;--cm-bg:#fae0e0;--cm-bd:#bb2222;--cn-bg:#fde8cc;--cn-bd:#c06000}
 input[type=file]{display:none}
 
 .vac-section{display:flex;flex-direction:column;gap:6px;margin-top:4px}
