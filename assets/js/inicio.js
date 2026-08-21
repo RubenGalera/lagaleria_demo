@@ -6,7 +6,8 @@
    onclick="closeModal(...)", nunca desde este .js), cleanTel/isoWeekNum/
    mondayOfDate (utils.js), getStockStatus (assets/lib/stock-status.js —
    mismo criterio de semáforo rojo/ámbar/verde que Stock/Pedido, ver
-   _loadAlertaStock()).
+   _loadAlertaStock()), showToast (assets/lib/toast.js — este archivo ya no
+   tiene su propio showToast, ver toast.js para el porqué).
 
    Dependencias del SHELL (window.parent = index.html, el documento que
    monta este archivo dentro de un iframe — nunca están garantizadas si esta
@@ -26,7 +27,7 @@
 
    ÍNDICE (línea aprox. — no reordenado físicamente):
      1. CONSTANTES Y ESTADO             L.45  (_todayDowIdx, MESES_ABR, DIAS_LARGOS,
-                                                _formatFechaCorta, _getCurrentUser, showToast...)
+                                                _formatFechaCorta, _getCurrentUser...)
      2. NAVEGACIÓN (navTo)              L.87  (navTo, goToTurnos, navToEvento, navToStockReponer)
      3. INICIALIZACIÓN Y CARGA DE DATOS L.129 (listener load, initDashboard, _renderAllEmpty)
         · Header                        L.177 (_renderHeader, _weekRangeLabel)
@@ -57,12 +58,6 @@ function _getCurrentUser(){
   return null;
 }
 function showMockBadge(){ var b=document.getElementById('mock-badge'); if(b) b.style.display='block'; }
-
-function showToast(msg){
-  var t=document.getElementById('_toast');if(!t)return;
-  t.textContent=msg;t.style.opacity='1';
-  clearTimeout(t._t);t._t=setTimeout(function(){t.style.opacity='0';},2200);
-}
 
 function _escHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function _uniq(arr){ var seen={},out=[]; arr.forEach(function(x){ if(x&&!seen[x]){seen[x]=true;out.push(x);} }); return out; }

@@ -149,7 +149,7 @@ body{display:flex;flex-direction:column}
 
 /* Contactos / Proveedores — listas de solo lectura dentro de .modal (ver components.css) — sin cambios */
 .ct-list{display:flex;flex-direction:column;gap:8px}
-.ct-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--nav);border:1px solid var(--brd);border-radius:10px}
+.ct-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surf2);border:1px solid var(--brd);border-radius:10px}
 .ct-item-info{flex:1;min-width:0}
 .ct-item-name{font-size:13px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ct-item-nota{font-size:11px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

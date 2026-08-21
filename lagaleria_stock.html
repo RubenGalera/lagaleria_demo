@@ -159,7 +159,7 @@
   <div class="oneoff-modal-bg" id="oneoff-modal-bg" onclick="if(event.target===this)closeOneoffModal()">
     <div class="oneoff-modal">
       <div class="edit-sheet-hdr">
-        <div class="edit-sheet-title">Añadir al pedido</div>
+        <div class="edit-sheet-title" id="oneoff-modal-title">Añadir al pedido</div>
         <div class="sheet-cls" onclick="closeOneoffModal()">&#215;</div>
       </div>
       <p style="font-size:12px;color:var(--dim);margin-bottom:14px;line-height:1.5">Producto puntual — se añade al pedido y permanece hasta que lo elimines.</p>
@@ -177,7 +177,7 @@
           <input class="inp" id="oo-u" placeholder="ud, caja, pak...">
         </div>
       </div>
-      <button class="btn-full" onclick="addOneoff()">Añadir al pedido</button>
+      <button class="btn-full" id="oneoff-modal-btn" onclick="saveOneoff()">Añadir al pedido</button>
     </div>
   </div>
 

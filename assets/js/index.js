@@ -59,7 +59,7 @@ function isSafeImg(u){return typeof u==='string'&&u.trim()!==''&&!u.includes('${
 /* Versión mostrada en Ajustes → Acerca de (ajustes_openModal). Actualizar en
    cada release junto al tag del CHANGELOG — no se deriva de package.json ni
    de git porque el shell corre como HTML estático, sin build step. */
-var APP_VERSION = 'v0.2.31';
+var APP_VERSION = 'v0.2.34';
 
 /* ── SHELL — HEADER Y AVATAR ── */
 /* Avatar del header (esquina superior derecha) — foto si existe, si no las iniciales. */

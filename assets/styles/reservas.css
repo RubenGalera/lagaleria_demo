@@ -65,7 +65,7 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 /* TEL inline with call/wa buttons */
 .tel-inline{display:flex;align-items:center;gap:6px}
 .tel-inline .inp{flex:1;min-width:0}
-.tel-action-btn{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;text-decoration:none;flex-shrink:0;border:1px solid var(--brd2);background:var(--nav);cursor:pointer;transition:opacity .2s}
+.tel-action-btn{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;text-decoration:none;flex-shrink:0;border:1px solid var(--brd2);background:var(--surf2);cursor:pointer;transition:opacity .2s}
 .tel-action-btn:active{opacity:.7}
 .tel-action-btn.call{background:rgba(85,153,187,.12);border-color:rgba(85,153,187,.35);color:#5599bb}
 .tel-action-btn.wa{background:rgba(37,211,102,.1);border-color:rgba(37,211,102,.3);color:#25D366}
@@ -108,7 +108,7 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
 
 /* STEPPER FIELD */
 .stepper-field{display:flex;align-items:center;gap:4px}
-.step-btn{width:36px;height:36px;flex-shrink:0;border-radius:8px;border:1px solid var(--brd2);background:var(--nav);color:var(--txt);font-size:20px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.step-btn{width:36px;height:36px;flex-shrink:0;border-radius:8px;border:1px solid var(--brd2);background:var(--surf2);color:var(--txt);font-size:20px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .step-btn:active{background:var(--brd2)}
 .step-inp{text-align:center;flex:1;min-width:0}
 /* hide number arrows */

@@ -239,7 +239,7 @@
 .mclose,
 .modal-cls,
 .sheet-cls {
-  background: var(--nav);
+  background: var(--surf2);
   border: 1px solid var(--brd2);
   border-radius: var(--rad-sm);
   width: 30px;
@@ -308,8 +308,8 @@
 .tab-badge      { display: none; border-radius: 20px; font-size: 10px; font-weight: 700; padding: 1px 5px }
 .tab-badge.show { display: inline-block }
 .tab-dot        { width: 7px; height: 7px; border-radius: 50%; display: none; margin-left: 4px; flex-shrink: 0 }
-.tab-dot.red    { background: #cc4444; box-shadow: 0 0 5px rgba(180,50,50,.5); display: inline-block }
-.tab-dot.amb    { background: #c89030; box-shadow: 0 0 5px rgba(180,130,0,.4); display: inline-block }
+.tab-dot.red    { background: var(--red); box-shadow: 0 0 5px rgba(180,50,50,.5); display: inline-block }
+.tab-dot.amb    { background: var(--amb); box-shadow: 0 0 5px rgba(180,130,0,.4); display: inline-block }
 
 
 /* ═══════════════════════════════════════════════════════════
@@ -385,9 +385,9 @@
   bottom: 74px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--nav);
+  background: var(--surf2);
   border: 1px solid var(--acc-bd);
-  color: var(--acc);
+  color: var(--txt);
   padding: 8px 18px;
   border-radius: 9px;
   font-size: var(--fs-sm);

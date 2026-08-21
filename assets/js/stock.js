@@ -17,14 +17,15 @@
      8. PEDIDO — POR PROVEEDOR             L.1175
      9. BÚSQUEDA Y FILTRO DE PROVEEDOR     L.507  (tab Productos — buscador + panel de proveedor)
      10. PERMISOS Y ROL                    L.59   (getStockUser/canManageProducts) y L.458 (applyRolePermissions)
-     · PRODUCTOS PUNTUALES (one-off)       L.1441
-     · REGISTRO (histórico de movimientos) L.1473
+     · PRODUCTOS PUNTUALES (one-off)       L.1476
+     · REGISTRO (histórico de movimientos) L.1519
 
    VARIABLES GLOBALES DE ESTADO (una línea por variable — su declaración real
    vive donde tiene más sentido leerla en contexto, no aquí; esto es solo el
    glosario, ver ÍNDICE de arriba para ubicarlas):
      prods              {Array}   — productos activos del local (stock_productos, mapeados con sbToLocal)
      oneoffs            {Array}   — productos puntuales del pedido actual (stock_productos_puntuales)
+     editOneoffId       {string|null} — id del producto puntual en edición en el modal (null = alta nueva)
      stockCatsAll       {Array}   — todas las categorías activas — alimenta el <select> del modal de producto
      stockCatsWithProds {Array}   — solo las categorías con ≥1 producto — alimenta los chips de #cat-bar
      stockProvsAll      {Array}   — todos los proveedores activos — alimenta el <select> del modal de producto
@@ -51,6 +52,7 @@
 
 let prods     = []
 let oneoffs   = []
+let editOneoffId = null
 let stockCatsAll       = [] // todas las categorías activas — alimenta el <select> del modal de producto
 let stockCatsWithProds = [] // solo las que tienen ≥1 producto — alimenta los chips de #cat-bar
 let stockProvsAll      = [] // todos los proveedores activos — alimenta el <select> del modal de producto
@@ -1042,6 +1044,33 @@ function onPedProductClick(id) {
 }
 function onAddOneoffClick() {
   if (!canManageProducts()) { showToast('Solo admin y encargados pueden editar productos', 'error'); return }
+  editOneoffId = null
+  document.getElementById('oneoff-modal-title').textContent = 'Añadir al pedido'
+  document.getElementById('oneoff-modal-btn').textContent = 'Añadir al pedido'
+  inputs.ooName.value = ''
+  inputs.ooQty.value  = ''
+  inputs.ooUnit.value = ''
+  showOneoffModal()
+}
+
+/**
+ * Handler de click en una card de producto puntual — abre el mismo modal
+ * que "+ Añadir producto puntual" pero en modo edición (mismo patrón que
+ * openProdModal()/editProdId para productos normales). El botón "✕" de
+ * borrar, dentro de la misma card, para la propagación del click para no
+ * abrir también este modal (ver renderPedCatView()).
+ * @param {string} id — id del producto puntual (stock_productos_puntuales)
+ */
+function onOneoffItemClick(id) {
+  if (!canManageProducts()) { showToast('Solo admin y encargados pueden editar productos', 'error'); return }
+  const o = oneoffs.find(item => item.id === id)
+  if (!o) return
+  editOneoffId = id
+  document.getElementById('oneoff-modal-title').textContent = 'Editar producto puntual'
+  document.getElementById('oneoff-modal-btn').textContent = 'Guardar cambios'
+  inputs.ooName.value = o.nombre
+  inputs.ooQty.value  = o.cantidad
+  inputs.ooUnit.value = o.unidad
   showOneoffModal()
 }
 
@@ -1110,12 +1139,12 @@ function renderPedCatView() {
   let oneoffSectionHtml = ''
   if (oneoffs.length) {
     const items = oneoffs.map(o => `
-      <div class="oneoff-item">
+      <div class="oneoff-item" onclick="onOneoffItemClick('${o.id}')">
         <div>
           <div class="oneoff-name">${o.nombre}</div>
           <div class="oneoff-meta">${o.cantidad} ${o.unidad}${o.creado_por ? ` · por ${o.creado_por}` : ''}</div>
         </div>
-        ${canManageProducts() ? `<button class="oneoff-del" onclick="deleteOneoff('${o.id}')">✕</button>` : ''}
+        ${canManageProducts() ? `<button class="oneoff-del" onclick="event.stopPropagation();deleteOneoff('${o.id}')">✕</button>` : ''}
       </div>
     `).join('')
     oneoffSectionHtml = `
@@ -1431,7 +1460,7 @@ function sendPedidoWhatsAppProv() {
 }
 
 function showOneoffModal()  { el.oneoffModalBg.classList.add('show') }
-function closeOneoffModal() { el.oneoffModalBg.classList.remove('show') }
+function closeOneoffModal() { editOneoffId = null; el.oneoffModalBg.classList.remove('show') }
 
 async function deleteOneoff(id) {
   try {
@@ -1468,6 +1497,17 @@ async function sbAddProductoPuntual(nombre, cantidad, unidad) {
     .single()
   if (error) throw error
   oneoffs.push(data)
+}
+
+async function sbUpdateProductoPuntual(id, nombre, cantidad, unidad) {
+  const { data, error } = await _sb.from('stock_productos_puntuales')
+    .update({ nombre, cantidad, unidad })
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) throw error
+  const idx = oneoffs.findIndex(o => o.id === id)
+  if (idx !== -1) oneoffs[idx] = data
 }
 
 async function sbDeleteProductoPuntual(id) {
@@ -1675,24 +1715,32 @@ async function confirmClearReg() {
   }
 }
 
-/* ─── One-off pedido ─── */
-async function addOneoff() {
+/* ─── One-off pedido ───
+   saveOneoff() cubre alta y edición (mismo patrón que saveProdModal()):
+   editOneoffId null → INSERT, con valor → UPDATE sobre ese id. */
+async function saveOneoff() {
   const name = inputs.ooName.value.trim()
   const qty  = Number(inputs.ooQty.value)
   const unit = inputs.ooUnit.value.trim()
   if (!name || !unit || Number.isNaN(qty) || qty <= 0) { showToast('Completa nombre, cantidad y unidad','error'); return }
   try {
-    await sbAddProductoPuntual(name, qty, unit)
+    if (editOneoffId) {
+      await sbUpdateProductoPuntual(editOneoffId, name, qty, unit)
+    } else {
+      await sbAddProductoPuntual(name, qty, unit)
+    }
+    const wasEdit = !!editOneoffId
     el.oneoffModalBg.classList.remove('show')
+    editOneoffId = null
     inputs.ooName.value = ''
     inputs.ooQty.value  = ''
     inputs.ooUnit.value = ''
     updatePedDot()
     renderPedido()
-    showToast('Artículo añadido','success')
+    showToast(wasEdit ? 'Producto puntual actualizado' : 'Artículo añadido', 'success')
   } catch(e) {
-    console.error('[stock] addOneoff:', e)
-    showToast('Error al añadir','error')
+    console.error('[stock] saveOneoff:', e)
+    showToast('Error al guardar','error')
   }
 }
 

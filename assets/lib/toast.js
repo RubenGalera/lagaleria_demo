@@ -1,40 +1,41 @@
 /* toast.js — sistema de notificaciones unificado (window.showToast).
-   Antes cada módulo tenía su propia implementación de toast/showToast, con
-   estilos y comportamiento ligeramente distintos (admin.js exigía que el
-   div #_toast ya existiera en el HTML; ui-helpers.js lo creaba si faltaba;
-   ninguna distinguía éxito/error visualmente). Esta es la única versión que
-   usan stock.js, admin.js, worker-modal.js, adminStock.js y adminContactos.js.
+   Única implementación de toast en toda la app — turnos.js e inicio.js
+   tenían la suya propia (con hardcodeados de color que no seguían el tema
+   claro/oscuro, y en el caso de turnos.js un id de DOM distinto, "toast" en
+   vez de "_toast"); se retiraron a favor de esta. Se carga en index.html y
+   en lagaleria_turnos/stock/admin/inicio.html. lagaleria_reservas.html
+   queda fuera (sigue con toast() de ui-helpers.js, que delega en el toast
+   del shell vía window.parent) — no estaba en el alcance de esta unificación.
 
-   turnos.js e inicio.js mantienen su propio showToast (id="toast"/id="_toast"
-   con un contrato de DOM distinto) — no están en el alcance de esta
-   unificación, así que este archivo no se carga en lagaleria_turnos.html ni
-   en lagaleria_inicio.html. Ver docs/ARCHITECTURE.md. */
+   Busca #_toast en el documento actual y, si no está ahí, en
+   window.parent.document — no delega la llamada entera al padre (como hacía
+   antes): manipula el nodo encontrado directamente, así no depende de que
+   showToast exista con la misma firma en el documento padre. Cubre el caso
+   de un iframe sin #_toast propio (ej. Stock), que reutiliza el del shell
+   (index.html) para que la notificación no quede recortada dentro del
+   iframe. Si no encuentra #_toast en ningún sitio, lo crea en el documento
+   actual con class="toast" y SIN estilo inline — el fondo/color siempre
+   salen de .toast en components.css, para que el tema claro/oscuro se
+   aplique solo, sin hardcodear ningún color aquí. */
 
 /**
  * Muestra una notificación flotante que se autooculta a los 3 segundos.
- *
- * Igual que el toast() heredado de ui-helpers.js: si se llama desde dentro
- * de un iframe (window.parent !== window) delega en el showToast del
- * documento padre, para que la notificación aparezca en el shell
- * (index.html) y no quede recortada dentro del iframe. Por eso index.html
- * también carga este archivo, aunque index.js siga usando su propio toast()
- * para sus propios mensajes — sirve como destino de esa delegación cuando
- * el toast viene de un iframe hijo (Stock, Admin).
- *
  * @param {string} mensaje - Texto a mostrar.
  * @param {'success'|'error'|'info'} [tipo='info'] - Estilo visual del toast.
  */
 function showToast(mensaje, tipo) {
   tipo = tipo || 'info'
 
-  if (window.parent !== window) {
-    try { window.parent.showToast(mensaje, tipo); return } catch (e) {}
-  }
-
   var t = document.getElementById('_toast')
+  if (!t) {
+    try {
+      if (window.parent && window.parent !== window) t = window.parent.document.getElementById('_toast')
+    } catch (e) {}
+  }
   if (!t) {
     t = document.createElement('div')
     t.id = '_toast'
+    t.className = 'toast'
     document.body.appendChild(t)
   }
   /* limpiar cualquier opacity inline heredada de ui-helpers.js#toast() (index.js

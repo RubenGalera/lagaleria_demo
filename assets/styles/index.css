@@ -259,7 +259,7 @@ body{
 .btn-del{background:transparent;border:1px solid var(--red-bd);border-radius:8px;padding:10px;width:100%;font-size:12px;font-weight:600;color:var(--red);cursor:pointer;margin-top:6px}
 
 .stepper-field{display:flex;align-items:center;gap:4px}
-.step-btn{width:36px;height:36px;flex-shrink:0;border-radius:8px;border:1px solid var(--brd2);background:var(--nav);color:var(--txt);font-size:20px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.step-btn{width:36px;height:36px;flex-shrink:0;border-radius:8px;border:1px solid var(--brd2);background:var(--surf2);color:var(--txt);font-size:20px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .step-inp{text-align:center;flex:1;min-width:0}
 .step-inp::-webkit-inner-spin-button,.step-inp::-webkit-outer-spin-button{-webkit-appearance:none}
 
@@ -297,7 +297,7 @@ body{
 ══════════════════════════════ */
 #_toast{
   position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
-  background:var(--nav);border:1px solid var(--brd2);
+  background:var(--surf2);border:1px solid var(--brd2);
   color:var(--txt);padding:9px 18px;border-radius:20px;
   font-size:12px;font-weight:600;
   z-index:999;
@@ -416,7 +416,7 @@ body{
 .pin-dot.filled{background:var(--acc);border-color:var(--acc)}
 .pin-dot.error{background:#fc8181;border-color:#fc8181}
 .pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:10px 0 6px;place-items:center}
-.pin-btn{width:56px;height:56px;border-radius:50%;border:1px solid var(--brd2);background:var(--nav);color:var(--txt);font-size:20px;font-weight:600;cursor:pointer;transition:all .1s;display:flex;align-items:center;justify-content:center;margin:0 auto}
+.pin-btn{width:56px;height:56px;border-radius:50%;border:1px solid var(--brd2);background:var(--surf2);color:var(--txt);font-size:20px;font-weight:600;cursor:pointer;transition:all .1s;display:flex;align-items:center;justify-content:center;margin:0 auto}
 .pin-btn:active{background:var(--acc-bg);border-color:var(--acc-bd);color:var(--acc);transform:scale(.95)}
 .pin-btn-del{color:var(--dim)}
 

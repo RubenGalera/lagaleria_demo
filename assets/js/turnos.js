@@ -1,7 +1,8 @@
 /* lagaleria_turnos.html — lógica de la página.
    Depende de globals cargados antes: _sb/LOCAL_ID (supabase-client.js), DatePicker
    (date-picker.js), MESES_ES/isoWeekNum/mondayOfDate/haptic (utils.js), playTap
-   (sounds.js).
+   (sounds.js), showToast (assets/lib/toast.js — este archivo ya no tiene su
+   propio showToast, ver toast.js para el porqué).
    Expone funciones/variables en scope global para que worker-modal.js y date-picker.js puedan usarlas (sin IIFE/module).
 
    ÍNDICE (línea aprox. de cada sección — el archivo no está reordenado físicamente,
@@ -1657,13 +1658,6 @@ function delVacaciones(idx){
     _sb?.from('trabajadores_vacaciones').delete().eq('id',item._sbId)
       .then(({error})=>{if(error) console.error('[SB] delete vac:',error.message); else _notifyWorkerUpdated();});
   }
-}
-
-function showToast(msg){
-  const t=document.getElementById("toast");
-  if(!t)return;
-  t.textContent=msg;t.classList.add("show");
-  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2200);
 }
 
 

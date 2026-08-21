@@ -15,7 +15,7 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .btn-del-prod:active{background:var(--red-bg)}
 .oneoff-btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:12px;border:1px dashed var(--acc-bd);border-radius:10px;background:transparent;color:var(--acc);font-size:13px;font-weight:600;cursor:pointer;margin-bottom:14px;transition:all .2s}
 .oneoff-btn:active{background:var(--acc-bg)}
-.oneoff-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 13px;background:rgba(197,166,105,.06);border:1px solid var(--acc-bd);border-radius:9px;margin-bottom:5px}
+.oneoff-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 13px;background:rgba(197,166,105,.06);border:1px solid var(--acc-bd);border-radius:9px;margin-bottom:5px;cursor:pointer}
 .oneoff-name{font-size:13px;font-weight:600;color:var(--acc)}
 .oneoff-meta{font-size:11px;color:var(--dim);margin-top:2px}
 .oneoff-del{background:none;border:none;color:var(--dim);cursor:pointer;font-size:18px;padding:2px 6px;line-height:1}
@@ -88,7 +88,7 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .prod-min{font-size:10px;color:var(--faint)}
 .prod-note{font-size:10px;color:var(--acc);margin-top:3px;font-style:italic;display:flex;align-items:center;gap:4px}
 .stepper{display:flex;align-items:center;gap:2px;flex-shrink:0}
-.sbtn{width:34px;height:34px;border-radius:8px;border:1px solid var(--brd2);background:var(--nav);color:var(--txt);font-size:22px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s;flex-shrink:0;user-select:none}
+.sbtn{width:34px;height:34px;border-radius:8px;border:1px solid var(--brd2);background:var(--surf2);color:var(--txt);font-size:22px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s;flex-shrink:0;user-select:none}
 .sbtn:active{background:var(--brd2);transform:scale(.92)}
 .sval-num{font-size:15px;font-weight:700;color:var(--txt);display:block;line-height:1.2}
 .prod.red .sval-num{color:var(--red)}
@@ -204,7 +204,7 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .reg-person-info{flex:1}
 .reg-person-name{font-size:13px;font-weight:600;color:var(--txt)}
 .reg-person-time{font-size:10px;color:var(--dim);margin-top:1px}
-.reg-mov{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.reg-mov{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.04)}
 .reg-mov:last-child{border-bottom:none}
 .reg-mov-prod{font-size:12px;color:var(--muted)}
 .reg-mov-delta{font-size:12px;font-weight:700}
@@ -222,7 +222,7 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .inv-last-update{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px;color:var(--dim);padding:8px 0 4px;margin-bottom:8px}
 .inv-active .sbtn{background:rgb(85,153,187);color:#fff;font-weight:700}
 .inv-active .sval-num{color:var(--sm-text)}
-.inv-banner{background:#1a2f3a;border-top:1px solid rgba(85,153,187,.3);padding:8px 14px;display:none;align-items:center;justify-content:space-between}.inv-banner.show{display:flex}
+.inv-banner{background:var(--surf2);border-top:1px solid rgba(85,153,187,.3);padding:8px 14px;display:none;align-items:center;justify-content:space-between}.inv-banner.show{display:flex}
 .inv-banner-lbl{font-size:12px;color:var(--sm-text);font-weight:600;display:flex;align-items:center;gap:6px}
 .btn-save-inv{background:var(--sm-text);border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;color:#fff;cursor:pointer}
 .btn-save-inv:active{opacity:.85}
@@ -281,7 +281,7 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 /* "Todos los proveedores" — separada visualmente del resto para que quitar
    el filtro sea obvio de un vistazo. */
 .filter-prov-all{color:var(--acc);font-weight:700;background:var(--acc-bg);border-bottom:2px solid var(--acc-bd)}
-.inv-dot-blue{width:7px;height:7px;border-radius:50%;background:#5599bb;box-shadow:0 0 6px rgba(85,153,187,.6);flex-shrink:0}
+.inv-dot-blue{width:7px;height:7px;border-radius:50%;background:var(--sm-text);box-shadow:0 0 6px rgba(85,153,187,.6);flex-shrink:0}
 .sval{min-width:52px;text-align:center;padding:0 4px;display:flex;flex-direction:column;align-items:center}
 .sval-origin-row{height:14px;display:flex;align-items:center;justify-content:center;gap:3px;overflow:hidden}
 .sval-origin{font-size:10px;color:var(--faint);font-weight:600;line-height:1}

@@ -1,6 +1,6 @@
 /* Helpers de UI compartidos — toast, showModal/closeModal, stepField.
    Sin dependencias externas; solo manipula DOM. Cargado en todas las páginas
-   que los usan excepto lagaleria_stock.html (tiene su propio showToast). */
+   que lo usan, incluida lagaleria_stock.html (que además carga toast.js). */
 
 function toast(msg) {
   if (window.parent !== window) {
@@ -8,9 +8,12 @@ function toast(msg) {
   }
   var t = document.getElementById('_toast');
   if (!t) {
+    /* Sin estilo inline: class="toast" hereda fondo/color/forma de
+       components.css (var(--surf2)/var(--txt)) — así sigue el tema
+       claro/oscuro en vez de quedar fijo en el hardcodeado de antes. */
     t = document.createElement('div');
     t.id = '_toast';
-    t.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a2f3a;border:1px solid var(--brd2);color:var(--txt);padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;z-index:999;transition:opacity .3s';
+    t.className = 'toast';
     document.body.appendChild(t);
   }
   t.textContent = msg;
