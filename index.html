@@ -17,6 +17,12 @@
 <link rel="stylesheet" href="assets/styles/tokens.css">
 <link rel="stylesheet" href="assets/styles/components.css">
 <link rel="stylesheet" href="assets/styles/index.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#22292D">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="La Galería">
+<link rel="apple-touch-icon" href="/assets/img/icon-192.png">
 </head>
 <body>
 
@@ -560,6 +566,18 @@
             <span style="font-size:10px;color:var(--dim);margin-right:8px">Próximamente</span>
             <label class="switch"><input type="checkbox" id="aj-sound" onchange="aj_save('sound',this.checked)"><span class="switch-track"></span></label>
           </span>
+        </div>
+      </div>
+
+      <!-- Instalación -->
+      <div class="notif-section">
+        <div class="notif-section-title">&#128241; Instalaci&#243;n</div>
+        <div id="aj-install-row" class="notif-row" onclick="aj_install()" style="display:none;cursor:pointer">
+          <div>
+            <div class="notif-label">Instalar app</div>
+            <div style="font-size:11px;color:var(--dim);margin-top:2px">A&#241;ade La Galer&#237;a a tu pantalla de inicio</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--dim);flex-shrink:0"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </div>
       </div>
 

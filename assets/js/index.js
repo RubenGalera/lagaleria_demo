@@ -61,6 +61,25 @@ function isSafeImg(u){return typeof u==='string'&&u.trim()!==''&&!u.includes('${
    de git porque el shell corre como HTML estático, sin build step. */
 var APP_VERSION = 'v0.2.34';
 
+/* Instalación como PWA (Ajustes → Instalación, ver aj_install() más abajo).
+   El navegador dispara beforeinstallprompt solo si considera el sitio
+   instalable (manifest.json válido + iconos + servido por HTTPS) — por eso
+   la fila #aj-install-row empieza oculta en el HTML y solo se muestra si
+   este evento llega a dispararse. appinstalled la vuelve a ocultar tras una
+   instalación completada (o si el usuario ya la tenía instalada). */
+var _installPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e){
+  e.preventDefault();
+  _installPrompt = e;
+  var row = document.getElementById('aj-install-row');
+  if(row) row.style.display = '';
+});
+window.addEventListener('appinstalled', function(){
+  _installPrompt = null;
+  var row = document.getElementById('aj-install-row');
+  if(row) row.style.display = 'none';
+});
+
 /* ── SHELL — HEADER Y AVATAR ── */
 /* Avatar del header (esquina superior derecha) — foto si existe, si no las iniciales. */
 function _renderHeaderAvatar(){
@@ -407,8 +426,13 @@ window.addEventListener('message', function(e){
  * listener de postMessage 'worker_updated' más arriba), dispara el
  * refresco real justo al entrar en esa pestaña — no antes, no si no hace falta.
  * @param {string} page - Id de la pestaña destino ('inicio'|'turnos'|'reservas'|'stock'|'admin').
+ * @param {boolean} [fromPopstate] - true cuando goTo() se llama para
+ *   sincronizar la vista con un history.state ya existente (el listener de
+ *   popstate más abajo) — en ese caso NO hay que volver a empujar el mismo
+ *   estado, o cada "atrás" generaría una entrada nueva en vez de navegar
+ *   por las ya visitadas.
  */
-function goTo(page){
+function goTo(page, fromPopstate){
   PAGES.forEach(function(p){
     var fr = document.getElementById('fr-'+p);
     var bn = document.getElementById('bnav-'+p);
@@ -434,7 +458,127 @@ function goTo(page){
       pendingWorkerReload.turnos = false;
     }
   }catch(e){}
+  if(!fromPopstate) history.pushState({ page: page }, '');
 }
+
+/* ── BOTÓN ATRÁS (móvil y desktop) ──
+   Historial real por sección: cada goTo(page) empuja { page }, así que
+   atrás/adelante navegan por las secciones ya visitadas (Inicio → Stock →
+   Turnos → atrás → Stock → atrás → Inicio), no solo "cierra algo y ya".
+   Abrir un modal del shell empuja { modal: id } (ver _showModalWithHistory,
+   junto a closeAll() más abajo) para que atrás lo cierre en vez de navegar.
+
+   Nombres verificados contra el código real antes de escribir esto (varios
+   de los asumidos al pedir esta feature no existen):
+   - No hay openOv()/closeOv()/ls_closeProfile() a nivel de shell. Los
+     modales del shell se abren con showModal(id) (ui-helpers.js) — pero esa
+     función también la usan inicio.js y reservas.js para SUS PROPIOS
+     modales, dentro de su propio iframe con su propio historial de
+     navegación (separado del de la ventana top) — tocarla ahí no ayudaría
+     al popstate de aquí, así que el pushState se añade solo en los propios
+     showModal(...) de este archivo (_showModalWithHistory), no en
+     ui-helpers.js. closeAll() ya cierra tanto los modales del shell
+     (.modal-overlay.show) como #profile-sheet en una sola llamada.
+   - El iframe activo se detecta con '#pages iframe.active' (index.css) —
+     no existe ninguna clase .pframe en el proyecto.
+   - El date-picker de Turnos (assets/lib/date-picker.js) vive DENTRO del
+     iframe de Turnos, en su propio documento/historial — empujar un estado
+     al abrirlo (o escuchar popstate ahí) no lo vería este listener del
+     shell de forma fiable entre navegadores (historial "conjunto" de
+     iframes es un área con comportamiento inconsistente). En su lugar, el
+     date-picker se detecta igual que el resto de overlays de iframe (más
+     abajo) mirando su propio DOM (#_dp-dropdown.show) y se cierra llamando
+     a su API real, DatePicker.close() — así el flag interno _isOpen del
+     módulo queda sincronizado (quitarle la clase .show a mano por fuera no
+     lo actualizaría, y el siguiente DatePicker.open() se comportaría mal).
+   - Los overlays propios de cada iframe (no el date-picker) usan 4 nombres
+     de clase según la página (.overlay en turnos/reservas/worker-modal,
+     .modal-overlay en admin, .modal-bg/.oneoff-modal-bg en stock), todos
+     con el mismo mecanismo: la clase .show. No hay un closeOv() compartido
+     entre iframes con la misma firma (turnos.js y admin.js lo exigen con
+     id como argumento, stock.js no lo tiene siquiera) — por eso, si no
+     aparece un botón de cierre que pulsar, se quita la clase .show
+     directamente en vez de intentar adivinar el nombre de una función.
+   Estos overlays/sub-tabs de iframe NO se trackean con pushState (habría
+   que instrumentar cada modal de cada página) — se detectan mirando el DOM
+   en vivo, igual que antes; solo página y modal del shell usan historial real. */
+var _initialFrame = document.querySelector('#pages iframe.active');
+history.pushState({ page: _initialFrame ? _initialFrame.id.slice(3) : 'turnos' }, '');
+var _backPressedOnce = false;
+
+function _showModalWithHistory(id){
+  history.pushState({ modal: id }, '');
+  showModal(id);
+}
+
+window.addEventListener('popstate', function(e){
+  var st = e.state;
+
+  // 1 — Veníamos de un modal del shell abierto → cerrarlo y ya está (el
+  // "atrás" queda consumido por el modal, no navega de sección de paso).
+  if(st && st.modal){
+    closeAll();
+    return;
+  }
+
+  var activeFrame = document.querySelector('#pages iframe.active');
+  var frameDoc = activeFrame && activeFrame.contentDocument;
+  var frameWin = activeFrame && activeFrame.contentWindow;
+
+  // 2 — Date-picker de Turnos abierto → cerrarlo con su API real.
+  var dp = frameDoc && frameDoc.getElementById('_dp-dropdown');
+  if(dp && dp.classList.contains('show')){
+    try{ if(frameWin && frameWin.DatePicker) frameWin.DatePicker.close(); }catch(e2){}
+    return;
+  }
+
+  // 3 — Overlay/modal propio del iframe activo abierto → cerrarlo.
+  var frameOverlay = frameDoc && frameDoc.querySelector('.overlay.show, .modal-overlay.show, .modal-bg.show, .oneoff-modal-bg.show');
+  if(frameOverlay){
+    var closeBtn = frameOverlay.querySelector('.mclose, .modal-cls, .sheet-cls');
+    if(closeBtn){ closeBtn.click(); return; }
+    frameOverlay.classList.remove('show');
+    return;
+  }
+
+  // 4 — Sub-tab activo no es el primero (ej. Pedido/Registro en Stock) → volver al primero.
+  var activeSubTab = frameDoc && frameDoc.querySelector('.mtab.act');
+  var firstTab      = frameDoc && frameDoc.querySelector('.mtab:first-child');
+  if(activeSubTab && firstTab && activeSubTab !== firstTab){
+    firstTab.click();
+    return;
+  }
+
+  // 5 — Navegación real entre secciones: sincronizar la vista con la página
+  // en la que hemos aterrizado (sin volver a empujar — eso es lo que
+  // permite que adelante/atrás recorran las secciones ya visitadas).
+  var currentPage = activeFrame ? activeFrame.id.slice(3) : null;
+  var landedPage = (st && st.page) || null;
+  if(landedPage && landedPage !== currentPage){
+    goTo(landedPage, true);
+  }
+  if(landedPage && landedPage !== 'inicio'){
+    _backPressedOnce = false;
+    return;
+  }
+  if(!landedPage && currentPage !== 'inicio'){
+    // Estado sin info útil (entrada de antes de esta feature, etc.) — a Inicio.
+    goTo('inicio', true);
+    _backPressedOnce = false;
+    return;
+  }
+
+  // 6 — Ya en Inicio y sin nada más que cerrar → aviso de salida con doble
+  // pulsación. Solo se repone el estado tras el primer aviso, para dar una
+  // segunda oportunidad de pulsar atrás — la segunda pulsación no repone
+  // nada y deja que el atrás del navegador siga su curso normal (salir).
+  if(_backPressedOnce) return;
+  _backPressedOnce = true;
+  history.pushState({ page: 'inicio' }, '');
+  if(typeof haptic === 'function') haptic(30);
+  if(typeof showToast === 'function') showToast('Pulsa atrás de nuevo para salir', 'info');
+  setTimeout(function(){ _backPressedOnce = false; }, 2000);
+});
 
 var _hsiDimTimer = null;
 function setHeaderSaveState(state){
@@ -501,7 +645,7 @@ function openZonasFromAdmin(){
   var local = getActiveLocal();
   var sub = document.getElementById('zona-list-sub');
   if(sub) sub.textContent = (local.zonas||[]).length + ' zonas · ' + local.nombre.split(' ')[0];
-  showModal('ov-zona-list');
+  _showModalWithHistory('ov-zona-list');
 }
 function closeZonasPanel(){ closeModal('ov-zona-list'); }
 
@@ -535,7 +679,7 @@ function openNewZona(){
   document.getElementById('z-pax').value = '';
   document.getElementById('z-activa').checked = true;
   renderEmojiGrid('☀️');
-  showModal('ov-zona');
+  _showModalWithHistory('ov-zona');
 }
 
 function openEditZona(id){
@@ -550,7 +694,7 @@ function openEditZona(id){
   document.getElementById('z-pax').value = z.pax || '';
   document.getElementById('z-activa').checked = z.activa !== false;
   renderEmojiGrid(z.emoji);
-  showModal('ov-zona');
+  _showModalWithHistory('ov-zona');
 }
 
 function saveZona(){
@@ -660,7 +804,7 @@ function prf_openModal(){
   var saved=u.foto_url||(u.email?localStorage.getItem('prf_photo_'+u.email):null);
   prf_setPhoto(saved||null);
   prf_markDirty(false);
-  showModal('ov-miperfil');
+  _showModalWithHistory('ov-miperfil');
 }
 function prf_markDirty(dirty){var btn=document.getElementById('prf-mp-save');if(btn)btn.classList.toggle('dirty',dirty);}
 function prf_focusField(id){var el=document.getElementById(id);if(el){el.focus();el.select&&el.select();}}
@@ -828,7 +972,7 @@ function prf_changePin_open(){
   var lbl=document.getElementById('cmp-pin-label');
   if(lbl) lbl.textContent='Introduce tu nuevo PIN';
   prf_changePin_render();
-  showModal('ov-change-mypin');
+  _showModalWithHistory('ov-change-mypin');
 }
 
 function prf_changePin_press(digit){
@@ -924,7 +1068,7 @@ function notif_openModal(){
     row.classList.toggle('locked',!allowed);
     if(cb){cb.checked=allowed?(prefs[key]!==undefined?prefs[key]:NOTIF_DEFAULTS[key]):false;cb.disabled=!allowed;}
   });
-  showModal('ov-notif');
+  _showModalWithHistory('ov-notif');
 }
 function notif_save(cb){var row=cb.closest('.notif-row');var key=row?row.getAttribute('data-key'):null;if(!key)return;var prefs=notif_loadPrefs();prefs[key]=cb.checked;notif_savePrefs(prefs);}
 function notif_loadPrefs(){try{var u=currentUser||{};var k='notif_prefs_'+(u.email||u.rol||'user');var raw=localStorage.getItem(k);if(raw&&raw!=='undefined')return JSON.parse(raw);}catch(e){}return{};}
@@ -934,7 +1078,7 @@ function notif_savePrefs(prefs){try{var u=currentUser||{};localStorage.setItem('
 /* ══ SUPERADMIN PANEL ══ */
 function openSuperadminPanel(){
   sa_renderLocales();
-  showModal('ov-superadmin');
+  _showModalWithHistory('ov-superadmin');
 }
 
 function sa_renderLocales(){
@@ -993,7 +1137,7 @@ function ajustes_openModal(){
   if(soundCb) soundCb.checked = prefs.sound !== undefined ? prefs.sound : AJ_DEFAULTS.sound;
   var verEl = document.getElementById('aj-version');
   if(verEl) verEl.textContent = APP_VERSION;
-  showModal('ov-ajustes');
+  _showModalWithHistory('ov-ajustes');
 }
 
 function aj_setTheme(theme){
@@ -1077,6 +1221,19 @@ function aj_savePrefs(prefs){
   try{ localStorage.setItem(AJ_KEY, JSON.stringify(prefs)); }catch(e){}
 }
 
+/**
+ * Lanza el diálogo nativo de instalación (PWA) guardado por el listener de
+ * beforeinstallprompt, más arriba. _installPrompt solo puede usarse una vez
+ * — se descarta tanto si el usuario acepta como si cancela, para no
+ * intentar reusar un prompt ya consumido (el navegador lo rechazaría).
+ */
+function aj_install(){
+  if(!_installPrompt) return;
+  if(typeof haptic==='function') haptic(20);
+  _installPrompt.prompt();
+  _installPrompt.userChoice.then(function(){ _installPrompt = null; });
+}
+
 /* Vibración/sonido al tap en cualquier punto del shell (nav inferior,
    header...) — los iframes no reciben este listener (documentos aparte),
    por eso Turnos/Stock llaman a haptic()/playTap() (utils.js/sounds.js)
@@ -1157,7 +1314,7 @@ document.addEventListener('keydown', function(e){
 function pin_forgot(){
   var emailEl = document.getElementById('forgot-email');
   if(emailEl) emailEl.value = '';
-  showModal('ov-forgot-pin');
+  _showModalWithHistory('ov-forgot-pin');
 }
 
 function forgot_send(){
@@ -1488,7 +1645,7 @@ function onboarding_check(){
   }catch(e){}
   _obStep = 1;
   ob_showStep(1);
-  showModal('ov-onboarding');
+  _showModalWithHistory('ov-onboarding');
 }
 
 function ob_showStep(step){

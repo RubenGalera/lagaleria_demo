@@ -1,5 +1,15 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.37 — Navegación con botón atrás + manifest.json + instalación (agosto 2026)
+- Botón atrás interceptado: cierra modales, overlays, date-picker, navega entre secciones visitadas y muestra toast de confirmación antes de salir
+- goTo() añade estado al historial para navegación hacia atrás entre secciones
+- _showModalWithHistory() wrapper para modales del shell con historial
+- manifest.json creado con nombre, iconos y configuración de PWA
+- Iconos icon-192.png e icon-512.png añadidos a assets/img/
+- Meta tags de instalación añadidos a index.html (manifest, theme-color, apple-mobile-web-app)
+- Botón "Instalar app" en Ajustes — aparece solo cuando Chrome permite instalar
+- APP_VERSION actualizada a v0.2.37
+
 ## v0.2.36 — Registro de Stock funcional (agosto 2026)
 - Fix crítico: stock_movimientos sin local_id — añadida columna via SQL y poblada en registros existentes
 - Fix: renderRegistro() usaba nombre de tabla incorrecto 'productos' en vez de 'stock_productos' — error PGRST200 silencioso
