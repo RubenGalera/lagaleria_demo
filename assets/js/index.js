@@ -306,9 +306,10 @@ function applySession(profile, remember){
   if(remember){ try{ localStorage.setItem(LS_KEY, JSON.stringify(currentUser)); }catch(e){} }
   /* Load local config from Supabase */
   sbLoadLocal();
-  var canSeeInicio = (currentUser.rol === 'admin' || currentUser.rol === 'encargado');
-  document.getElementById('bnav-inicio').style.display = canSeeInicio ? '' : 'none';
-
+  /* Visible para todos los roles — antes solo admin/encargado (ver bnav-inicio
+     en index.html, que arranca con display:none inline; esta es la única
+     línea que alguna vez lo mostraba, así que hay que dejarla, no borrarla). */
+  document.getElementById('bnav-inicio').style.display = '';
   var canSeeAdmin = (currentUser.rol === 'admin' || currentUser.rol === 'superadmin');
   document.getElementById('bnav-admin').style.display = canSeeAdmin ? '' : 'none';
   if (canSeeAdmin && !document.getElementById('fr-admin')) {
@@ -319,7 +320,7 @@ function applySession(profile, remember){
     document.getElementById('pages').appendChild(frAdmin);
   }
 
-  var defaultPage = canSeeInicio ? 'inicio' : 'turnos';
+  var defaultPage = 'inicio'; // todos los roles aterrizan en Inicio
   goTo(defaultPage);
 
   /* goTo() solo refresca permisos del iframe al que se navega — Stock nunca es

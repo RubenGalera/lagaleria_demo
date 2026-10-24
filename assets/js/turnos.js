@@ -137,7 +137,7 @@ async function sbInitTrabajadores() {
     _sb.from('trabajador_skill').select('trabajador_id, skill_id, nivel').in('trabajador_id', trabIds),
     _sb.from('disponibilidad').select('trabajador_id, dia_semana, turno').in('trabajador_id', trabIds),
     _sb.from('trabajadores_vacaciones').select('id, trabajador_id, desde, hasta, tipo').in('trabajador_id', trabIds),
-    _sb.from('trabajador_notas').select('id, trabajador_id, turno, nota, dia_semana').in('trabajador_id', trabIds),
+    _sb.from('trabajador_notas').select('id, trabajador_id, turno, nota, dia_semana, fecha').in('trabajador_id', trabIds),
   ]);
   if (catalogErr) console.warn('[SB] skills catalog:', catalogErr.message);
   if (skillsErr)  console.warn('[SB] trabajador_skill:', skillsErr.message);
@@ -179,8 +179,14 @@ async function sbInitTrabajadores() {
     vacByW[r.trabajador_id].push({desde: r.desde, hasta: r.hasta, tipo: r.tipo || 'vacaciones', _sbId: r.id});
   });
   (notasData || []).forEach(r => {
+    /* Sin filtrar por semana aquí a propósito: esta carga es única (sbInitTrabajadores
+       solo se repite si se reasigna un trabajador desde Admin), pero curMonday cambia
+       cada vez que se navega a otra semana en el grid — filtrar por curMonday/weekEnd
+       en este punto dejaría sin notas cualquier semana que no fuera la activa en el
+       momento de esta carga. El filtro por fecha concreta se hace en el render del
+       chip (buildGrid, ver notaMatch), que sí se recalcula en cada cambio de semana. */
     if (!notasByW[r.trabajador_id]) notasByW[r.trabajador_id] = [];
-    notasByW[r.trabajador_id].push({d: r.dia_semana, turno: r.turno, nota: r.nota, _sbId: r.id});
+    notasByW[r.trabajador_id].push({d: r.dia_semana, turno: r.turno, nota: r.nota, fecha: r.fecha, _sbId: r.id});
   });
 
   /* 5 — Poblar locals.galeria.staff — el roster real excluye archivados (aquí sí, no en la
@@ -486,6 +492,20 @@ function onActivarVariante(v){
     ()=>doActivarVariante(v)
   );
 }
+/* Notifica al iframe de Inicio (si está montado) para que recargue su
+   dashboard tras activar/eliminar una variante — sus cards "Tu semana" y
+   "Turnos de hoy" leen turnos con activa=true (ver sbLoadTurnos/
+   loadWeekFromSupabase) y quedarían desactualizadas si nadie les avisa.
+   window.refreshInicio (alias de initDashboard, inicio.js:128) es el punto
+   de entrada ya expuesto para esto — no initInicio()/loadInicio(), que no
+   existen en inicio.js. */
+function _notifyInicioRefresh(){
+  try{
+    var frInicio = window.parent?.document?.getElementById('fr-inicio');
+    if(frInicio?.contentWindow?.refreshInicio) frInicio.contentWindow.refreshInicio();
+  }catch(e){}
+}
+
 async function doActivarVariante(v){
   closeOv('ov-confirm');
   if(!_sb){ showToast('Sin conexión'); return; }
@@ -497,6 +517,7 @@ async function doActivarVariante(v){
   curVarianteActiva = v;
   renderVariantChips();
   showToast('Semana '+v+' activada ✓');
+  _notifyInicioRefresh();
 }
 
 function onEliminarVariante(v){
@@ -573,6 +594,7 @@ async function doEliminarVariante(v, esActiva){
     weekHasVariantB = false;
     await loadWeekFromSupabase(curMonday); // recarga el grid con lo que era B, ahora A
     showToast('Semana alternativa ahora es la principal ✓');
+    _notifyInicioRefresh();
     return;
   }
 
@@ -587,6 +609,7 @@ async function doEliminarVariante(v, esActiva){
   curVariante = otra; // única variante que queda
   await loadWeekFromSupabase(curMonday); // recalcula weekHasVariantB/curVarianteActiva desde BD
   showToast('Semana alternativa eliminada ✓');
+  _notifyInicioRefresh();
 }
 
 /* Pinta (o vacía) #variant-bar y el botón "+" según el rol y si existe B.
@@ -810,7 +833,11 @@ function buildGrid(){
         if(unavail)chip.style.cssText="border-color:rgba(200,60,60,.5);background:rgba(200,60,60,.08)";
         const warnIcon=alertMsg?`<span style="font-size:9px;color:#cc4444;margin-left:auto" title="⚠ ${alertMsg}">⚠</span>`:"";
         const archivedTag=archived?`<span class="chip-tag" title="Trabajador archivado — histórico, solo lectura">📁</span>`:"";
-        const notaMatch=w&&w.notas&&w.notas.find(n=>n.d===d&&n.turno===(isMed?'med':'noch'));
+        /* Comparar por fecha concreta (n.fecha), no por índice de día (n.d): el
+           mismo índice d=0 representa un lunes distinto en cada semana — sin esto
+           la nota "recurriría" todas las semanas en vez de quedar anclada a una sola. */
+        const notaDayStr=_notaDateForDay(d);
+        const notaMatch=w&&w.notas&&w.notas.find(n=>n.fecha===notaDayStr&&n.turno===(isMed?'med':'noch'));
         const notaText=notaMatch?(notaMatch.nota||''):'';
         const notaTrunc=notaText.length>10?notaText.slice(0,10)+'…':notaText;
         const notaTag=notaMatch?`<span class="chip-tag chip-nota" title="${notaText.replace(/"/g,'&quot;')}">${notaTrunc}</span>`:"";
@@ -872,8 +899,17 @@ function _notaAvailSlots(name){
   }
   return out;
 }
+/* Convierte un índice de día (0=lunes..6=domingo) de la semana que se está
+   viendo ahora mismo (curMonday) en su fecha real 'YYYY-MM-DD' — así la nota
+   queda anclada a un día concreto del calendario, no a "el lunes" en general. */
+function _notaDateForDay(d){
+  const dt=new Date(curMonday+'T00:00:00Z');
+  dt.setUTCDate(dt.getUTCDate()+d);
+  return dt.toISOString().split('T')[0];
+}
 function _notaSetDay(i,d){
   _notaRows[i].d=d;
+  _notaRows[i].fecha=_notaDateForDay(d);
   const avail=_notaAvailSlots(_previewName)[d]||[];
   if(!avail.includes(_notaRows[i].turno)) _notaRows[i].turno=avail[0]||'med';
   renderNotaList();
@@ -900,7 +936,7 @@ function addNotaRow(){
   const slots=_notaAvailSlots(_previewName);
   const days=Object.keys(slots).map(Number).sort((a,b)=>a-b);
   if(!days.length){ if(typeof showToast==='function') showToast('Este trabajador no tiene turnos asignados esta semana','error'); return; }
-  _notaRows.push({d:days[0],turno:slots[days[0]][0],nota:''});
+  _notaRows.push({d:days[0],turno:slots[days[0]][0],nota:'',fecha:_notaDateForDay(days[0])});
   renderNotaList();
 }
 

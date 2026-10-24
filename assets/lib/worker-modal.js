@@ -244,7 +244,7 @@ async function openPreview(name) {
     el.classList.toggle('active', w.unavailNoch.includes(parseInt(el.dataset.d)));
   });
 
-  _notaRows = (w.notas || []).map(n => ({d: n.d, turno: n.turno, nota: n.nota, _sbId: n._sbId}));
+  _notaRows = (w.notas || []).map(n => ({d: n.d, turno: n.turno, nota: n.nota, fecha: n.fecha || null, _sbId: n._sbId}));
   _notaRowsOriginal = _notaRows.map(n => ({...n}));
   renderNotaList(); renderVacList(); updateAlert();
 
@@ -631,13 +631,13 @@ function _syncNotasToSupabase(w) {
     if (n._sbId) {
       keptIds.add(n._sbId);
       const orig = origById[n._sbId];
-      if (orig && (orig.nota !== n.nota || orig.turno !== n.turno || orig.d !== n.d)) {
-        _sb?.from('trabajador_notas').update({turno:n.turno, nota:n.nota, dia_semana:n.d}).eq('id', n._sbId)
+      if (orig && (orig.nota !== n.nota || orig.turno !== n.turno || orig.d !== n.d || orig.fecha !== n.fecha)) {
+        _sb?.from('trabajador_notas').update({turno:n.turno, nota:n.nota, dia_semana:n.d, fecha:n.fecha || null}).eq('id', n._sbId)
           .then(({error}) => { if (error) console.error('[SB] update trabajador_notas:', error.message); })
           .catch(e => console.error('[SB] update trabajador_notas:', e));
       }
     } else {
-      _sb?.from('trabajador_notas').insert({trabajador_id:w._sbId, turno:n.turno, nota:n.nota, dia_semana:n.d}).select('id').single()
+      _sb?.from('trabajador_notas').insert({trabajador_id:w._sbId, turno:n.turno, nota:n.nota, dia_semana:n.d, fecha:n.fecha || null}).select('id').single()
         .then(({data, error}) => { if (error) console.error('[SB] insert trabajador_notas:', error.message); else if (data) n._sbId = data.id; })
         .catch(e => console.error('[SB] insert trabajador_notas:', e));
     }

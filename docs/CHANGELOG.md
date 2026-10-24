@@ -1,5 +1,14 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.38 — Inicio para todos los roles + sync variantes (septiembre 2026)
+- Todos los roles (empleado, encargado, admin) aterrizan en Inicio al hacer login
+- Botón Inicio visible en el footer para todos los roles
+- canSeeInicio eliminado — Inicio ya no está restringido por rol
+- Al activar o borrar variante A/B en Turnos, Inicio se refresca automáticamente mostrando los turnos de la variante activa
+- _notifyInicioRefresh() helper en turnos.js usando window.refreshInicio alias
+- Tu semana y Turnos de hoy siempre muestran la variante con activa=true
+- APP_VERSION actualizada a v0.2.38
+
 ## v0.2.37 — Navegación con botón atrás + manifest.json + instalación (agosto 2026)
 - Botón atrás interceptado: cierra modales, overlays, date-picker, navega entre secciones visitadas y muestra toast de confirmación antes de salir
 - goTo() añade estado al historial para navegación hacia atrás entre secciones
