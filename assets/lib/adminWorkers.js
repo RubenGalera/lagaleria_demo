@@ -68,7 +68,7 @@ async function _syncTrab(){
       _sb.from('trabajadores_skills').select('id,nombre'),
       _sb.from('trabajador_skill').select('trabajador_id,skill_id,nivel').in('trabajador_id',trabIds),
       _sb.from('trabajadores_vacaciones').select('id,trabajador_id,desde,hasta,tipo').in('trabajador_id',trabIds),
-      _sb.from('trabajador_notas').select('id,trabajador_id,turno,nota,dia_semana').in('trabajador_id',trabIds),
+      _sb.from('trabajador_notas').select('id,trabajador_id,turno,nota,dia_semana,fecha').in('trabajador_id',trabIds),
     ]);
     var dispoRes=results[0], catalogRes=results[1], skillsRes=results[2], vacRes=results[3], notasRes=results[4];
     if(dispoRes.error) console.error('[SB] _syncTrab disponibilidad:',dispoRes.error.message);
@@ -83,7 +83,7 @@ async function _syncTrab(){
     if(notasRes.error) console.error('[SB] _syncTrab trabajador_notas:',notasRes.error.message);
     else (notasRes.data||[]).forEach(function(r){
       if(!notasByW[r.trabajador_id]) notasByW[r.trabajador_id]=[];
-      notasByW[r.trabajador_id].push({d:r.dia_semana,turno:r.turno,nota:r.nota,_sbId:r.id});
+      notasByW[r.trabajador_id].push({d:r.dia_semana,turno:r.turno,nota:r.nota,fecha:r.fecha,_sbId:r.id});
     });
 
     _skillLocalToUUID={}; _skillUUIDToLocal={};

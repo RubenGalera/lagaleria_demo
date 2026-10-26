@@ -316,8 +316,18 @@ function delVacaciones(idx){
 const TP_MINS=[0,15,30,45];
 
 /* NOTA ESPECIAL — fusión de la antigua "hora especial de entrada" + "notas":
-   una fila = día + turno + texto libre, los 3 obligatorios (ver saveProfile). */
-function addNotaRow(){_notaRows.push({d:0,turno:'med',nota:''});renderNotaList();}
+   una fila = día + turno + texto libre, los 3 obligatorios (ver saveProfile).
+   Admin no tiene semana navegable (L().data se queda siempre vacío a propósito,
+   ver adminWorkers.js), así que aquí la fecha se ancla siempre a la semana real
+   de hoy — el mismo criterio que usa turnos.js la primera vez que carga curMonday,
+   antes de que el usuario navegue a otra semana. */
+function _notaDateForDay(d){
+  const monday=mondayOfDate(new Date().toISOString().split('T')[0]);
+  const dt=new Date(monday+'T00:00:00Z');
+  dt.setUTCDate(dt.getUTCDate()+d);
+  return dt.toISOString().split('T')[0];
+}
+function addNotaRow(){_notaRows.push({d:0,turno:'med',nota:'',fecha:_notaDateForDay(0)});renderNotaList();}
 
 function renderNotaList(){
   const list=document.getElementById("nota-list");if(!list)return;list.innerHTML="";
@@ -325,7 +335,7 @@ function renderNotaList(){
   _notaRows.forEach((nr,i)=>{
     const row=document.createElement("div");row.className="nota-row";
     const esc=s=>(s||"").replace(/"/g,"&quot;");
-    row.innerHTML=`<select class="nota-sel" onchange="_notaRows[${i}].d=parseInt(this.value)">${DIAS_FULL.map((d,di)=>`<option value="${di}" ${nr.d===di?"selected":""}>${d}</option>`).join("")}</select><select class="nota-sel" onchange="_notaRows[${i}].turno=this.value"><option value="med" ${nr.turno==="med"?"selected":""}>Mediodía</option><option value="noch" ${nr.turno==="noch"?"selected":""}>Noche</option></select><input class="nota-input" type="text" placeholder="Ej: 9:00, solo SALA, llega tarde..." value="${esc(nr.nota)}" oninput="_notaRows[${i}].nota=this.value"><button class="nota-del" onclick="_notaRows.splice(${i},1);renderNotaList()">&#215;</button>`;
+    row.innerHTML=`<select class="nota-sel" onchange="_notaRows[${i}].d=parseInt(this.value);_notaRows[${i}].fecha=_notaDateForDay(parseInt(this.value))">${DIAS_FULL.map((d,di)=>`<option value="${di}" ${nr.d===di?"selected":""}>${d}</option>`).join("")}</select><select class="nota-sel" onchange="_notaRows[${i}].turno=this.value"><option value="med" ${nr.turno==="med"?"selected":""}>Mediodía</option><option value="noch" ${nr.turno==="noch"?"selected":""}>Noche</option></select><input class="nota-input" type="text" placeholder="Ej: 9:00, solo SALA, llega tarde..." value="${esc(nr.nota)}" oninput="_notaRows[${i}].nota=this.value"><button class="nota-del" onclick="_notaRows.splice(${i},1);renderNotaList()">&#215;</button>`;
     list.appendChild(row);
   });
 }

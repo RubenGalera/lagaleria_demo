@@ -1,5 +1,7 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.39 — Notas especiales ancladas a fecha concreta (Octubre 2026)
+
 ## v0.2.38 — Inicio para todos los roles + sync variantes (septiembre 2026)
 - Todos los roles (empleado, encargado, admin) aterrizan en Inicio al hacer login
 - Botón Inicio visible en el footer para todos los roles

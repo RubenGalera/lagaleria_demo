@@ -46,6 +46,7 @@
 var _previewName = '';
 var _notaRows    = [];
 var _notaRowsOriginal = [];
+var _notaRowsOtherWeeks = [];
 var _previewSnapshot = null;
 var ROL_LABELS = {empleado:'Empleado', encargado:'Encargado', admin:'Admin', superadmin:'Superadmin'};
 var SEC_LABELS = {sala:'Sala', cocina:'Cocina', ambos:'Ambos'};
@@ -244,8 +245,21 @@ async function openPreview(name) {
     el.classList.toggle('active', w.unavailNoch.includes(parseInt(el.dataset.d)));
   });
 
-  _notaRows = (w.notas || []).map(n => ({d: n.d, turno: n.turno, nota: n.nota, fecha: n.fecha || null, _sbId: n._sbId}));
+  /* Solo se muestran en el modal las notas de la semana visible (curMonday..+6 días):
+     mezclar notas de varias semanas en una sola lista confundía al editarlas (cambiar
+     el día de una nota la reanclaba a la semana que se estuviera viendo, ver _notaSetDay).
+     Las de otras semanas se guardan en _notaRowsOtherWeeks para no perderlas — saveProfile()
+     reconstruye w.notas uniendo ambos grupos, nunca sustituye la lista completa.
+     curMonday es global de turnos.js y no existe si el modal se abre desde Admin
+     (admin.html no carga turnos.js) — ahí se usa la semana real de hoy como referencia,
+     igual que hace _notaDateForDay() en admin.js. */
+  const _wmMonday = (typeof curMonday !== 'undefined') ? curMonday : mondayOfDate(new Date().toISOString().split('T')[0]);
+  const _wmWeekEndDt = new Date(_wmMonday + 'T00:00:00Z'); _wmWeekEndDt.setUTCDate(_wmWeekEndDt.getUTCDate() + 6);
+  const _wmWeekEnd = _wmWeekEndDt.toISOString().split('T')[0];
+  const _allNotas = (w.notas || []).map(n => ({d: n.d, turno: n.turno, nota: n.nota, fecha: n.fecha || null, _sbId: n._sbId}));
+  _notaRows = _allNotas.filter(n => n.fecha && n.fecha >= _wmMonday && n.fecha <= _wmWeekEnd);
   _notaRowsOriginal = _notaRows.map(n => ({...n}));
+  _notaRowsOtherWeeks = _allNotas.filter(n => !(n.fecha && n.fecha >= _wmMonday && n.fecha <= _wmWeekEnd));
   renderNotaList(); renderVacList(); updateAlert();
 
   const accBody  = document.getElementById('acc-body-cfg');
@@ -561,7 +575,10 @@ function saveProfile() {
   if (isAdmin) w.sec = document.getElementById('prev-sect-select').value;
   w.unavailMed  = Array.from(document.querySelectorAll('#unavail-med .unavail-chip-h.active')).map(el => parseInt(el.dataset.d));
   w.unavailNoch = Array.from(document.querySelectorAll('#unavail-noch .unavail-chip-h.active')).map(el => parseInt(el.dataset.d));
-  w.notas = _notaRows.filter(n => n.nota && n.nota.trim()).map(n => ({...n}));
+  /* No sustituir w.notas por _notaRows a secas: _notaRows solo trae la semana visible
+     (ver openPreview) — hay que recomponer también las notas de otras semanas, guardadas
+     aparte en _notaRowsOtherWeeks, o se perderían del modelo en memoria al guardar. */
+  w.notas = _notaRowsOtherWeeks.concat(_notaRows.filter(n => n.nota && n.nota.trim()).map(n => ({...n})));
   /* Los turnos (L().data) ya NO se resincronizan aquí desde el estado del
      grid de checkboxes: toggleSg() persiste cada alta/baja al instante en
      el momento del click, así que a estas alturas ya están guardados —
