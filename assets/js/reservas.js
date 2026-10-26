@@ -1036,6 +1036,33 @@ async function shareEventoWhatsApp(){
   }
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`,'_blank');
 }
+function shareListaAsistentesWA(){
+  const ev=eventos.find(x=>x.id===currentEventoId);if(!ev)return;
+  if(!ev.asistentes||!ev.asistentes.length){
+    alert('No hay asistentes en este evento.');return;
+  }
+  const tipo=TIPOS_EVENTO[ev.tipo]||TIPOS_EVENTO.evento;
+  const lines=[
+    `${tipo.icon} ${ev.nombre.toUpperCase()}`,
+    formatDayFull(ev.fecha)+(ev.hora?` · ${ev.hora}`:''),
+    '',
+  ];
+  ev.asistentes.forEach(a=>{
+    const acomp=a.acomp?` +${a.acomp}`:'';
+    const nota=a.nota?` (${a.nota})`:'';
+    const estado=a.pago==='pagado'?' · Pagado':a.pago==='invitado'?' · Invitado':'';
+    lines.push(`* ${a.nombre}${acomp}${nota}${estado}`);
+  });
+  const text=lines.join('\n');
+  if(navigator.share){
+    navigator.share({title:ev.nombre,text}).catch(e=>{
+      if(e&&e.name==='AbortError')return;
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`,'_blank');
+    });
+    return;
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`,'_blank');
+}
 function renderAsistentes(ev){
   const METODO_ICON={efectivo:'💵',visa:'💳',bizum:'📱',transferencia:'🏦'};
   document.getElementById('evd-asistentes').innerHTML=ev.asistentes.map(a=>{
