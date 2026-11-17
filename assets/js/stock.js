@@ -18,7 +18,9 @@
      9. BÚSQUEDA Y FILTRO DE PROVEEDOR     L.507  (tab Productos — buscador + panel de proveedor)
      10. PERMISOS Y ROL                    L.59   (getStockUser/canManageProducts) y L.458 (applyRolePermissions)
      · PRODUCTOS PUNTUALES (one-off)       L.1476
-     · REGISTRO (histórico de movimientos) L.1519
+     · PEDIDO — CABECERA Y CARRITO         L.1547 (hero, urgentes, modal de pedidos activos, WhatsApp, Editar)
+     · PEDIDOS — BORRADOR Y PERSISTENCIA   L.2056 (pedidoDraft/localStorage + stock_pedidos)
+     · REGISTRO (histórico de movimientos) L.2283
 
    VARIABLES GLOBALES DE ESTADO (una línea por variable — su declaración real
    vive donde tiene más sentido leerla en contexto, no aquí; esto es solo el
@@ -44,6 +46,13 @@
      pedQty             {Map}     — productId → cantidad a pedir (solo modo 'prov')
      pedCatFilter       {string}  — 'all' o slug de categoría — filtro de chips en Pedido/Por categoría
      pedProvPanelOpen   {boolean} — si el desplegable de selección de proveedor (Pedido) está abierto
+     pedidosActivos     {Array}   — pedidos 'pendiente'/'enviado' del local (stock_pedidos + lineas + proveedor), ver sbLoadPedidosPendientes()
+     pedidoDraft        {Map}     — proveedorId → { productoId: cantidad } — borrador del stepper de Pedido, espejo en memoria de localStorage
+     pedFlowOpen        {boolean} — si el flujo de pedido (toggle + vistas) está desplegado bajo "Realizar pedido"
+     pedUrgentOpen      {boolean} — si el acordeón "Productos urgentes" de Pedido está expandido
+     pedOrderConfirm    {object|null} — { id, action: 'recibir'|'eliminar' } — confirmación inline abierta en el modal de pedidos activos
+     pedOrderBusy       {string|null} — id del pedido con una acción en curso (bloquea sus botones)
+     pedEditPedidoId    {string|null} — pedido abierto con "Editar" desde el carrito (pendiente o enviado); null = flujo normal
      openDropdownCat    {string|null} — slug de la categoría cuyo dropdown de subcategorías está abierto (Productos)
      el                 {object}  — caché de referencias a elementos del DOM (listas, banners, inputs de búsqueda...)
      inputs             {object}  — caché de los <input>/<select> del modal de producto (pm*) y del one-off (oo*)
@@ -135,9 +144,16 @@ function matchesFilters(p) {
   return matchesSearch(p) && matchesProvFilter(p)
 }
 
-let pedMode   = 'cat'      // 'cat' | 'prov' — modo de vista del tab Pedido
+let pedMode   = 'prov'     // 'cat' | 'prov' — modo de vista del tab Pedido (toggle oculto por CSS: siempre 'prov')
 let pedProvId = null       // proveedor seleccionado en modo 'prov'
 let pedQty    = new Map()  // productId -> cantidad a pedir (solo modo 'prov')
+let pedidosActivos = []        // pedidos 'pendiente'/'enviado' cargados de Supabase (sbLoadPedidosPendientes)
+let pedidoDraft    = new Map() // proveedorId -> { productoId: cantidad } — espejo en memoria de localStorage
+let pedFlowOpen     = false // flujo de pedido (toggle + vistas) desplegado con "Realizar pedido"
+let pedUrgentOpen   = false // acordeón "Productos urgentes" expandido
+let pedOrderConfirm = null  // { id, action: 'recibir'|'eliminar' } — confirmación inline en el modal de pedidos
+let pedOrderBusy    = null  // id del pedido con una acción en curso
+let pedEditPedidoId = null  // pedido abierto con "Editar" desde el carrito (null = flujo normal)
 
 const WA_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>'
 
@@ -160,6 +176,8 @@ const el = {
   btnClearReg:   document.getElementById('btn-clear-reg'),
   confirmRegBg:  document.getElementById('confirm-reg-bg'),
   confirmRegMsg: document.getElementById('confirm-reg-msg'),
+  pedOrdersBg:   document.getElementById('ped-orders-bg'),
+  pedOrdersList: document.getElementById('ped-orders-list'),
 
   searchInput:   document.getElementById('search-input'),
   searchClear:   document.getElementById('search-clear'),
@@ -447,7 +465,8 @@ async function initStock() {
   }
 
   renderCatBar()
-  await sbLoadProductosPuntuales()
+  // Pedidos activos antes de renderTab(): el badge del carrito sale de pedidosActivos.
+  await Promise.all([sbLoadProductosPuntuales(), syncPedidosActivos()])
   applyRolePermissions()
   renderTab(activeTab)
   setCat(activeCat)
@@ -459,8 +478,7 @@ async function initStock() {
 /* ─── Permisos por rol ─── */
 function applyRolePermissions() {
   const rol = getStockUser()?.rol
-  const btnAddProd = document.getElementById('btn-add-prod')
-  if (btnAddProd) btnAddProd.style.display = canManageProducts() ? '' : 'none'
+  renderInvHero() // el botón "＋ Añadir producto" depende del rol (canManageProducts)
   const tabReg = document.getElementById('tab-reg')
   if (tabReg) tabReg.style.display = rol === 'empleado' ? 'none' : ''
   if (el.btnClearReg) {
@@ -593,6 +611,8 @@ document.addEventListener('click', (e) => {
  */
 function renderInventory() {
   _paintInventory()
+  renderInvHero()
+  updateInvWhatsAppBtn()
   document.querySelector('#prod-list, #prod-content')?.scrollTo(0, 0)
   window.scrollTo(0, 0) // #prod-list no tiene scroll propio en esta página — el scroll real es el del body del iframe
 }
@@ -603,9 +623,13 @@ function renderInventory() {
  * pintado — renderInventory() es la que hay que llamar desde fuera.
  */
 function _paintInventory() {
+  // Local sin ningún producto: el estado vacío lo da el hero completo de
+  // renderInvHero() (debajo de la lista) — aquí no se pinta nada para no duplicarlo.
   const EMPTY = searchQuery
     ? `<div class="ped-empty"><div class="ped-empty-icon">🔍</div><div class="ped-empty-title">Sin resultados para "${escapeHtml(searchQuery)}"</div></div>`
-    : '<div class="ped-empty"><div class="ped-empty-icon">📦</div><div class="ped-empty-title">No hay productos</div><div class="ped-empty-sub">Usa el botón + para agregar un producto.</div></div>'
+    : (prods.length
+      ? '<div class="ped-empty"><div class="ped-empty-icon">📦</div><div class="ped-empty-title">No hay productos</div><div class="ped-empty-sub">Ningún producto coincide con este filtro.</div></div>'
+      : '')
   const knownCats = new Set(stockCatsAll.map(c => c.slug))
 
   if (activeCat === 'rep') {
@@ -702,6 +726,73 @@ function _paintInventory() {
   }
   el.prodList.innerHTML = html || EMPTY
   updateReorderCount()
+}
+
+/* ─── Hero de Productos y WhatsApp del listado visible ─── */
+
+/* "Sin productos" (hero completo) solo si el local no tiene NINGÚN producto;
+   si hay productos, solo el botón compacto. Sin permiso (empleado) no hay
+   botón — el hero completo se queda como mensaje informativo.
+   renderHeroEmpty/HERO_ICONS → assets/lib/ui-helpers.js */
+function renderInvHero() {
+  const box = document.getElementById('inv-hero')
+  if (!box) return
+  const canAdd = canManageProducts()
+  const btn = { btnLabel: canAdd ? '＋ Añadir producto' : null, btnAction: 'openProdModal()' }
+  box.innerHTML = prods.length
+    ? renderHeroEmpty({ mode: 'compact', ...btn })
+    : renderHeroEmpty({
+        mode: 'full',
+        icon: HERO_ICONS.box,
+        title: 'Sin productos',
+        subtitle: canAdd
+          ? 'Añade el primer producto para empezar a controlar el stock del local.'
+          : 'Todavía no hay productos en el inventario de este local.',
+        ...btn,
+      })
+}
+
+/**
+ * Productos que se ven ahora mismo en Productos — misma selección que
+ * _paintInventory() (categoría/subcategoría/Reponer/Sin categoría + buscador
+ * + filtro de proveedor), sin el pintado.
+ */
+function getVisibleInvProds() {
+  const knownCats = new Set(stockCatsAll.map(c => c.slug))
+  let list
+  if (activeCat === 'rep')          list = prods.filter(isPendingForOrderView)
+  else if (activeCat === 'sin-cat') list = prods.filter(p => !knownCats.has(p.cat))
+  else if (activeCat !== 'all') {
+    const slugs = activeSubCat ? [activeSubCat] : catSlugsForFilter(activeCat)
+    list = prods.filter(p => slugs.includes(p.cat))
+  } else list = prods.slice()
+  return list.filter(matchesFilters).sort(sortByName)
+}
+
+function updateInvWhatsAppBtn() {
+  const btn = document.getElementById('search-wa-btn')
+  if (!btn) return
+  if (!btn.innerHTML) btn.innerHTML = WA_ICON_SVG
+  btn.style.display = getVisibleInvProds().length ? '' : 'none'
+}
+
+/* Mismo formato que el WhatsApp de pedido: "*Título — La Galería*" + "• nombre: cantidad unidad".
+   En "Reponer" se añade el mínimo, que es lo que da sentido a esa lista. */
+function sendInvWhatsApp() {
+  const items = getVisibleInvProds()
+  if (!items.length) { showToast('No hay productos en pantalla','error'); return }
+  let label
+  if (activeCat === 'rep')          label = 'a reponer'
+  else if (activeCat === 'sin-cat') label = 'sin categoría'
+  else if (activeCat !== 'all')     label = getCatLabel(activeSubCat || activeCat)
+  else                              label = 'completo'
+  if (searchProvId) label += ` · ${provName(searchProvId)}`
+  const lines = [`*Stock ${label} — La Galería*`, '']
+  for (const p of items) {
+    const min = activeCat === 'rep' ? ` (mín ${getQtyLabel(p.min)})` : ''
+    lines.push(`• ${p.name}: ${getQtyLabel(p.qty)} ${p.unit}`.trimEnd() + min)
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n').trim())}`, '_blank')
 }
 
 function renderProduct(prod) {
@@ -1005,7 +1096,10 @@ async function confirmDelProd() {
 
 /* ─── Pedido ─── */
 async function initPedido() {
-  await sbLoadProductosPuntuales()
+  // Recarga también los pedidos activos al entrar al tab: otro dispositivo
+  // puede haberlos enviado/recibido mientras tanto.
+  await Promise.all([sbLoadProductosPuntuales(), syncPedidosActivos()])
+  pedMode = 'prov' // el toggle Por categoría/Por proveedor está oculto — el tab siempre arranca en proveedor
   renderPedido()
 }
 
@@ -1017,13 +1111,20 @@ async function initPedido() {
  * en vez de repintar solo su trozo, para no tener dos fuentes de verdad del HTML.
  */
 function renderPedido() {
+  // Cabecera fija (urgentes + Realizar pedido + Carrito); el flujo existente
+  // va debajo y solo se pinta cuando "Realizar pedido" está desplegado.
+  const topHtml = renderPedTopBar()
+  if (!pedFlowOpen) {
+    el.pedContent.innerHTML = topHtml
+    return
+  }
   const toggleHtml = `
     <div class="ped-toggle">
       <button class="ped-toggle-btn ${pedMode === 'cat' ? 'active' : ''}" onclick="setPedMode('cat')">📦 Por categoría</button>
       <button class="ped-toggle-btn ${pedMode === 'prov' ? 'active' : ''}" onclick="setPedMode('prov')">🚚 Por proveedor</button>
     </div>
   `
-  el.pedContent.innerHTML = toggleHtml + (pedMode === 'prov' ? renderPedProvView() : renderPedCatView())
+  el.pedContent.innerHTML = topHtml + toggleHtml + (pedMode === 'prov' ? renderPedProvView() : renderPedCatView())
 }
 
 function setPedMode(mode) {
@@ -1123,6 +1224,26 @@ function renderPedCatChips() {
   return `<div class="ped-cat-bar">${chips}</div>`
 }
 
+/* Lista de productos puntuales (stock_productos_puntuales) — compartida entre
+   la vista Por categoría y la cabecera de Pedido (renderPedTopBar), que es
+   donde se ven ahora que el toggle de vistas está oculto. '' si no hay. */
+function renderOneoffSection() {
+  if (!oneoffs.length) return ''
+  const items = oneoffs.map(o => `
+    <div class="oneoff-item" onclick="onOneoffItemClick('${o.id}')">
+      <div>
+        <div class="oneoff-name">${o.nombre}</div>
+        <div class="oneoff-meta">${o.cantidad} ${o.unidad}${o.creado_por ? ` · por ${o.creado_por}` : ''}</div>
+      </div>
+      ${canManageProducts() ? `<button class="oneoff-del" onclick="event.stopPropagation();deleteOneoff('${o.id}')">✕</button>` : ''}
+    </div>
+  `).join('')
+  return `
+    <div class="oneoff-section-lbl">Productos puntuales</div>
+    ${items}
+  `
+}
+
 function renderPedCatView() {
   const chipsHtml   = renderPedCatChips()
   const needsOrderAll = prods.filter(isPendingForOrderView)
@@ -1136,22 +1257,7 @@ function renderPedCatView() {
     <button class="oneoff-btn" onclick="onAddOneoffClick()">+ Añadir producto puntual</button>
   `
 
-  let oneoffSectionHtml = ''
-  if (oneoffs.length) {
-    const items = oneoffs.map(o => `
-      <div class="oneoff-item" onclick="onOneoffItemClick('${o.id}')">
-        <div>
-          <div class="oneoff-name">${o.nombre}</div>
-          <div class="oneoff-meta">${o.cantidad} ${o.unidad}${o.creado_por ? ` · por ${o.creado_por}` : ''}</div>
-        </div>
-        ${canManageProducts() ? `<button class="oneoff-del" onclick="event.stopPropagation();deleteOneoff('${o.id}')">✕</button>` : ''}
-      </div>
-    `).join('')
-    oneoffSectionHtml = `
-      <div class="oneoff-section-lbl">Productos puntuales</div>
-      ${items}
-    `
-  }
+  const oneoffSectionHtml = renderOneoffSection()
 
   if (!needsOrder.length && !oneoffs.length) {
     return chipsHtml + `
@@ -1215,12 +1321,37 @@ function pedProvIndicator(provId) {
   return ''
 }
 
-function selectPedProv(id) {
+/**
+ * Selecciona el proveedor de la vista Por proveedor y rellena pedQty.
+ * @param {string} id — proveedorId ('' / null = ninguno, vuelve al resumen)
+ * @param {string} [pedidoId] — al venir de "Editar" en el carrito: carga las
+ *   cantidades de ESE pedido (pendiente o enviado) y lo deja como destino de
+ *   "Guardar cambios" (pedEditPedidoId). Sin él, flujo normal.
+ */
+function selectPedProv(id, pedidoId = null) {
   pedProvId = id || null
   pedQty = new Map()
+  const editing = pedProvId && pedidoId ? pedidosActivos.find(p => p.id === pedidoId) : null
+  pedEditPedidoId = editing ? editing.id : null
   if (pedProvId) {
+    // Prioridad: 0) pedido abierto con "Editar" (manda sobre todo: es lo que
+    // el usuario pidió ver), 1) borrador local (incluido un 0 puesto a mano en
+    // un producto en rojo), 2) líneas del pedido 'pendiente' ya en el carrito
+    // — lo que no esté en él va a 0, el carrito es una decisión ya tomada —,
+    // 3) sugerencia automática por semáforo.
+    const draft   = editing ? null : loadPedidoDraft(pedProvId)
+    const pending = editing || (draft ? null : getPedidoPendiente(pedProvId))
+    const pendingQty = pending
+      ? new Map((pending.lineas || []).map(l => [l.producto_id, Number(l.cantidad_pedida)]))
+      : null
     for (const p of prods.filter(pr => pr.provId === pedProvId)) {
-      pedQty.set(p.id, getStockStatus(p.qty, p.min) === 'red' ? Math.max(p.min - p.qty, 1) : 0)
+      const suggested = getStockStatus(p.qty, p.min) === 'red' ? Math.max(p.min - p.qty, 1) : 0
+      const saved     = draft ? Number(draft[p.id]) : NaN
+      let qty
+      if (Number.isFinite(saved) && saved >= 0) qty = saved
+      else if (pendingQty) qty = pendingQty.get(p.id) || 0
+      else qty = suggested
+      pedQty.set(p.id, qty)
     }
   }
   renderPedido()
@@ -1231,6 +1362,7 @@ function adjustPedQty(id, delta) {
   if (typeof playTap === 'function') playTap()
   const cur = pedQty.get(id) || 0
   pedQty.set(id, Math.max(0, cur + delta))
+  savePedidoDraft(pedProvId)
   renderPedido()
 }
 
@@ -1364,8 +1496,15 @@ function renderPedProvView() {
   const prov       = stockProvsAll.find(p => p.id === pedProvId)
   const provProds  = prods.filter(p => p.provId === pedProvId)
 
+  // El envío por WhatsApp vive ahora en la tarjeta del carrito (sendPedOrderWhatsApp).
+  const editing = pedEditPedidoId ? pedidosActivos.find(p => p.id === pedEditPedidoId) : null
+  const inCart  = !!editing || !!getPedidoPendiente(pedProvId)
+  const editHint = editing && editing.estado === 'enviado'
+    ? `<div class="ped-edit-hint">Editando un pedido ya enviado (${getDateTimeLabel(editing.enviado_at)}). Los cambios no se le comunican al proveedor: reenvíalo desde el carrito.</div>`
+    : ''
   const bottomButtons = `
-    <button class="ped-send" onclick="sendPedidoWhatsAppProv()">${WA_ICON_SVG} Enviar pedido a ${prov ? prov.nombre : 'proveedor'} por WhatsApp</button>
+    ${editHint}
+    <button class="btn-full ped-cart-add" onclick="savePedProvToCart()">🛒 ${editing ? 'Guardar cambios del pedido' : (inCart ? 'Actualizar carrito' : 'Añadir al carrito')}</button>
   `
 
   if (!provProds.length) {
@@ -1401,6 +1540,433 @@ function renderPedProvView() {
   }
   html += bottomButtons
   return html
+}
+
+/* ─── PEDIDO — CABECERA: URGENTES, "REALIZAR PEDIDO" Y CARRITO ───
+   Bloque fijo encima del flujo de pedido existente (toggle + vistas), que
+   empieza oculto y se despliega con "Realizar pedido". El estado abierto/
+   cerrado vive en variables (pedFlowOpen, pedUrgentOpen), no en el DOM:
+   renderPedido() reescribe #ped-content entero — y el setInterval del final
+   del archivo lo llama solo —, así que un estado guardado en clases del DOM
+   se perdería en cada repintado. */
+
+/* Misma lógica que el chip "Reponer" de Productos (isPendingForOrderView),
+   ordenados rojo → ámbar → nombre. */
+function getUrgentProds() {
+  return prods.filter(isPendingForOrderView).slice().sort((a, b) => {
+    const ua = getStockStatus(a.qty, a.min), ub = getStockStatus(b.qty, b.min)
+    if (ua !== ub) return ua === 'red' ? -1 : 1
+    return a.name.localeCompare(b.name, 'es')
+  })
+}
+
+/* "Vinos › Ribera" para subcategorías, "Bebidas" para categorías de primer nivel. */
+function getCatLabel(slug) {
+  const cat = stockCatsAll.find(c => c.slug === slug)
+  if (!cat) return 'Sin categoría'
+  const parent = cat.parent_slug ? stockCatsAll.find(c => c.slug === cat.parent_slug) : null
+  return parent ? `${parent.nombre} › ${cat.nombre}` : cat.nombre
+}
+
+/* Cantidades numeric de BD: sin decimales si es entero, hasta 2 si no (formato es-ES). */
+function getQtyLabel(n) {
+  return Number(n || 0).toLocaleString('es-ES', { maximumFractionDigits: 2 })
+}
+
+function getDateTimeLabel(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function getPedidoPendiente(provId) {
+  return pedidosActivos.find(p => p.proveedor_id === provId && p.estado === 'pendiente') || null
+}
+
+/**
+ * Nº de proveedores con un borrador local con alguna cantidad > 0 — mira la
+ * memoria (pedidoDraft) y además recorre localStorage, porque pedidoDraft
+ * solo se rellena al abrir cada proveedor y los borradores de una sesión
+ * anterior siguen allí.
+ */
+function getPedidoDraftCount() {
+  const hasLines = d => !!d && typeof d === 'object' && Object.values(d).some(v => Number(v) > 0)
+  const provIds = new Set()
+  for (const [provId, d] of pedidoDraft) if (hasLines(d)) provIds.add(provId)
+  try {
+    const prefix = `pedido_draft_${LOCAL_ID}_`
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key || !key.startsWith(prefix)) continue
+      const provId = key.slice(prefix.length)
+      if (pedidoDraft.has(provId)) continue
+      try { if (hasLines(JSON.parse(localStorage.getItem(key)))) provIds.add(provId) } catch(e) { /* borrador corrupto: se ignora */ }
+    }
+  } catch(e) {
+    console.warn('[stock] getPedidoDraftCount:', e)
+  }
+  return provIds.size
+}
+
+/* sbLoadPedidosPendientes() lanza; aquí se captura para que un fallo al
+   cargar pedidos no tumbe initStock()/initPedido() — el resto del tab sigue. */
+async function syncPedidosActivos() {
+  try {
+    await sbLoadPedidosPendientes()
+  } catch(e) {
+    console.error('[stock] syncPedidosActivos:', e)
+    showToast('Error al cargar pedidos', 'error')
+  }
+}
+
+const PED_CHEVRON_SVG = '<svg class="ped-acc-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>'
+
+function renderPedUrgentItem(p) {
+  const st  = getStockStatus(p.qty, p.min)
+  const cat = stockCatsAll.find(c => c.slug === p.cat)
+  return `
+    <div class="ped-urg-item">
+      <span class="sema ${st}"></span>
+      <div class="ped-urg-info">
+        <div class="ped-urg-name">${escapeHtml(p.name)}</div>
+        <div class="ped-urg-cat">${cat?.icono ? cat.icono + ' ' : ''}${escapeHtml(getCatLabel(p.cat))}</div>
+      </div>
+      <div class="ped-urg-qty ${st}">${getQtyLabel(p.qty)} / ${getQtyLabel(p.min)} <span>${escapeHtml(p.unit)}</span></div>
+    </div>
+  `
+}
+
+/* Cabecera de Pedido: hero común (renderHeroEmpty, siempre en modo 'full')
+   con "Realizar pedido" (badge = borradores) y "Añadir producto puntual" como
+   secundario; el carrito es un botón flotante aparte en la esquina (badge =
+   pedidos activos). Debajo: acordeón de urgentes y lista de puntuales.
+   La animación "pop" del badge la aplica updateCartBadgePop() tras guardar. */
+function renderPedTopBar() {
+  const drafts  = getPedidoDraftCount()
+  const nOrders = pedidosActivos.length
+
+  let html = `
+    <div class="ped-hero-wrap">
+      <button type="button" class="ped-hero-cart" onclick="showPedOrders()" title="Ver carrito / pedidos activos" aria-label="Ver carrito / pedidos activos">
+        🛒${nOrders ? `<span class="ped-badge acc" id="ped-cart-badge">${nOrders}</span>` : ''}
+      </button>
+      ${renderHeroEmpty({
+        mode: 'full',
+        icon: HERO_ICONS.cart,
+        title: 'Pedidos',
+        subtitle: 'Gestiona los pedidos a proveedores y controla el stock',
+        btnLabel: pedFlowOpen ? '− Ocultar pedido' : '＋ Realizar pedido',
+        btnAction: 'togglePedFlow()',
+        btnBadge: drafts,
+        btnBadgeTitle: 'Borradores sin añadir al carrito',
+        btnSecondary: { label: '＋ Añadir producto puntual', action: 'onAddOneoffClick()' },
+      })}
+    </div>
+  `
+
+  // Con el flujo "Realizar pedido" abierto el acordeón se oculta: la vista por
+  // proveedor ya marca los urgentes ("NECESITAN REPOSICIÓN") y así no se duplica.
+  // pedUrgentOpen se conserva, así que al cerrar el flujo vuelve como estaba.
+  const urgent = pedFlowOpen ? [] : getUrgentProds()
+  if (urgent.length) {
+    html += `
+      <div class="ped-acc${pedUrgentOpen ? ' open' : ''}">
+        <button type="button" class="ped-acc-hdr" onclick="togglePedUrgent()" aria-expanded="${pedUrgentOpen}">
+          <span class="ped-acc-title">Productos urgentes</span>
+          <span class="ped-badge red">${urgent.length}</span>
+          ${PED_CHEVRON_SVG}
+        </button>
+        ${pedUrgentOpen ? `<div class="ped-acc-body">${urgent.map(renderPedUrgentItem).join('')}</div>` : ''}
+      </div>
+    `
+  }
+
+  // Con la vista Por categoría oculta, este es el único sitio donde se ven los puntuales.
+  html += renderOneoffSection()
+  return html
+}
+
+function togglePedUrgent() {
+  pedUrgentOpen = !pedUrgentOpen
+  renderPedido()
+}
+
+/* Al desplegar se entra en la vista Por proveedor (selector + stepper), que
+   es el flujo que alimenta el carrito; el toggle sigue disponible. */
+function togglePedFlow() {
+  pedFlowOpen = !pedFlowOpen
+  if (pedFlowOpen) pedMode = 'prov'
+  else pedEditPedidoId = null // al plegar se abandona la edición; el borrador local se conserva
+  renderPedido()
+}
+
+/**
+ * "Añadir al carrito" de la vista Por proveedor: guarda las cantidades > 0 de
+ * pedQty como pedido 'pendiente' del proveedor (sbSavePedido reemplaza sus
+ * líneas y borra el borrador local). Si se deja todo a 0 y ya había pedido
+ * en el carrito, este se elimina.
+ */
+/**
+ * Animación "pop" del badge del carrito (scale 1.4 → 1, 300 ms — @keyframes
+ * ped-pop en stock.css, desactivada con prefers-reduced-motion). Se quita y
+ * se vuelve a poner la clase, forzando un reflow entre medias, para que se
+ * reproduzca también en guardados seguidos; se limpia al terminar.
+ */
+function updateCartBadgePop() {
+  const badge = document.getElementById('ped-cart-badge')
+  if (!badge) return
+  badge.classList.remove('pop')
+  void badge.offsetWidth // reflow: reinicia la animación
+  badge.classList.add('pop')
+  badge.addEventListener('animationend', () => badge.classList.remove('pop'), { once: true })
+}
+
+let pedCartSaving = false
+async function savePedProvToCart() {
+  if (!pedProvId || pedCartSaving) return
+  const provId = pedProvId
+  const lineas = prods
+    .filter(p => p.provId === provId)
+    .map(p => ({ productoId: p.id, cantidad: pedQty.get(p.id) || 0 }))
+    .filter(l => l.cantidad > 0)
+  const editId     = pedEditPedidoId
+  const hadPending = !!editId || !!getPedidoPendiente(provId)
+  if (!lineas.length && !hadPending) {
+    showToast('Añade una cantidad a algún producto','error')
+    return
+  }
+  pedCartSaving = true
+  let saved = null
+  try {
+    saved = await sbSavePedido(provId, lineas, editId)
+    pedEditPedidoId = editId && saved ? saved.id : null
+    if (!saved)          showToast('Pedido quitado del carrito', 'success')
+    else if (editId)     showToast('Pedido actualizado', 'success')
+    else if (hadPending) showToast('Carrito actualizado', 'success')
+    else                 showToast('Añadido al carrito', 'success')
+  } catch(e) {
+    console.error('[stock] savePedProvToCart:', e)
+    showToast(e?.userMessage ? e.message : 'Error al guardar el pedido','error')
+    if (e?.userMessage) { pedEditPedidoId = null; await syncPedidosActivos() }
+  } finally {
+    pedCartSaving = false
+    renderPedido()
+    if (saved) updateCartBadgePop() // después del repintado: el badge ya es el nodo nuevo
+  }
+}
+
+/* ─── Modal de pedidos activos (#ped-orders-bg en lagaleria_stock.html) ─── */
+function showPedOrders() {
+  pedOrderConfirm = null
+  renderPedOrders()
+  el.pedOrdersBg.classList.add('show')
+}
+function closePedOrders() {
+  pedOrderConfirm = null
+  el.pedOrdersBg.classList.remove('show')
+}
+
+function renderPedOrders() {
+  if (!el.pedOrdersList) return
+  if (!pedidosActivos.length) {
+    el.pedOrdersList.innerHTML = `
+      <div class="ped-empty ped-orders-empty">
+        <div class="ped-empty-icon">🛒</div>
+        <div class="ped-empty-title">Carrito vacío</div>
+        <div class="ped-empty-sub">Pulsa "Realizar pedido", elige un proveedor y añade sus productos al carrito.</div>
+      </div>
+    `
+    return
+  }
+  // Pendientes primero (son los que aún hay que enviar), luego enviados; dentro, por antigüedad.
+  const sorted = pedidosActivos.slice().sort((a, b) =>
+    (a.estado === b.estado ? 0 : (a.estado === 'pendiente' ? -1 : 1)) || a.created_at.localeCompare(b.created_at))
+  el.pedOrdersList.innerHTML = sorted.map(renderPedOrderCard).join('')
+}
+
+function renderPedOrderCard(o) {
+  const provNombre = o.proveedor?.nombre || provName(o.proveedor_id) || 'Proveedor'
+  const lineas = (o.lineas || []).slice()
+    .sort((a, b) => (a.producto?.nombre || '').localeCompare(b.producto?.nombre || '', 'es'))
+  const n      = lineas.length
+  const nLbl   = `${n} producto${n === 1 ? '' : 's'}`
+  const isPend = o.estado === 'pendiente'
+  const busy   = pedOrderBusy === o.id
+  const dis    = busy ? ' disabled' : ''
+  const when   = isPend
+    ? `Creado ${getDateTimeLabel(o.created_at)}${o.creado_por ? ' por ' + escapeHtml(o.creado_por) : ''}`
+    : `Enviado ${getDateTimeLabel(o.enviado_at || o.updated_at)}`
+
+  const linesHtml = lineas.map(l => `
+    <div class="ped-order-line">
+      <span class="ped-order-line-name">${escapeHtml(l.producto?.nombre || 'Producto')}</span>
+      <span class="ped-order-line-qty">${getQtyLabel(l.cantidad_pedida)} ${escapeHtml(l.producto?.unidad || '')}</span>
+    </div>
+  `).join('')
+
+  const confirmAction = pedOrderConfirm && pedOrderConfirm.id === o.id ? pedOrderConfirm.action : null
+  let actionsHtml
+  if (confirmAction === 'recibir') {
+    actionsHtml = `
+      <div class="ped-order-confirm">
+        <div class="ped-order-confirm-msg">¿Confirmar recepción de ${nLbl}? Se sumarán al stock.</div>
+        <div class="ped-order-actions">
+          <button class="btn-save"${dis} onclick="confirmPedOrderRecepcion('${o.id}')">Sí, confirmar</button>
+          <button class="btn-cancel"${dis} onclick="closePedOrderConfirm()">Cancelar</button>
+        </div>
+      </div>
+    `
+  } else if (confirmAction === 'eliminar') {
+    actionsHtml = `
+      <div class="ped-order-confirm">
+        <div class="ped-order-confirm-msg">¿Eliminar el pedido a ${escapeHtml(provNombre)}? No se puede deshacer.</div>
+        <div class="ped-order-actions">
+          <button class="btn-cancel ped-btn-danger"${dis} onclick="confirmPedOrderDelete('${o.id}')">Sí, eliminar</button>
+          <button class="btn-cancel"${dis} onclick="closePedOrderConfirm()">Cancelar</button>
+        </div>
+      </div>
+    `
+  } else {
+    // Pendiente: WhatsApp abre el chat Y marca enviado en un tap (lo normal);
+    // "Marcar como enviado" queda para pedidos hechos por teléfono/email.
+    // Enviado: WhatsApp solo reenvía (p. ej. tras editarlo), sin cambiar estado.
+    const waLabel = isPend ? 'Enviar por WhatsApp' : 'Reenviar por WhatsApp'
+    actionsHtml = `
+      <button class="ped-send ped-order-wa"${dis} onclick="sendPedOrderWhatsApp('${o.id}')">${WA_ICON_SVG} ${waLabel}</button>
+      ${isPend ? '<div class="ped-order-wa-hint">Abre WhatsApp con el pedido y lo marca como enviado</div>' : ''}
+      <div class="ped-order-actions">
+        ${isPend ? `<button class="btn-cancel"${dis} onclick="savePedOrderEnviado('${o.id}')">Marcar como enviado</button>` : ''}
+        <button class="btn-cancel"${dis} onclick="editPedOrder('${o.id}')">✎ Editar</button>
+      </div>
+      <div class="ped-order-actions">
+        <button class="btn-save"${dis} onclick="showPedOrderConfirm('${o.id}', 'recibir')">Confirmar recepción</button>
+        <button class="btn-cancel ped-btn-danger"${dis} onclick="showPedOrderConfirm('${o.id}', 'eliminar')">Eliminar</button>
+      </div>
+    `
+  }
+
+  return `
+    <div class="ped-order${busy ? ' busy' : ''}">
+      <div class="ped-order-hdr">
+        <div class="ped-order-prov">🚚 ${escapeHtml(provNombre)}</div>
+        <span class="ped-order-estado ${isPend ? 'pendiente' : 'enviado'}">${isPend ? 'Pendiente' : 'Enviado'}</span>
+      </div>
+      <div class="ped-order-meta">${nLbl} · ${when}</div>
+      <div class="ped-order-lines">${linesHtml}</div>
+      ${actionsHtml}
+    </div>
+  `
+}
+
+function showPedOrderConfirm(id, action) {
+  pedOrderConfirm = { id, action }
+  renderPedOrders()
+}
+function closePedOrderConfirm() {
+  pedOrderConfirm = null
+  renderPedOrders()
+}
+
+/**
+ * Envoltorio común de las acciones del modal: bloquea el pedido mientras dura
+ * (evita dobles toques), muestra el error y, pase lo que pase, repinta modal
+ * y tab. Los RAISE EXCEPTION de la RPC llegan con code P0001 y un mensaje ya
+ * pensado para el usuario ("Este pedido ya se ha recibido") — se muestra tal cual.
+ */
+async function runPedOrderAction(id, fn, errMsg) {
+  if (pedOrderBusy) return
+  pedOrderBusy = id
+  renderPedOrders()
+  try {
+    await fn()
+  } catch(e) {
+    console.error('[stock] pedido', id, e)
+    showToast(e?.code === 'P0001' && e.message ? e.message : errMsg, 'error')
+    try { await sbLoadPedidosPendientes() } catch(_) { /* se queda la lista que había */ }
+  } finally {
+    pedOrderBusy = null
+    pedOrderConfirm = null
+    // Si el pedido que se estaba editando se ha recibido/eliminado, se sale del modo edición.
+    if (pedEditPedidoId && !pedidosActivos.some(p => p.id === pedEditPedidoId)) pedEditPedidoId = null
+    renderPedOrders()
+    if (activeTab === 'ped') renderPedido()
+  }
+}
+
+function savePedOrderEnviado(id) {
+  return runPedOrderAction(id, async () => {
+    const ok = await sbSetPedidoEnviado(id)
+    if (ok) {
+      showToast('Pedido marcado como enviado', 'success')
+    } else {
+      await sbLoadPedidosPendientes()
+      showToast('El pedido ya no estaba pendiente', 'error')
+    }
+  }, 'Error al marcar como enviado')
+}
+
+function confirmPedOrderRecepcion(id) {
+  return runPedOrderAction(id, async () => {
+    const res = await sbConfirmarRecepcion(id)
+    // sbConfirmarRecepcion ya actualizó prods.qty — repintar todo lo que depende del stock.
+    updateInventoryStatus()
+    updateReorderCount()
+    renderInventory()
+    updatePedDot()
+    const n = res.length
+    // n = una entrada por producto sumado al stock (líneas con cantidad > 0).
+    showToast(`✅ Pedido recibido — ${n} producto${n === 1 ? '' : 's'} actualizado${n === 1 ? '' : 's'}. Consulta los movimientos en Registro.`, 'success', 4000)
+  }, 'Error al confirmar la recepción')
+}
+
+/* Mismo formato de mensaje que tenía el antiguo botón de WhatsApp de la vista
+   por proveedor, pero sacado de las líneas guardadas del pedido. */
+function getPedidoWhatsAppText(o) {
+  const provNombre = o.proveedor?.nombre || provName(o.proveedor_id) || 'proveedor'
+  const lines = [`*Pedido ${provNombre} — La Galería*`, '']
+  const lineas = (o.lineas || []).slice()
+    .sort((a, b) => (a.producto?.nombre || '').localeCompare(b.producto?.nombre || '', 'es'))
+  for (const l of lineas) {
+    lines.push(`• ${l.producto?.nombre || 'Producto'}: ${getQtyLabel(l.cantidad_pedida)} ${l.producto?.unidad || ''}`.trimEnd())
+  }
+  return lines.join('\n').trim()
+}
+
+/**
+ * Abre WhatsApp con el pedido — directamente al chat del proveedor si tiene
+ * teléfono (stock_proveedores.tel), si no con selector de contacto — y, si el
+ * pedido estaba 'pendiente', lo marca 'enviado'. window.open va ANTES de
+ * cualquier await: fuera del gesto del usuario el navegador lo bloquearía.
+ */
+function sendPedOrderWhatsApp(id) {
+  const o = pedidosActivos.find(p => p.id === id)
+  if (!o) return
+  if (!(o.lineas || []).length) { showToast('El pedido no tiene productos','error'); return }
+  const tel  = cleanTel(o.proveedor?.tel || '')
+  const base = tel ? `https://wa.me/34${tel}` : 'https://wa.me/'
+  window.open(`${base}?text=${encodeURIComponent(getPedidoWhatsAppText(o))}`, '_blank')
+  if (o.estado === 'pendiente') return savePedOrderEnviado(id)
+}
+
+/* "Editar" desde el carrito: cierra el modal, despliega el flujo y aterriza en
+   el proveedor del pedido con las cantidades de ESE pedido (selectPedProv con
+   pedidoId). "Guardar cambios" escribe en ese mismo pedido, también si ya
+   estaba enviado. */
+function editPedOrder(id) {
+  const o = pedidosActivos.find(p => p.id === id)
+  if (!o) return
+  closePedOrders()
+  pedFlowOpen = true
+  pedMode = 'prov'
+  pedProvPanelOpen = false
+  selectPedProv(o.proveedor_id, o.id) // ya dispara renderPedido()
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function confirmPedOrderDelete(id) {
+  return runPedOrderAction(id, async () => {
+    await sbDeletePedido(id)
+    showToast('Pedido eliminado', 'success')
+  }, 'Error al eliminar el pedido')
 }
 
 function updatePedDot() {
@@ -1444,20 +2010,6 @@ function sendPedidoWhatsApp() {
   window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n').trim())}`, '_blank')
 }
 
-function sendPedidoWhatsAppProv() {
-  if (!pedProvId) return
-  const prov      = stockProvsAll.find(p => p.id === pedProvId)
-  const provProds = prods.filter(p => p.provId === pedProvId)
-  const items     = provProds.filter(p => (pedQty.get(p.id) || 0) > 0)
-  if (!items.length) { showToast('Añade una cantidad a algún producto antes de enviar','error'); return }
-
-  const lines = [`*Pedido ${prov ? prov.nombre : 'proveedor'} — La Galería*`, '']
-  for (const p of items) {
-    lines.push(`• ${p.name}: ${pedQty.get(p.id)} ${p.unit}`)
-  }
-
-  window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n').trim())}`, '_blank')
-}
 
 function showOneoffModal()  { el.oneoffModalBg.classList.add('show') }
 function closeOneoffModal() { editOneoffId = null; el.oneoffModalBg.classList.remove('show') }
@@ -1514,6 +2066,233 @@ async function sbDeleteProductoPuntual(id) {
   const { error } = await _sb.from('stock_productos_puntuales').delete().eq('id', id)
   if (error) throw error
   oneoffs = oneoffs.filter(o => o.id !== id)
+}
+
+/* ─── PEDIDOS — BORRADOR (localStorage) ───
+   Guarda por proveedor las cantidades del stepper de Pedido/Por proveedor
+   (pedQty), para que no se pierdan al recargar o al cambiar de proveedor antes
+   de añadirlas al carrito. pedidoDraft es el espejo en memoria: localStorage
+   puede fallar (modo privado, cuota llena) y entonces el borrador vive solo
+   mientras la página siga abierta. Se borra al guardar el pedido (sbSavePedido). */
+function getPedidoDraftKey(provId) {
+  return `pedido_draft_${LOCAL_ID}_${provId}`
+}
+
+/**
+ * Devuelve el borrador del proveedor ({ productoId: cantidad }) o null si no hay.
+ * Primero mira la memoria; si no, lo lee de localStorage y lo cachea.
+ * @param {string} provId
+ * @returns {Object<string, number>|null}
+ */
+function loadPedidoDraft(provId) {
+  if (!provId) return null
+  if (pedidoDraft.has(provId)) return pedidoDraft.get(provId)
+  let draft = null
+  try {
+    const raw = localStorage.getItem(getPedidoDraftKey(provId))
+    if (raw) draft = JSON.parse(raw)
+  } catch(e) {
+    console.warn('[stock] loadPedidoDraft:', e)
+  }
+  if (!draft || typeof draft !== 'object' || Array.isArray(draft)) return null
+  pedidoDraft.set(provId, draft)
+  return draft
+}
+
+/**
+ * Vuelca pedQty (cantidades del proveedor abierto, ceros incluidos) como
+ * borrador de ese proveedor, en memoria y en localStorage.
+ * @param {string} provId
+ */
+function savePedidoDraft(provId) {
+  if (!provId) return
+  const draft = Object.fromEntries(pedQty)
+  pedidoDraft.set(provId, draft)
+  try {
+    localStorage.setItem(getPedidoDraftKey(provId), JSON.stringify(draft))
+  } catch(e) {
+    console.warn('[stock] savePedidoDraft:', e)
+  }
+}
+
+function clearPedidoDraft(provId) {
+  if (!provId) return
+  pedidoDraft.delete(provId)
+  try {
+    localStorage.removeItem(getPedidoDraftKey(provId))
+  } catch(e) {
+    console.warn('[stock] clearPedidoDraft:', e)
+  }
+}
+
+/* ─── PEDIDOS — PERSISTENCIA (stock_pedidos / stock_pedidos_lineas) ───
+   Ciclo de vida: 'pendiente' (en el carrito, editable) → 'enviado' (mandado
+   al proveedor) → 'recibido' (mercancía contada y sumada al stock). En BD hay
+   como mucho un 'pendiente' por proveedor y local (índice único parcial).
+   Estas funciones lanzan el error de Supabase (el toast lo muestra quien las
+   llama) y actualizan pedidosActivos/prods, pero no repintan nada. */
+const PEDIDOS_SELECT = '*, proveedor:stock_proveedores(*), lineas:stock_pedidos_lineas(*, producto:stock_productos(id, nombre, unidad))'
+
+/**
+ * Carga los pedidos 'pendiente' y 'enviado' del local, con sus líneas
+ * (y el producto de cada una) y su proveedor, en pedidosActivos.
+ * @returns {Promise<Array>} pedidosActivos
+ */
+async function sbLoadPedidosPendientes() {
+  const { data, error } = await _sb.from('stock_pedidos')
+    .select(PEDIDOS_SELECT)
+    .eq('local_id', LOCAL_ID)
+    .in('estado', ['pendiente', 'enviado'])
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  pedidosActivos = data || []
+  return pedidosActivos
+}
+
+async function sbFindPedidoPendiente(proveedorId) {
+  const { data, error } = await _sb.from('stock_pedidos')
+    .select('id')
+    .eq('local_id', LOCAL_ID)
+    .eq('proveedor_id', proveedorId)
+    .eq('estado', 'pendiente')
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+async function sbCreatePedidoPendiente(proveedorId) {
+  const { data, error } = await _sb.from('stock_pedidos')
+    .insert({ local_id: LOCAL_ID, proveedor_id: proveedorId, estado: 'pendiente', creado_por: getStockUser()?.nombre || null })
+    .select('id')
+    .single()
+  // 23505 = el índice único: otro dispositivo creó el 'pendiente' a la vez — se reutiliza.
+  if (error && error.code === '23505') {
+    const existing = await sbFindPedidoPendiente(proveedorId)
+    if (existing) return existing
+  }
+  if (error) throw error
+  return data
+}
+
+/**
+ * Añade al carrito: crea (o reutiliza) el pedido 'pendiente' del proveedor y
+ * deja sus líneas EXACTAMENTE como `lineas` — upsert de las que vienen y
+ * borrado de las que ya no están (cantidad bajada a 0). Si `lineas` queda
+ * vacío, se borra el pendiente entero. Al terminar borra el borrador local
+ * del proveedor y recarga pedidosActivos.
+ * @param {string} proveedorId
+ * @param {Array<{productoId: string, cantidad: number}>} lineas
+ * @param {string} [pedidoId] — editar ESE pedido (pendiente o enviado, abierto
+ *   con "Editar" desde el carrito) en vez del 'pendiente' del proveedor. Si ya
+ *   está 'recibido' o no existe, lanza un Error con userMessage=true.
+ * @returns {Promise<Object|null>} el pedido guardado (con lineas y proveedor), o null si quedó vacío
+ */
+async function sbSavePedido(proveedorId, lineas, pedidoId = null) {
+  if (!proveedorId) throw new Error('sbSavePedido: falta proveedorId')
+  const rows = (lineas || [])
+    .map(l => ({ producto_id: l.productoId, cantidad_pedida: Number(l.cantidad) }))
+    .filter(l => l.producto_id && Number.isFinite(l.cantidad_pedida) && l.cantidad_pedida > 0)
+
+  let pedido
+  if (pedidoId) {
+    const { data, error } = await _sb.from('stock_pedidos')
+      .select('id, estado')
+      .eq('id', pedidoId)
+      .maybeSingle()
+    if (error) throw error
+    if (!data || data.estado === 'recibido') {
+      const err = new Error('Este pedido ya se ha recibido o eliminado — no se puede editar')
+      err.userMessage = true
+      throw err
+    }
+    pedido = data
+  } else {
+    pedido = await sbFindPedidoPendiente(proveedorId)
+  }
+
+  if (!rows.length) {
+    if (pedido) await sbDeletePedido(pedido.id)
+    clearPedidoDraft(proveedorId)
+    await sbLoadPedidosPendientes()
+    return null
+  }
+
+  if (!pedido) pedido = await sbCreatePedidoPendiente(proveedorId)
+
+  const { error: upErr } = await _sb.from('stock_pedidos_lineas')
+    .upsert(rows.map(r => ({ ...r, pedido_id: pedido.id })), { onConflict: 'pedido_id,producto_id' })
+  if (upErr) throw upErr
+
+  const keepIds = rows.map(r => r.producto_id)
+  const { error: delErr } = await _sb.from('stock_pedidos_lineas')
+    .delete()
+    .eq('pedido_id', pedido.id)
+    .not('producto_id', 'in', `(${keepIds.join(',')})`)
+  if (delErr) throw delErr
+
+  clearPedidoDraft(proveedorId)
+  await sbLoadPedidosPendientes()
+  return pedidosActivos.find(p => p.id === pedido.id) || null
+}
+
+/**
+ * Marca un pedido 'pendiente' como 'enviado' y rellena enviado_at.
+ * @param {string} pedidoId
+ * @returns {Promise<boolean>} false si el pedido ya no estaba 'pendiente' (no cambia nada)
+ */
+async function sbSetPedidoEnviado(pedidoId) {
+  const enviadoAt = new Date().toISOString()
+  const { data, error } = await _sb.from('stock_pedidos')
+    .update({ estado: 'enviado', enviado_at: enviadoAt })
+    .eq('id', pedidoId)
+    .eq('estado', 'pendiente')
+    .select('id')
+  if (error) throw error
+  if (!data || !data.length) return false
+  const local = pedidosActivos.find(p => p.id === pedidoId)
+  if (local) { local.estado = 'enviado'; local.enviado_at = enviadoAt }
+  return true
+}
+
+/**
+ * Confirma la recepción de un pedido llamando a la RPC stock_confirmar_recepcion
+ * (Postgres): en una sola transacción guarda cantidad_recibida en cada línea,
+ * suma esa cantidad a stock_productos.cantidad, registra un movimiento
+ * tipo='pedido' en stock_movimientos y marca el pedido 'recibido' con
+ * recibido_at. Si algo falla, Postgres deshace todo y aquí llega el error.
+ * La cabecera se bloquea (FOR UPDATE): dos confirmaciones simultáneas no
+ * pueden sumar el stock dos veces.
+ *
+ * @param {string} pedidoId
+ * @param {Object<string, number>|Map<string, number>} [recibidas] — productoId → cantidad
+ *   recibida. Las líneas que no aparezcan usan su cantidad_recibida ya guardada
+ *   o, si no hay, la cantidad_pedida.
+ * @returns {Promise<Array<{productoId: string, recibida: number}>>} líneas sumadas al stock
+ */
+async function sbConfirmarRecepcion(pedidoId, recibidas = null) {
+  const obj = recibidas instanceof Map ? Object.fromEntries(recibidas) : (recibidas || {})
+  const { data, error } = await _sb.rpc('stock_confirmar_recepcion', {
+    p_pedido_id: pedidoId,
+    p_recibidas: obj,
+    p_quien:     getStockUser()?.nombre || 'Sistema',
+  })
+  if (error) throw error
+  for (const r of data || []) {
+    const prod = prods.find(p => p.id === r.producto_id)
+    if (prod) { prod.qty = Number(r.cantidad_nueva); prod.updated = Date.now() }
+  }
+  pedidosActivos = pedidosActivos.filter(p => p.id !== pedidoId)
+  return (data || []).map(r => ({ productoId: r.producto_id, recibida: Number(r.recibida) }))
+}
+
+/**
+ * Borra un pedido (y sus líneas, por ON DELETE CASCADE).
+ * @param {string} pedidoId
+ */
+async function sbDeletePedido(pedidoId) {
+  const { error } = await _sb.from('stock_pedidos').delete().eq('id', pedidoId)
+  if (error) throw error
+  pedidosActivos = pedidosActivos.filter(p => p.id !== pedidoId)
 }
 
 /* ─── REGISTRO (histórico de movimientos) ───
@@ -1588,7 +2367,7 @@ async function renderRegistro() {
         quien: row.quien,
         ids: [],
         lastTime: null,
-        types: { ajuste: new Map(), inventario: new Map() },
+        types: { ajuste: new Map(), inventario: new Map(), pedido: new Map() },
       })
     }
     const person = day.persons.get(row.quien)
@@ -1604,8 +2383,8 @@ async function renderRegistro() {
     typeMap.get(pid).delta += row.delta
   }
 
-  const TIPO_ORDER = ['ajuste', 'inventario']
-  const TIPO_LABEL = { ajuste: 'Ajustes', inventario: 'Actualización de inventario' }
+  const TIPO_ORDER = ['ajuste', 'inventario', 'pedido']
+  const TIPO_LABEL = { ajuste: 'Ajustes', inventario: 'Actualización de inventario', pedido: 'Recepción de pedidos' }
   const sortedDays = [...dayMap.values()].sort((a, b) => b.date.localeCompare(a.date))
 
   el.regList.innerHTML = sortedDays.map(day => {

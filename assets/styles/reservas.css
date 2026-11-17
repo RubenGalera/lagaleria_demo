@@ -152,6 +152,8 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
 /* EVENTO CARD */
 .ev-card{background:var(--surf);border:1px solid var(--brd);border-radius:10px;margin:0 14px 8px;cursor:pointer;transition:opacity .2s;display:flex;align-items:center;gap:12px;padding:12px 14px}
 .ev-list-wrap{padding-top:10px}
+/* Hueco del hero de "Sin eventos" (renderEventos) — sin contenido no ocupa sitio */
+.ev-empty-slot:empty,#ev-footer:empty{display:none}
 .ev-card:active{opacity:.75}
 .ev-card-icon{font-size:22px;flex-shrink:0;line-height:1}
 .ev-card-body{flex:1;min-width:0}
