@@ -44,6 +44,9 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
           <span class="search-filter-lbl" id="search-filter-lbl">Filtrar</span>
         </button>
+        <!-- Comparte por WhatsApp los productos visibles (sendInvWhatsApp). Icono y
+             visibilidad los pone updateInvWhatsAppBtn(): solo con productos en pantalla. -->
+        <button class="search-filter-btn search-wa-btn" id="search-wa-btn" onclick="sendInvWhatsApp()" title="Compartir listado por WhatsApp" aria-label="Compartir listado por WhatsApp" style="display:none"></button>
       </div>
       <div class="filter-panel" id="filter-panel" onwheel="event.stopPropagation()" ontouchmove="event.stopPropagation()">
         <div class="filter-prov-list" id="filter-prov-list"></div>
@@ -63,7 +66,8 @@
     <div class="content" id="prod-list"></div>
 
     <div class="content" style="padding-bottom:14px">
-      <button class="add-btn" id="btn-add-prod" onclick="openProdModal()">+ Añadir producto</button>
+      <!-- Hero / botón "＋ Añadir producto": lo pinta renderInvHero() con renderHeroEmpty() -->
+      <div id="inv-hero"></div>
       <button class="inv-update-btn" id="btn-inv" onclick="toggleInv()">☰ Actualizar inventario</button>
       <div class="inv-last-update">
         <div class="inv-dot" id="inv-dot"></div>
@@ -178,6 +182,22 @@
         </div>
       </div>
       <button class="btn-full" id="oneoff-modal-btn" onclick="saveOneoff()">Añadir al pedido</button>
+    </div>
+  </div>
+
+  <!-- PEDIDOS ACTIVOS (carrito) — contenido pintado por renderPedOrders() en stock.js.
+       Fuera de #ped-content a propósito: renderPedido() reescribe ese contenedor
+       entero y cerraría el modal en cada repintado. -->
+  <div class="modal-bg" id="ped-orders-bg" onclick="if(event.target===this)closePedOrders()">
+    <div class="modal">
+      <div class="modal-hdr">
+        <div>
+          <div class="modal-title">Pedidos activos</div>
+          <div class="modal-sub">Pendientes de enviar y enviados sin recibir</div>
+        </div>
+        <button class="modal-cls" onclick="closePedOrders()">&#215;</button>
+      </div>
+      <div id="ped-orders-list"></div>
     </div>
   </div>
 

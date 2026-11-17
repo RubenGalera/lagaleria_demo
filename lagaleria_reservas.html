@@ -73,11 +73,8 @@
 <div id="view-ev" style="display:none">
   <div class="ev-list-wrap">
     <div id="ev-list"></div>
-    <div id="ev-empty" class="empty">
-      <div class="empty-icon">🎉</div>
-      <div class="empty-title">Sin eventos</div>
-      <div class="empty-sub">Los eventos especiales aparecerán aquí.<br>Crea el primero cuando quieras.</div>
-    </div>
+    <!-- Hero de estado vacío: lo pinta renderEventos() con renderHeroEmpty() -->
+    <div id="ev-empty" class="tab-footer ev-empty-slot"></div>
     <div class="sec-hdr ev-past-toggle" id="ev-past-toggle" onclick="toggleEventosPasados()">
       <span class="sec-lbl"><span id="ev-past-icon">📁</span> <span id="ev-past-toggle-lbl">Ver eventos pasados</span></span>
       <div class="sec-line"></div>
@@ -88,7 +85,8 @@
       <div class="empty-title">Sin eventos pasados</div>
     </div>
   </div>
-  <div class="tab-footer"><button class="add-btn" onclick="openNewEvento()">+ Nuevo evento</button></div>
+  <!-- Botón compacto "＋ Nuevo evento": lo pinta renderEventos() solo cuando hay eventos -->
+  <div class="tab-footer" id="ev-footer"></div>
 </div>
 
 <!-- ZONAS VIEW -->

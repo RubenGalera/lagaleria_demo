@@ -19,12 +19,14 @@
    aplique solo, sin hardcodear ningún color aquí. */
 
 /**
- * Muestra una notificación flotante que se autooculta a los 3 segundos.
+ * Muestra una notificación flotante que se autooculta (3 s por defecto).
  * @param {string} mensaje - Texto a mostrar.
  * @param {'success'|'error'|'info'} [tipo='info'] - Estilo visual del toast.
+ * @param {number} [duration=3000] - Milisegundos visible, para mensajes más largos.
  */
-function showToast(mensaje, tipo) {
+function showToast(mensaje, tipo, duration) {
   tipo = tipo || 'info'
+  duration = Number(duration) > 0 ? Number(duration) : 3000
 
   var t = document.getElementById('_toast')
   if (!t) {
@@ -50,7 +52,7 @@ function showToast(mensaje, tipo) {
      dispara la transición CSS — el navegador la colapsa. */
   t.classList.remove('show')
   requestAnimationFrame(function () { t.classList.add('show') })
-  t._t = setTimeout(function () { t.classList.remove('show') }, 3000)
+  t._t = setTimeout(function () { t.classList.remove('show') }, duration)
 }
 
 window.showToast = showToast

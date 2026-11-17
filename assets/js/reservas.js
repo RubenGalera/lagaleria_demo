@@ -498,12 +498,15 @@ function renderRes(){
   const dayRes=reservas.filter(r=>r.fecha===curDay);
 
   if(!dayRes.length){
-    list.innerHTML=`<div class="empty">
-      <div class="empty-icon">🍽️</div>
-      <div class="empty-title">Sin reservas</div>
-      <div class="empty-sub">Las reservas del día aparecerán aquí.<br>Añade la primera cuando quieras.</div>
-    </div>
-    <div class="tab-footer"><button class="add-btn" onclick="openNewRes()">+ Nueva reserva</button></div>`;
+    // renderHeroEmpty/HERO_ICONS → assets/lib/ui-helpers.js
+    list.innerHTML=`<div class="tab-footer">${renderHeroEmpty({
+      mode:'full',
+      icon:HERO_ICONS.cutlery,
+      title:'Sin reservas',
+      subtitle:'Las reservas del día aparecerán aquí. Añade la primera cuando quieras.',
+      btnLabel:'＋ Nueva reserva',
+      btnAction:'openNewRes()',
+    })}</div>`;
     return;
   }
 
@@ -527,7 +530,7 @@ function renderRes(){
     return h;
   }
 
-  list.innerHTML=buildTurno('mid')+buildTurno('noc')+`<div class="tab-footer"><button class="add-btn" onclick="openNewRes()">+ Nueva reserva</button></div>`;
+  list.innerHTML=buildTurno('mid')+buildTurno('noc')+`<div class="tab-footer">${renderHeroEmpty({ mode:'compact', btnLabel:'＋ Nueva reserva', btnAction:'openNewRes()' })}</div>`;
 }
 
 /* ── DETAIL (direct edit mode) ── */
@@ -779,8 +782,20 @@ function evCardHtml(ev,isPast){
 function renderEventos(){
   const list=document.getElementById('ev-list');
   const empty=document.getElementById('ev-empty');
+  const footer=document.getElementById('ev-footer');
   const dayEvs=eventos.filter(ev=>ev.fecha>=hoyStr()).sort((a,b)=>a.fecha.localeCompare(b.fecha)||(a.hora||'').localeCompare(b.hora||''));
-  if(empty) empty.style.display=dayEvs.length?'none':'block';
+  // Sin eventos: hero completo (con el botón dentro) en el hueco de #ev-empty y
+  // footer vacío. Con eventos: solo el botón compacto al final, como antes.
+  // renderHeroEmpty/HERO_ICONS → assets/lib/ui-helpers.js
+  if(empty) empty.innerHTML=dayEvs.length?'':renderHeroEmpty({
+    mode:'full',
+    icon:HERO_ICONS.party,
+    title:'Sin eventos',
+    subtitle:'Los eventos especiales aparecerán aquí. Crea el primero cuando quieras.',
+    btnLabel:'＋ Nuevo evento',
+    btnAction:'openNewEvento()',
+  });
+  if(footer) footer.innerHTML=dayEvs.length?renderHeroEmpty({ mode:'compact', btnLabel:'＋ Nuevo evento', btnAction:'openNewEvento()' }):'';
   list.innerHTML=dayEvs.map(ev=>evCardHtml(ev,false)).join('');
 }
 

@@ -173,6 +173,21 @@
 }
 .add-btn:active { background: var(--acc-bg) }
 
+/* ─── Hero / estado vacío reutilizable (renderHeroEmpty en ui-helpers.js) ───
+   Sin padding lateral propio: quien lo pinta ya está dentro de un contenedor
+   con su margen (.tab-footer en Reservas, .content/.ped-wrap en Stock), así el
+   .add-btn llega de borde a borde igual que antes. */
+.hero-empty         { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 28px 0 4px }
+.hero-empty.compact { padding: 0 }
+/* Emoji grande — mismo tamaño/margen que el .empty-icon original de Reservas */
+.hero-empty-icon    { font-size: 36px; line-height: 1.1; margin-bottom: 12px }
+.hero-empty-icon svg { width: 36px; height: 36px; color: var(--acc) }
+.hero-empty-title   { font-size: var(--fs-md); font-weight: 700; color: var(--txt); margin-bottom: 6px }
+.hero-empty-sub     { font-size: 12px; color: var(--dim); line-height: 1.5; max-width: 300px; margin-bottom: 18px }
+.hero-empty-badge   { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; padding: 0 6px; border-radius: var(--rad-pill); background: var(--acc); color: #1a1810; font-size: 10px; font-weight: 800; line-height: 1 }
+.hero-empty-btn2    { width: 100%; margin-top: 8px; padding: 12px; border: 1px solid var(--brd2); border-radius: var(--rad-md); background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s }
+.hero-empty-btn2:active { background: var(--surf2) }
+
 /* ─── Peligro: borde continuo rojo ─── */
 .btn-del,
 .btn-del-prod {
