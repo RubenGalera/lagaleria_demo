@@ -1,6 +1,23 @@
 # CHANGELOG — La Galería Neotaberna
 
-## v0.2.39 — Notas especiales ancladas a fecha concreta (Octubre 2026)
+## v0.2.40 — Flujo completo de pedidos a proveedores + componente hero (noviembre 2026)
+- Tablas `stock_pedidos` y `stock_pedidos_lineas` en Supabase con RLS y trigger `updated_at`
+- Índice único parcial: como máximo un pedido `pendiente` por proveedor y local
+- RPC `stock_confirmar_recepcion`: atómica con `FOR UPDATE`, suma directa en BD, prevención de deadlocks por orden fijo de productos
+- Lógica JS completa: borradores en localStorage por proveedor, carga de pedidos activos al iniciar, guardar/enviar/confirmar/eliminar
+- Carrito de pedidos activos: edición de pendientes y enviados, WhatsApp fusionado con "Marcar como enviado", confirmación de recepción con toast informativo (productos actualizados + recordatorio de Registro)
+- Animación pop en el badge del carrito al guardar un pedido
+- Botón WhatsApp en tab Stock para compartir por filtro activo (categoría, subcategoría o Reponer)
+- Componente `renderHeroEmpty` en `ui-helpers.js`: hero reutilizable con emoji, título, subtítulo y botón de acción con borde discontinuo dorado — aplicado en Reservas, Eventos, Productos y Pedido
+- Chips "Por categoría / Por proveedor" en Pedido ocultos vía CSS (HTML y JS intactos)
+- Acordeón de urgentes oculto mientras el flujo de pedido está abierto
+- `showToast` ampliado con parámetro `duration` opcional
+
+## v0.2.39 — Taxonomía de subcategorías de stock (octubre 2026)
+- Subcategorías para ALI (7), BEB (3), MAT (2) y VIN ampliado con `vin-carta`
+- 187 productos de ALI, 47 de BEB y 32 de MAT reasignados a sus subcategorías
+- Vinos de carta movidos de BEB a VIN (vin-carta, orden 3)
+- `docs/STOCK_CATEGORIAS.md` creado con la taxonomía completa
 
 ## v0.2.38 — Inicio para todos los roles + sync variantes (septiembre 2026)
 - Todos los roles (empleado, encargado, admin) aterrizan en Inicio al hacer login
