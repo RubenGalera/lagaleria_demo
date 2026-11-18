@@ -26,8 +26,8 @@
    vive donde tiene más sentido leerla en contexto, no aquí; esto es solo el
    glosario, ver ÍNDICE de arriba para ubicarlas):
      prods              {Array}   — productos activos del local (stock_productos, mapeados con sbToLocal)
-     oneoffs            {Array}   — productos puntuales del pedido actual (stock_productos_puntuales)
-     editOneoffId       {string|null} — id del producto puntual en edición en el modal (null = alta nueva)
+     editOneoffId       {string|null} — id de la línea puntual (stock_pedidos_lineas sin producto_id) en edición en el modal (null = alta nueva)
+                        Los productos puntuales ya no tienen variable propia: son líneas de pedidosActivos (ver getLineasPuntuales())
      stockCatsAll       {Array}   — todas las categorías activas — alimenta el <select> del modal de producto
      stockCatsWithProds {Array}   — solo las categorías con ≥1 producto — alimenta los chips de #cat-bar
      stockProvsAll      {Array}   — todos los proveedores activos — alimenta el <select> del modal de producto
@@ -60,8 +60,7 @@
    color del badge de ubicación, por posición — ver getLocInfo()). */
 
 let prods     = []
-let oneoffs   = []
-let editOneoffId = null
+let editOneoffId = null // id de la línea puntual en edición (stock_pedidos_lineas)
 let stockCatsAll       = [] // todas las categorías activas — alimenta el <select> del modal de producto
 let stockCatsWithProds = [] // solo las que tienen ≥1 producto — alimenta los chips de #cat-bar
 let stockProvsAll      = [] // todos los proveedores activos — alimenta el <select> del modal de producto
@@ -250,7 +249,23 @@ async function fetchStockCategorias() {
    tienen productos, ya que el dropdown de subcategorías se basa en la estructura de BD. */
 function childrenOfCat(slug) {
   return stockCatsAll.filter(c => c.parent_slug === slug)
-    .slice().sort((a, b) => (a.orden || 0) - (b.orden || 0))
+    .slice().sort(compareCatOrden)
+}
+
+/* Orden de subcategorías: stock_categorias.orden ascendente. Un orden NULL/0/no
+   numérico va al final (antes `orden || 0` lo trataba como 0 y lo subía arriba
+   del todo — así "Otros" sin orden quedaba por encima de "Vinos Carta"). Empate:
+   las "-otros" al final y luego por nombre. */
+function compareCatOrden(a, b) {
+  const ord = c => {
+    const n = Number(c.orden)
+    return Number.isFinite(n) && n > 0 ? n : Infinity
+  }
+  const oa = ord(a), ob = ord(b)
+  if (oa !== ob) return oa < ob ? -1 : 1
+  const otrosA = /-otros$/.test(a.slug || ''), otrosB = /-otros$/.test(b.slug || '')
+  if (otrosA !== otrosB) return otrosA ? 1 : -1
+  return (a.nombre || '').localeCompare(b.nombre || '', 'es')
 }
 /* Slugs a comparar al filtrar por `slug` cuando NO hay subcategoría concreta
    seleccionada: si es una categoría padre con hijas, incluye también las
@@ -278,6 +293,49 @@ function catShortLabel(nombre) {
 const sortByName = (a, b) => a.name.localeCompare(b.name, 'es')
 const catHeader = c => `<div class="sec-hdr"><div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div><div class="sec-line"></div></div>`
 const subHeader = c => `<div class="sec-hdr sec-hdr-sub"><div class="sec-lbl">${c.icono} ${c.nombre.toUpperCase()}</div><div class="sec-line"></div></div>`
+
+/**
+ * Pinta `items` agrupados con la misma jerarquía que la vista "Todo" de
+ * Productos: categorías de primer nivel (catHeader) por su orden; las que
+ * tienen hijas anidan sus subcategorías (subHeader) + "SIN SUBCATEGORÍA";
+ * al final "SIN CATEGORÍA" para slugs que ya no existen. Grupos vacíos no se pintan.
+ * @param {Array} items — productos (formato sbToLocal)
+ * @param {function(Object): string} renderItem — HTML de cada producto
+ * @param {function} [sortFn=sortByName] — orden dentro de cada grupo
+ * @returns {string}
+ */
+function renderCatGroups(items, renderItem, sortFn = sortByName) {
+  const byCat = new Map()
+  for (const p of items) {
+    if (!byCat.has(p.cat)) byCat.set(p.cat, [])
+    byCat.get(p.cat).push(p)
+  }
+  const group = slug => (byCat.get(slug) || []).slice().sort(sortFn).map(renderItem).join('')
+  const knownCats = new Set(stockCatsAll.map(c => c.slug))
+  const topCats = stockCatsAll.filter(c => !c.parent_slug)
+    .slice().sort((a, b) => (a.orden || 0) - (b.orden || 0))
+
+  let html = ''
+  topCats.forEach(c => {
+    const children = childrenOfCat(c.slug)
+    if (!children.length) {
+      const items = group(c.slug)
+      if (items) html += catHeader(c) + items
+      return
+    }
+    let groups = ''
+    children.forEach(ch => {
+      const items = group(ch.slug)
+      if (items) groups += subHeader(ch) + items
+    })
+    const parentItems = group(c.slug)
+    if (parentItems) groups += `<div class="sec-hdr sec-hdr-sub"><div class="sec-lbl">❓ SIN SUBCATEGORÍA</div><div class="sec-line"></div></div>` + parentItems
+    if (groups) html += catHeader(c) + groups
+  })
+  const sinCat = items.filter(p => !knownCats.has(p.cat)).slice().sort(sortFn).map(renderItem).join('')
+  if (sinCat) html += `<div class="sec-hdr"><div class="sec-lbl">❓ SIN CATEGORÍA</div><div class="sec-line"></div></div>` + sinCat
+  return html
+}
 
 function renderCatBar() {
   const bar = document.getElementById('cat-bar')
@@ -342,9 +400,28 @@ function openCatDropdown(c, pill) {
   })
   const pr = pill.getBoundingClientRect()
   const hr = header.getBoundingClientRect()
-  dd.style.left = `${pr.left - hr.left}px`
   dd.style.top = `${pr.bottom - hr.top + 4}px`
+  // Chip en la mitad derecha de la pantalla → el dropdown se alinea por la
+  // derecha del chip y crece hacia la izquierda; si no, por la izquierda. En
+  // ambos casos se mantiene a ≥16px del borde (max-width en stock.css), para
+  // que nunca aparezca scroll horizontal en móvil.
+  const GUTTER = 16
+  const vw = document.documentElement.clientWidth || window.innerWidth
+  if (pr.left + pr.width / 2 > vw / 2) {
+    dd.style.left  = 'auto'
+    dd.style.right = `${Math.max(GUTTER, vw - pr.right) - (vw - hr.right)}px`
+  } else {
+    dd.style.right = 'auto'
+    dd.style.left  = `${Math.max(GUTTER, pr.left) - hr.left}px`
+  }
   dd.classList.add('show')
+  // Ya visible y medido: si aun así se sale (nombres largos), se desplaza hacia dentro.
+  const dr = dd.getBoundingClientRect()
+  const shift = dr.right > vw - GUTTER ? (vw - GUTTER) - dr.right : (dr.left < GUTTER ? GUTTER - dr.left : 0)
+  if (shift) {
+    dd.style.left  = `${dr.left + shift - hr.left}px`
+    dd.style.right = 'auto'
+  }
 }
 function closeCatDropdown() {
   openDropdownCat = null
@@ -465,8 +542,9 @@ async function initStock() {
   }
 
   renderCatBar()
-  // Pedidos activos antes de renderTab(): el badge del carrito sale de pedidosActivos.
-  await Promise.all([sbLoadProductosPuntuales(), syncPedidosActivos()])
+  // Pedidos activos antes de renderTab(): el badge del carrito sale de pedidosActivos
+  // (los productos puntuales también: son líneas de esos pedidos).
+  await syncPedidosActivos()
   applyRolePermissions()
   renderTab(activeTab)
   setCat(activeCat)
@@ -1098,7 +1176,7 @@ async function confirmDelProd() {
 async function initPedido() {
   // Recarga también los pedidos activos al entrar al tab: otro dispositivo
   // puede haberlos enviado/recibido mientras tanto.
-  await Promise.all([sbLoadProductosPuntuales(), syncPedidosActivos()])
+  await syncPedidosActivos()
   pedMode = 'prov' // el toggle Por categoría/Por proveedor está oculto — el tab siempre arranca en proveedor
   renderPedido()
 }
@@ -1143,11 +1221,16 @@ function onPedProductClick(id) {
   if (!canManageProducts()) { showToast('Solo admin y encargados pueden editar productos', 'error'); return }
   openProdModal(id)
 }
+/* "+ Añadir producto puntual" (dentro del flujo de Realizar pedido): el
+   puntual se guarda al momento como línea del pedido de destino
+   (getPedidoPuntualDestino) — el del proveedor seleccionado o, sin proveedor,
+   el pedido aparte "Sin proveedor". */
 function onAddOneoffClick() {
   if (!canManageProducts()) { showToast('Solo admin y encargados pueden editar productos', 'error'); return }
   editOneoffId = null
-  document.getElementById('oneoff-modal-title').textContent = 'Añadir al pedido'
-  document.getElementById('oneoff-modal-btn').textContent = 'Añadir al pedido'
+  const destino = pedProvId ? (provName(pedProvId) || 'proveedor') : 'Sin proveedor'
+  document.getElementById('oneoff-modal-title').textContent = `Añadir al pedido · ${destino}`
+  document.getElementById('oneoff-modal-btn').textContent = 'Añadir al carrito'
   inputs.ooName.value = ''
   inputs.ooQty.value  = ''
   inputs.ooUnit.value = ''
@@ -1155,23 +1238,22 @@ function onAddOneoffClick() {
 }
 
 /**
- * Handler de click en una card de producto puntual — abre el mismo modal
+ * Handler de click en un producto puntual del flujo — abre el mismo modal
  * que "+ Añadir producto puntual" pero en modo edición (mismo patrón que
  * openProdModal()/editProdId para productos normales). El botón "✕" de
- * borrar, dentro de la misma card, para la propagación del click para no
- * abrir también este modal (ver renderPedCatView()).
- * @param {string} id — id del producto puntual (stock_productos_puntuales)
+ * quitar, dentro de la misma card, para la propagación del click.
+ * @param {string} id — id de la línea puntual (stock_pedidos_lineas)
  */
 function onOneoffItemClick(id) {
   if (!canManageProducts()) { showToast('Solo admin y encargados pueden editar productos', 'error'); return }
-  const o = oneoffs.find(item => item.id === id)
-  if (!o) return
+  const l = findLineaPedido(id)
+  if (!l) return
   editOneoffId = id
   document.getElementById('oneoff-modal-title').textContent = 'Editar producto puntual'
   document.getElementById('oneoff-modal-btn').textContent = 'Guardar cambios'
-  inputs.ooName.value = o.nombre
-  inputs.ooQty.value  = o.cantidad
-  inputs.ooUnit.value = o.unidad
+  inputs.ooName.value = l.nombre || ''
+  inputs.ooQty.value  = Number(l.cantidad_pedida)
+  inputs.ooUnit.value = l.unidad || ''
   showOneoffModal()
 }
 
@@ -1224,23 +1306,30 @@ function renderPedCatChips() {
   return `<div class="ped-cat-bar">${chips}</div>`
 }
 
-/* Lista de productos puntuales (stock_productos_puntuales) — compartida entre
-   la vista Por categoría y la cabecera de Pedido (renderPedTopBar), que es
-   donde se ven ahora que el toggle de vistas está oculto. '' si no hay. */
+/* Sección "Productos puntuales" del flujo de Realizar pedido: las líneas
+   puntuales del pedido de destino (getPedidoPuntualDestino) + el botón de
+   añadir. Con proveedor va al final de su lista de productos; sin proveedor,
+   debajo del resumen, apuntando al pedido aparte "Sin proveedor". Sin permiso
+   (empleado) solo se listan, sin botón ni edición. '' si no hay nada que pintar. */
 function renderOneoffSection() {
-  if (!oneoffs.length) return ''
-  const items = oneoffs.map(o => `
-    <div class="oneoff-item" onclick="onOneoffItemClick('${o.id}')">
+  const canEdit = canManageProducts()
+  const lineas  = getLineasPuntuales(getPedidoPuntualDestino())
+  const items = lineas.map(l => `
+    <div class="oneoff-item"${canEdit ? ` onclick="onOneoffItemClick('${l.id}')"` : ''}>
       <div>
-        <div class="oneoff-name">${o.nombre}</div>
-        <div class="oneoff-meta">${o.cantidad} ${o.unidad}${o.creado_por ? ` · por ${o.creado_por}` : ''}</div>
+        <div class="oneoff-name">${escapeHtml(l.nombre)}</div>
+        <div class="oneoff-meta">${getQtyLabel(l.cantidad_pedida)} ${escapeHtml(l.unidad || '')} · en el carrito</div>
       </div>
-      ${canManageProducts() ? `<button class="oneoff-del" onclick="event.stopPropagation();deleteOneoff('${o.id}')">✕</button>` : ''}
+      ${canEdit ? `<button class="oneoff-del" onclick="event.stopPropagation();deleteOneoff('${l.id}')" aria-label="Quitar del pedido">✕</button>` : ''}
     </div>
   `).join('')
+  const btn = canEdit ? '<button class="oneoff-btn" onclick="onAddOneoffClick()">＋ Añadir producto puntual</button>' : ''
+  if (!items && !btn) return ''
+  const lbl = pedProvId ? 'Productos puntuales' : 'Productos puntuales · Sin proveedor'
   return `
-    <div class="oneoff-section-lbl">Productos puntuales</div>
+    <div class="oneoff-section-lbl">${lbl}</div>
     ${items}
+    ${btn}
   `
 }
 
@@ -1254,19 +1343,19 @@ function renderPedCatView() {
 
   const bottomButtons = `
     <button class="ped-send" onclick="sendPedidoWhatsApp()">${WA_ICON_SVG} Enviar pedido por WhatsApp</button>
-    <button class="oneoff-btn" onclick="onAddOneoffClick()">+ Añadir producto puntual</button>
   `
 
+  // Incluye ya el botón "+ Añadir producto puntual".
   const oneoffSectionHtml = renderOneoffSection()
 
-  if (!needsOrder.length && !oneoffs.length) {
+  if (!needsOrder.length && !getLineasPuntualesActivas().length) {
     return chipsHtml + `
       <div class="ped-empty">
         <div class="ped-empty-icon">🛒</div>
         <div class="ped-empty-title">¡Todo en orden!</div>
         <div class="ped-empty-sub">Los productos por reponer aparecerán aquí automáticamente.</div>
       </div>
-    ` + bottomButtons
+    ` + oneoffSectionHtml + bottomButtons
   }
 
   const byCat = {}
@@ -1326,21 +1415,26 @@ function pedProvIndicator(provId) {
  * @param {string} id — proveedorId ('' / null = ninguno, vuelve al resumen)
  * @param {string} [pedidoId] — al venir de "Editar" en el carrito: carga las
  *   cantidades de ESE pedido (pendiente o enviado) y lo deja como destino de
- *   "Guardar cambios" (pedEditPedidoId). Sin él, flujo normal.
+ *   "Guardar cambios" (pedEditPedidoId). Sin él, flujo normal. Con id vacío
+ *   y pedidoId de un pedido "Sin proveedor", queda como destino de los puntuales.
  */
 function selectPedProv(id, pedidoId = null) {
   pedProvId = id || null
   pedQty = new Map()
-  const editing = pedProvId && pedidoId ? pedidosActivos.find(p => p.id === pedidoId) : null
+  const editing = pedidoId
+    ? pedidosActivos.find(p => p.id === pedidoId && (p.proveedor_id || null) === pedProvId) || null
+    : null
   pedEditPedidoId = editing ? editing.id : null
   if (pedProvId) {
     // Prioridad: 0) pedido abierto con "Editar" (manda sobre todo: es lo que
     // el usuario pidió ver), 1) borrador local (incluido un 0 puesto a mano en
     // un producto en rojo), 2) líneas del pedido 'pendiente' ya en el carrito
     // — lo que no esté en él va a 0, el carrito es una decisión ya tomada —,
-    // 3) sugerencia automática por semáforo.
+    // 3) sugerencia automática por semáforo. Un 'pendiente' que solo tiene
+    // puntuales no cuenta como decisión sobre el catálogo: sigue la sugerencia.
     const draft   = editing ? null : loadPedidoDraft(pedProvId)
-    const pending = editing || (draft ? null : getPedidoPendiente(pedProvId))
+    const pendRaw = draft ? null : getPedidoPendiente(pedProvId)
+    const pending = editing || (pendRaw && (pendRaw.lineas || []).some(l => l.producto_id) ? pendRaw : null)
     const pendingQty = pending
       ? new Map((pending.lineas || []).map(l => [l.producto_id, Number(l.cantidad_pedida)]))
       : null
@@ -1489,19 +1583,21 @@ function renderPedProvSummary() {
 function renderPedProvView() {
   const selectHtml = renderPedProvSelect()
 
+  // El editHint también sirve al pedido "Sin proveedor" abierto con "Editar".
+  const editing = pedEditPedidoId ? pedidosActivos.find(p => p.id === pedEditPedidoId) : null
+  const editHint = editing && editing.estado === 'enviado'
+    ? `<div class="ped-edit-hint">Editando un pedido ya enviado (${getDateTimeLabel(editing.enviado_at)}). Los cambios no se le comunican al proveedor: vuelve a enviarlo desde el carrito.</div>`
+    : ''
+
+  // Sin proveedor: resumen de urgentes y, debajo, los puntuales del pedido "Sin proveedor".
   if (!pedProvId) {
-    return selectHtml + renderPedProvSummary()
+    return selectHtml + renderPedProvSummary() + editHint + renderOneoffSection()
   }
 
-  const prov       = stockProvsAll.find(p => p.id === pedProvId)
   const provProds  = prods.filter(p => p.provId === pedProvId)
 
   // El envío por WhatsApp vive ahora en la tarjeta del carrito (sendPedOrderWhatsApp).
-  const editing = pedEditPedidoId ? pedidosActivos.find(p => p.id === pedEditPedidoId) : null
   const inCart  = !!editing || !!getPedidoPendiente(pedProvId)
-  const editHint = editing && editing.estado === 'enviado'
-    ? `<div class="ped-edit-hint">Editando un pedido ya enviado (${getDateTimeLabel(editing.enviado_at)}). Los cambios no se le comunican al proveedor: reenvíalo desde el carrito.</div>`
-    : ''
   const bottomButtons = `
     ${editHint}
     <button class="btn-full ped-cart-add" onclick="savePedProvToCart()">🛒 ${editing ? 'Guardar cambios del pedido' : (inCart ? 'Actualizar carrito' : 'Añadir al carrito')}</button>
@@ -1514,30 +1610,21 @@ function renderPedProvView() {
         <div class="ped-empty-title">Sin productos asignados</div>
         <div class="ped-empty-sub">Este proveedor no tiene productos asignados. Edítalos en Stock para asignarlos.</div>
       </div>
-    ` + bottomButtons
+    ` + renderOneoffSection() + bottomButtons
   }
 
-  const repItems = provProds
-    .filter(p => getStockStatus(p.qty, p.min) !== 'grn')
-    .sort((a, b) => {
-      const ua = getStockStatus(a.qty, a.min), ub = getStockStatus(b.qty, b.min)
-      if (ua !== ub) return ua === 'red' ? -1 : 1
-      return a.name.localeCompare(b.name, 'es')
-    })
-  const restItems = provProds
-    .filter(p => getStockStatus(p.qty, p.min) === 'grn')
-    .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+  // Misma cabecera que Productos (icono + categoría / icono + subcategoría).
+  // Dentro de cada grupo: rojo → ámbar → verde y por nombre; los verdes van
+  // atenuados (ped-item-grey) para que lo urgente siga destacando.
+  const URG = { red: 0, amb: 1, grn: 2 }
+  const sortByUrgency = (a, b) =>
+    (URG[getStockStatus(a.qty, a.min)] - URG[getStockStatus(b.qty, b.min)]) || sortByName(a, b)
+  const hasGrn = provProds.some(p => getStockStatus(p.qty, p.min) === 'grn')
 
   let html = selectHtml
-  if (repItems.length) {
-    html += `<div class="sec-hdr ped-section-hdr alert"><div class="sec-lbl">NECESITAN REPOSICIÓN</div><div class="sec-line"></div></div>`
-    html += repItems.map(p => renderPedProvItem(p, false)).join('')
-  }
-  if (restItems.length) {
-    html += `<div class="ped-otros-hint">Añade cantidad a los productos que quieras incluir en el pedido</div>`
-    html += `<div class="sec-hdr ped-section-hdr"><div class="sec-lbl">OTROS PRODUCTOS</div><div class="sec-line"></div></div>`
-    html += restItems.map(p => renderPedProvItem(p, true)).join('')
-  }
+  if (hasGrn) html += `<div class="ped-otros-hint">Añade cantidad a los productos que quieras incluir en el pedido</div>`
+  html += renderCatGroups(provProds, p => renderPedProvItem(p, getStockStatus(p.qty, p.min) === 'grn'), sortByUrgency)
+  html += renderOneoffSection()
   html += bottomButtons
   return html
 }
@@ -1578,8 +1665,53 @@ function getDateTimeLabel(iso) {
   return new Date(iso).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+/* provId null/'' = el pedido "Sin proveedor" (proveedor_id NULL en BD). */
 function getPedidoPendiente(provId) {
-  return pedidosActivos.find(p => p.proveedor_id === provId && p.estado === 'pendiente') || null
+  const key = provId || null
+  return pedidosActivos.find(p => (p.proveedor_id || null) === key && p.estado === 'pendiente') || null
+}
+
+/* ─── Líneas de pedido: producto del catálogo o puntual ───
+   Una línea puntual (producto fuera del catálogo) tiene producto_id NULL y
+   lleva su propio nombre/unidad; al recibirse genera movimiento en Registro
+   pero no suma a ningún stock_productos. */
+function isLineaPuntual(l) { return !!l && !l.producto_id }
+function getLineaNombre(l) { return l?.producto?.nombre || l?.nombre || 'Producto' }
+function getLineaUnidad(l) { return l?.producto?.unidad || l?.unidad || '' }
+
+function getLineasPuntuales(pedido) {
+  return (pedido?.lineas || []).filter(isLineaPuntual)
+    .sort((a, b) => getLineaNombre(a).localeCompare(getLineaNombre(b), 'es'))
+}
+
+/* Puntuales de todos los pedidos activos (vista Por categoría y punto del tab). */
+function getLineasPuntualesActivas() {
+  return pedidosActivos.flatMap(p => getLineasPuntuales(p))
+}
+
+function findLineaPedido(lineaId) {
+  for (const p of pedidosActivos) {
+    const l = (p.lineas || []).find(x => x.id === lineaId)
+    if (l) return l
+  }
+  return null
+}
+
+function getPedidoNombre(o) {
+  return o?.proveedor_id ? (o.proveedor?.nombre || provName(o.proveedor_id) || 'Proveedor') : 'Sin proveedor'
+}
+
+/**
+ * Pedido al que van los puntuales añadidos desde el flujo: el abierto con
+ * "Editar" si es de este mismo proveedor (o ambos "Sin proveedor"); si no,
+ * el 'pendiente' del proveedor seleccionado (o el "Sin proveedor"). null =
+ * aún no existe — sbAddLineaPuntual() lo crea.
+ */
+function getPedidoPuntualDestino() {
+  const provId  = pedProvId || null
+  const editing = pedEditPedidoId ? pedidosActivos.find(p => p.id === pedEditPedidoId) : null
+  if (editing && (editing.proveedor_id || null) === provId) return editing
+  return getPedidoPendiente(provId)
 }
 
 /**
@@ -1636,9 +1768,9 @@ function renderPedUrgentItem(p) {
 }
 
 /* Cabecera de Pedido: hero común (renderHeroEmpty, siempre en modo 'full')
-   con "Realizar pedido" (badge = borradores) y "Añadir producto puntual" como
-   secundario; el carrito es un botón flotante aparte en la esquina (badge =
-   pedidos activos). Debajo: acordeón de urgentes y lista de puntuales.
+   con "Realizar pedido" (badge = borradores); el carrito es un botón flotante
+   aparte en la esquina (badge = pedidos activos). Debajo: acordeón de urgentes.
+   "Añadir producto puntual" vive dentro del flujo (renderOneoffSection).
    La animación "pop" del badge la aplica updateCartBadgePop() tras guardar. */
 function renderPedTopBar() {
   const drafts  = getPedidoDraftCount()
@@ -1658,7 +1790,6 @@ function renderPedTopBar() {
         btnAction: 'togglePedFlow()',
         btnBadge: drafts,
         btnBadgeTitle: 'Borradores sin añadir al carrito',
-        btnSecondary: { label: '＋ Añadir producto puntual', action: 'onAddOneoffClick()' },
       })}
     </div>
   `
@@ -1680,8 +1811,6 @@ function renderPedTopBar() {
     `
   }
 
-  // Con la vista Por categoría oculta, este es el único sitio donde se ven los puntuales.
-  html += renderOneoffSection()
   return html
 }
 
@@ -1784,9 +1913,9 @@ function renderPedOrders() {
 }
 
 function renderPedOrderCard(o) {
-  const provNombre = o.proveedor?.nombre || provName(o.proveedor_id) || 'Proveedor'
+  const provNombre = getPedidoNombre(o)
   const lineas = (o.lineas || []).slice()
-    .sort((a, b) => (a.producto?.nombre || '').localeCompare(b.producto?.nombre || '', 'es'))
+    .sort((a, b) => getLineaNombre(a).localeCompare(getLineaNombre(b), 'es'))
   const n      = lineas.length
   const nLbl   = `${n} producto${n === 1 ? '' : 's'}`
   const isPend = o.estado === 'pendiente'
@@ -1798,8 +1927,8 @@ function renderPedOrderCard(o) {
 
   const linesHtml = lineas.map(l => `
     <div class="ped-order-line">
-      <span class="ped-order-line-name">${escapeHtml(l.producto?.nombre || 'Producto')}</span>
-      <span class="ped-order-line-qty">${getQtyLabel(l.cantidad_pedida)} ${escapeHtml(l.producto?.unidad || '')}</span>
+      <span class="ped-order-line-name">${escapeHtml(getLineaNombre(l))}${isLineaPuntual(l) ? '<span class="ped-order-line-tag">puntual</span>' : ''}</span>
+      <span class="ped-order-line-qty">${getQtyLabel(l.cantidad_pedida)} ${escapeHtml(getLineaUnidad(l))}</span>
     </div>
   `).join('')
 
@@ -1828,10 +1957,10 @@ function renderPedOrderCard(o) {
   } else {
     // Pendiente: WhatsApp abre el chat Y marca enviado en un tap (lo normal);
     // "Marcar como enviado" queda para pedidos hechos por teléfono/email.
-    // Enviado: WhatsApp solo reenvía (p. ej. tras editarlo), sin cambiar estado.
-    const waLabel = isPend ? 'Enviar por WhatsApp' : 'Reenviar por WhatsApp'
+    // Enviado: mismo botón y mismo texto, pero solo abre el chat (p. ej. tras
+    // editarlo), sin cambiar estado.
     actionsHtml = `
-      <button class="ped-send ped-order-wa"${dis} onclick="sendPedOrderWhatsApp('${o.id}')">${WA_ICON_SVG} ${waLabel}</button>
+      <button class="ped-send ped-order-wa"${dis} onclick="sendPedOrderWhatsApp('${o.id}')">${WA_ICON_SVG} Enviar por WhatsApp</button>
       ${isPend ? '<div class="ped-order-wa-hint">Abre WhatsApp con el pedido y lo marca como enviado</div>' : ''}
       <div class="ped-order-actions">
         ${isPend ? `<button class="btn-cancel"${dis} onclick="savePedOrderEnviado('${o.id}')">Marcar como enviado</button>` : ''}
@@ -1847,7 +1976,7 @@ function renderPedOrderCard(o) {
   return `
     <div class="ped-order${busy ? ' busy' : ''}">
       <div class="ped-order-hdr">
-        <div class="ped-order-prov">🚚 ${escapeHtml(provNombre)}</div>
+        <div class="ped-order-prov">${o.proveedor_id ? '🚚' : '📝'} ${escapeHtml(provNombre)}</div>
         <span class="ped-order-estado ${isPend ? 'pendiente' : 'enviado'}">${isPend ? 'Pendiente' : 'Enviado'}</span>
       </div>
       <div class="ped-order-meta">${nLbl} · ${when}</div>
@@ -1921,12 +2050,13 @@ function confirmPedOrderRecepcion(id) {
 /* Mismo formato de mensaje que tenía el antiguo botón de WhatsApp de la vista
    por proveedor, pero sacado de las líneas guardadas del pedido. */
 function getPedidoWhatsAppText(o) {
-  const provNombre = o.proveedor?.nombre || provName(o.proveedor_id) || 'proveedor'
-  const lines = [`*Pedido ${provNombre} — La Galería*`, '']
+  // Las líneas puntuales van mezcladas con el resto, por nombre: para el
+  // proveedor son un producto más.
+  const lines = [o.proveedor_id ? `*Pedido ${getPedidoNombre(o)} — La Galería*` : '*Pedido La Galería*', '']
   const lineas = (o.lineas || []).slice()
-    .sort((a, b) => (a.producto?.nombre || '').localeCompare(b.producto?.nombre || '', 'es'))
+    .sort((a, b) => getLineaNombre(a).localeCompare(getLineaNombre(b), 'es'))
   for (const l of lineas) {
-    lines.push(`• ${l.producto?.nombre || 'Producto'}: ${getQtyLabel(l.cantidad_pedida)} ${l.producto?.unidad || ''}`.trimEnd())
+    lines.push(`• ${getLineaNombre(l)}: ${getQtyLabel(l.cantidad_pedida)} ${getLineaUnidad(l)}`.trimEnd())
   }
   return lines.join('\n').trim()
 }
@@ -1950,7 +2080,8 @@ function sendPedOrderWhatsApp(id) {
 /* "Editar" desde el carrito: cierra el modal, despliega el flujo y aterriza en
    el proveedor del pedido con las cantidades de ESE pedido (selectPedProv con
    pedidoId). "Guardar cambios" escribe en ese mismo pedido, también si ya
-   estaba enviado. */
+   estaba enviado. Un pedido "Sin proveedor" aterriza en el resumen, con sus
+   puntuales editables debajo. */
 function editPedOrder(id) {
   const o = pedidosActivos.find(p => p.id === id)
   if (!o) return
@@ -1977,7 +2108,7 @@ function updatePedDot() {
   dot.className = 'tab-dot'
   if (hasRed) {
     dot.classList.add('red')
-  } else if (needsOrder.length > 0 || oneoffs.length > 0) {
+  } else if (needsOrder.length > 0 || getLineasPuntualesActivas().length > 0) {
     dot.classList.add('amb')
   }
 }
@@ -1986,9 +2117,10 @@ function sendPedidoWhatsApp() {
   const needsOrder = prods.filter(p => getStockStatus(p.qty, p.min) !== 'grn')
   const lines = ['*Pedido La Galería*', '']
 
-  if (oneoffs.length) {
+  const puntuales = getLineasPuntualesActivas()
+  if (puntuales.length) {
     lines.push('_Puntuales:_')
-    for (const o of oneoffs) lines.push(`• ${o.nombre}: ${o.cantidad} ${o.unidad}`)
+    for (const l of puntuales) lines.push(`• ${getLineaNombre(l)}: ${getQtyLabel(l.cantidad_pedida)} ${getLineaUnidad(l)}`.trimEnd())
     lines.push('')
   }
 
@@ -2014,59 +2146,31 @@ function sendPedidoWhatsApp() {
 function showOneoffModal()  { el.oneoffModalBg.classList.add('show') }
 function closeOneoffModal() { editOneoffId = null; el.oneoffModalBg.classList.remove('show') }
 
+let oneoffDeleting = false
 async function deleteOneoff(id) {
+  if (oneoffDeleting) return
+  oneoffDeleting = true
   try {
-    await sbDeleteProductoPuntual(id)
-    updatePedDot()
-    renderPedido()
+    const pedidoQuitado = await sbDeleteLineaPedido(id)
+    showToast(pedidoQuitado ? 'Pedido quitado del carrito' : 'Producto puntual quitado del pedido', 'success')
   } catch(e) {
     console.error('[stock] deleteOneoff:', e)
     showToast('Error al eliminar','error')
+    await syncPedidosActivos()
+  } finally {
+    oneoffDeleting = false
+    if (pedEditPedidoId && !pedidosActivos.some(p => p.id === pedEditPedidoId)) pedEditPedidoId = null
+    updatePedDot()
+    renderPedido()
   }
 }
 
-/* ─── PRODUCTOS PUNTUALES (one-off) ─── */
-/* Supabase — productos_puntuales */
-async function sbLoadProductosPuntuales() {
-  try {
-    const { data, error } = await _sb.from('stock_productos_puntuales')
-      .select('*')
-      .eq('local_id', LOCAL_ID)
-      .order('created_at', { ascending: true })
-    if (error) throw error
-    oneoffs = data || []
-  } catch(e) {
-    console.error('[stock] sbLoadProductosPuntuales:', e)
-    oneoffs = []
-  }
-}
-
-async function sbAddProductoPuntual(nombre, cantidad, unidad) {
-  const quien = getStockUser()?.nombre || null
-  const { data, error } = await _sb.from('stock_productos_puntuales')
-    .insert({ local_id: LOCAL_ID, nombre, cantidad, unidad, creado_por: quien })
-    .select('*')
-    .single()
-  if (error) throw error
-  oneoffs.push(data)
-}
-
-async function sbUpdateProductoPuntual(id, nombre, cantidad, unidad) {
-  const { data, error } = await _sb.from('stock_productos_puntuales')
-    .update({ nombre, cantidad, unidad })
-    .eq('id', id)
-    .select('*')
-    .single()
-  if (error) throw error
-  const idx = oneoffs.findIndex(o => o.id === id)
-  if (idx !== -1) oneoffs[idx] = data
-}
-
-async function sbDeleteProductoPuntual(id) {
-  const { error } = await _sb.from('stock_productos_puntuales').delete().eq('id', id)
-  if (error) throw error
-  oneoffs = oneoffs.filter(o => o.id !== id)
-}
+/* ─── PRODUCTOS PUNTUALES (one-off) ───
+   Ya no tienen tabla propia: son líneas de stock_pedidos_lineas con
+   producto_id NULL y nombre/unidad propios, dentro del pedido del proveedor
+   (o del pedido "Sin proveedor", proveedor_id NULL). Así salen en el carrito,
+   en el WhatsApp y en la recepción como cualquier otra línea. Las funciones
+   sb* de las líneas puntuales viven con el resto de persistencia de pedidos. */
 
 /* ─── PEDIDOS — BORRADOR (localStorage) ───
    Guarda por proveedor las cantidades del stepper de Pedido/Por proveedor
@@ -2149,20 +2253,22 @@ async function sbLoadPedidosPendientes() {
   return pedidosActivos
 }
 
+/* proveedorId null = el pedido "Sin proveedor" — .eq() con null no casa nada en
+   PostgREST, hay que usar .is('proveedor_id', null). */
 async function sbFindPedidoPendiente(proveedorId) {
-  const { data, error } = await _sb.from('stock_pedidos')
-    .select('id')
+  let query = _sb.from('stock_pedidos')
+    .select('id, estado')
     .eq('local_id', LOCAL_ID)
-    .eq('proveedor_id', proveedorId)
     .eq('estado', 'pendiente')
-    .maybeSingle()
+  query = proveedorId ? query.eq('proveedor_id', proveedorId) : query.is('proveedor_id', null)
+  const { data, error } = await query.maybeSingle()
   if (error) throw error
   return data
 }
 
 async function sbCreatePedidoPendiente(proveedorId) {
   const { data, error } = await _sb.from('stock_pedidos')
-    .insert({ local_id: LOCAL_ID, proveedor_id: proveedorId, estado: 'pendiente', creado_por: getStockUser()?.nombre || null })
+    .insert({ local_id: LOCAL_ID, proveedor_id: proveedorId || null, estado: 'pendiente', creado_por: getStockUser()?.nombre || null })
     .select('id')
     .single()
   // 23505 = el índice único: otro dispositivo creó el 'pendiente' a la vez — se reutiliza.
@@ -2175,11 +2281,47 @@ async function sbCreatePedidoPendiente(proveedorId) {
 }
 
 /**
+ * Lee un pedido concreto (abierto con "Editar") y comprueba que se puede
+ * tocar: si ya está 'recibido' o no existe, lanza un Error con userMessage=true.
+ * @param {string} pedidoId
+ * @returns {Promise<{id: string, estado: string}>}
+ */
+async function sbGetPedidoEditable(pedidoId) {
+  const { data, error } = await _sb.from('stock_pedidos')
+    .select('id, estado')
+    .eq('id', pedidoId)
+    .maybeSingle()
+  if (error) throw error
+  if (!data || data.estado === 'recibido') {
+    const err = new Error('Este pedido ya se ha recibido o eliminado — no se puede editar')
+    err.userMessage = true
+    throw err
+  }
+  return data
+}
+
+/**
+ * Borra el pedido si se ha quedado sin ninguna línea (ni de catálogo ni puntual).
+ * @param {string} pedidoId
+ * @returns {Promise<boolean>} true si lo ha borrado
+ */
+async function sbDeletePedidoSiVacio(pedidoId) {
+  const { count, error } = await _sb.from('stock_pedidos_lineas')
+    .select('id', { count: 'exact', head: true })
+    .eq('pedido_id', pedidoId)
+  if (error) throw error
+  if (count) return false
+  await sbDeletePedido(pedidoId)
+  return true
+}
+
+/**
  * Añade al carrito: crea (o reutiliza) el pedido 'pendiente' del proveedor y
- * deja sus líneas EXACTAMENTE como `lineas` — upsert de las que vienen y
- * borrado de las que ya no están (cantidad bajada a 0). Si `lineas` queda
- * vacío, se borra el pendiente entero. Al terminar borra el borrador local
- * del proveedor y recarga pedidosActivos.
+ * deja sus líneas de catálogo EXACTAMENTE como `lineas` — upsert de las que
+ * vienen y borrado de las que ya no están (cantidad bajada a 0). Las líneas
+ * puntuales (producto_id NULL) no se tocan. Si al final el pedido no tiene
+ * ninguna línea, se borra entero. Al terminar borra el borrador local del
+ * proveedor y recarga pedidosActivos.
  * @param {string} proveedorId
  * @param {Array<{productoId: string, cantidad: number}>} lineas
  * @param {string} [pedidoId] — editar ESE pedido (pendiente o enviado, abierto
@@ -2193,28 +2335,25 @@ async function sbSavePedido(proveedorId, lineas, pedidoId = null) {
     .map(l => ({ producto_id: l.productoId, cantidad_pedida: Number(l.cantidad) }))
     .filter(l => l.producto_id && Number.isFinite(l.cantidad_pedida) && l.cantidad_pedida > 0)
 
-  let pedido
-  if (pedidoId) {
-    const { data, error } = await _sb.from('stock_pedidos')
-      .select('id, estado')
-      .eq('id', pedidoId)
-      .maybeSingle()
-    if (error) throw error
-    if (!data || data.estado === 'recibido') {
-      const err = new Error('Este pedido ya se ha recibido o eliminado — no se puede editar')
-      err.userMessage = true
-      throw err
-    }
-    pedido = data
-  } else {
-    pedido = await sbFindPedidoPendiente(proveedorId)
-  }
+  let pedido = pedidoId
+    ? await sbGetPedidoEditable(pedidoId)
+    : await sbFindPedidoPendiente(proveedorId)
 
   if (!rows.length) {
-    if (pedido) await sbDeletePedido(pedido.id)
+    // Quita las líneas de catálogo; el pedido solo se borra si tampoco le
+    // quedan puntuales (si no, seguiría en el carrito con ellas).
+    let quitado = true
+    if (pedido) {
+      const { error: delErr } = await _sb.from('stock_pedidos_lineas')
+        .delete()
+        .eq('pedido_id', pedido.id)
+        .not('producto_id', 'is', null)
+      if (delErr) throw delErr
+      quitado = await sbDeletePedidoSiVacio(pedido.id)
+    }
     clearPedidoDraft(proveedorId)
     await sbLoadPedidosPendientes()
-    return null
+    return quitado ? null : (pedidosActivos.find(p => p.id === pedido.id) || null)
   }
 
   if (!pedido) pedido = await sbCreatePedidoPendiente(proveedorId)
@@ -2223,6 +2362,8 @@ async function sbSavePedido(proveedorId, lineas, pedidoId = null) {
     .upsert(rows.map(r => ({ ...r, pedido_id: pedido.id })), { onConflict: 'pedido_id,producto_id' })
   if (upErr) throw upErr
 
+  // NOT IN no casa con producto_id NULL (en SQL da NULL, no true): las
+  // líneas puntuales sobreviven a este borrado.
   const keepIds = rows.map(r => r.producto_id)
   const { error: delErr } = await _sb.from('stock_pedidos_lineas')
     .delete()
@@ -2233,6 +2374,61 @@ async function sbSavePedido(proveedorId, lineas, pedidoId = null) {
   clearPedidoDraft(proveedorId)
   await sbLoadPedidosPendientes()
   return pedidosActivos.find(p => p.id === pedido.id) || null
+}
+
+/**
+ * Añade un producto puntual (fuera del catálogo) como línea del pedido: en
+ * `pedidoId` si viene (pedido abierto con "Editar"), si no en el 'pendiente'
+ * del proveedor — o en el "Sin proveedor" si proveedorId es null —,
+ * creándolo si no existe. Recarga pedidosActivos.
+ * @param {string|null} proveedorId
+ * @param {string} nombre
+ * @param {number} cantidad
+ * @param {string} unidad
+ * @param {string} [pedidoId]
+ */
+async function sbAddLineaPuntual(proveedorId, nombre, cantidad, unidad, pedidoId = null) {
+  const pedido = pedidoId
+    ? await sbGetPedidoEditable(pedidoId)
+    : (await sbFindPedidoPendiente(proveedorId) || await sbCreatePedidoPendiente(proveedorId))
+  const { error } = await _sb.from('stock_pedidos_lineas')
+    .insert({ pedido_id: pedido.id, producto_id: null, nombre, unidad, cantidad_pedida: cantidad })
+  if (error) throw error
+  await sbLoadPedidosPendientes()
+}
+
+/**
+ * Edita nombre/cantidad/unidad de una línea puntual. Recarga pedidosActivos.
+ * @param {string} lineaId
+ */
+async function sbUpdateLineaPuntual(lineaId, nombre, cantidad, unidad) {
+  const { data, error } = await _sb.from('stock_pedidos_lineas')
+    .update({ nombre, unidad, cantidad_pedida: cantidad })
+    .eq('id', lineaId)
+    .is('producto_id', null)
+    .select('id')
+  if (error) throw error
+  if (!data || !data.length) {
+    const err = new Error('Este producto ya no está en el pedido')
+    err.userMessage = true
+    throw err
+  }
+  await sbLoadPedidosPendientes()
+}
+
+/**
+ * Quita una línea de un pedido y, si era la última, borra el pedido.
+ * Recarga pedidosActivos.
+ * @param {string} lineaId
+ * @returns {Promise<boolean>} true si el pedido se ha quedado vacío y se ha borrado
+ */
+async function sbDeleteLineaPedido(lineaId) {
+  const pedido = pedidosActivos.find(p => (p.lineas || []).some(l => l.id === lineaId))
+  const { error } = await _sb.from('stock_pedidos_lineas').delete().eq('id', lineaId)
+  if (error) throw error
+  const quitado = pedido ? await sbDeletePedidoSiVacio(pedido.id) : false
+  await sbLoadPedidosPendientes()
+  return quitado
 }
 
 /**
@@ -2261,13 +2457,14 @@ async function sbSetPedidoEnviado(pedidoId) {
  * tipo='pedido' en stock_movimientos y marca el pedido 'recibido' con
  * recibido_at. Si algo falla, Postgres deshace todo y aquí llega el error.
  * La cabecera se bloquea (FOR UPDATE): dos confirmaciones simultáneas no
- * pueden sumar el stock dos veces.
+ * pueden sumar el stock dos veces. Las líneas puntuales (producto_id NULL)
+ * solo registran el movimiento (con su nombre/unidad), sin tocar stock.
  *
  * @param {string} pedidoId
  * @param {Object<string, number>|Map<string, number>} [recibidas] — productoId → cantidad
- *   recibida. Las líneas que no aparezcan usan su cantidad_recibida ya guardada
- *   o, si no hay, la cantidad_pedida.
- * @returns {Promise<Array<{productoId: string, recibida: number}>>} líneas sumadas al stock
+ *   recibida (para una línea puntual, su id de línea). Las que no aparezcan
+ *   usan su cantidad_recibida ya guardada o, si no hay, la cantidad_pedida.
+ * @returns {Promise<Array<{productoId: string|null, recibida: number}>>} líneas recibidas (productoId null = puntual)
  */
 async function sbConfirmarRecepcion(pedidoId, recibidas = null) {
   const obj = recibidas instanceof Map ? Object.fromEntries(recibidas) : (recibidas || {})
@@ -2332,7 +2529,7 @@ async function renderRegistro() {
     const range = getRegFilterRange()
     let query = _sb
       .from('stock_movimientos')
-      .select('id, producto_id, delta, tipo, quien, created_at, stock_productos(nombre, unidad)')
+      .select('id, producto_id, nombre, unidad, delta, tipo, quien, created_at, stock_productos(nombre, unidad)')
       .eq('local_id', LOCAL_ID)
       .order('created_at', { ascending: false })
     if (range.from) query = query.gte('created_at', range.from)
@@ -2378,8 +2575,14 @@ async function renderRegistro() {
 
     const typeMap = person.types[row.tipo]
     if (!typeMap) continue
-    const pid = row.producto_id
-    if (!typeMap.has(pid)) typeMap.set(pid, { delta: 0, nombre: row.stock_productos?.nombre || 'Producto', unidad: row.stock_productos?.unidad || '' })
+    // Movimiento de un producto puntual: sin producto_id, con nombre/unidad propios —
+    // se agrega por nombre+unidad para no mezclar dos puntuales distintos.
+    const pid = row.producto_id || `puntual:${row.nombre || ''}|${row.unidad || ''}`
+    if (!typeMap.has(pid)) typeMap.set(pid, {
+      delta: 0,
+      nombre: escapeHtml(row.stock_productos?.nombre || row.nombre || 'Producto'),
+      unidad: escapeHtml(row.stock_productos?.unidad || row.unidad || ''),
+    })
     typeMap.get(pid).delta += row.delta
   }
 
@@ -2499,19 +2702,25 @@ async function confirmClearReg() {
 
 /* ─── One-off pedido ───
    saveOneoff() cubre alta y edición (mismo patrón que saveProdModal()):
-   editOneoffId null → INSERT, con valor → UPDATE sobre ese id. */
+   editOneoffId null → INSERT de una línea puntual en el pedido de destino
+   (getPedidoPuntualDestino), con valor → UPDATE de esa línea. Se guarda al
+   momento en el carrito, sin pasar por "Añadir al carrito". */
+let oneoffSaving = false
 async function saveOneoff() {
   const name = inputs.ooName.value.trim()
   const qty  = Number(inputs.ooQty.value)
   const unit = inputs.ooUnit.value.trim()
-  if (!name || !unit || Number.isNaN(qty) || qty <= 0) { showToast('Completa nombre, cantidad y unidad','error'); return }
+  if (!name || !unit || !Number.isFinite(qty) || qty <= 0) { showToast('Completa nombre, cantidad y unidad','error'); return }
+  if (oneoffSaving) return
+  oneoffSaving = true
+  const wasEdit = !!editOneoffId
   try {
-    if (editOneoffId) {
-      await sbUpdateProductoPuntual(editOneoffId, name, qty, unit)
+    if (wasEdit) {
+      await sbUpdateLineaPuntual(editOneoffId, name, qty, unit)
     } else {
-      await sbAddProductoPuntual(name, qty, unit)
+      const destino = getPedidoPuntualDestino()
+      await sbAddLineaPuntual(pedProvId || null, name, qty, unit, destino?.id || null)
     }
-    const wasEdit = !!editOneoffId
     el.oneoffModalBg.classList.remove('show')
     editOneoffId = null
     inputs.ooName.value = ''
@@ -2519,10 +2728,20 @@ async function saveOneoff() {
     inputs.ooUnit.value = ''
     updatePedDot()
     renderPedido()
-    showToast(wasEdit ? 'Producto puntual actualizado' : 'Artículo añadido', 'success')
+    if (!wasEdit) updateCartBadgePop() // después del repintado: el badge ya es el nodo nuevo
+    showToast(wasEdit ? 'Producto puntual actualizado' : 'Añadido al carrito', 'success')
   } catch(e) {
     console.error('[stock] saveOneoff:', e)
-    showToast('Error al guardar','error')
+    showToast(e?.userMessage ? e.message : 'Error al guardar','error')
+    if (e?.userMessage) {
+      el.oneoffModalBg.classList.remove('show')
+      editOneoffId = null
+      if (!wasEdit) pedEditPedidoId = null // el pedido en edición ya no admite cambios
+      await syncPedidosActivos()
+      renderPedido()
+    }
+  } finally {
+    oneoffSaving = false
   }
 }
 
