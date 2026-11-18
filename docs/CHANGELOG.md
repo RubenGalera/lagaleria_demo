@@ -1,5 +1,18 @@
 # CHANGELOG — La Galería Neotaberna
 
+## v0.2.41 — Recepción con revisión de líneas + rediseño de Realizar pedido (noviembre 2026)
+- Confirmar recepción con revisión de líneas: stepper por línea con la cantidad recibida (por defecto la pedida, mínimo 0, sin máximo); se envía a la RPC vía `p_recibidas` (clave `producto_id`, o id de línea en puntuales)
+- Botones "Confirmar recepción" y "Cancelar" en la misma fila; cancelar vuelve a la tarjeta sin cerrar el modal
+- Toast específico cuando no ha llegado nada ("el stock no cambia")
+- "Confirmar recepción" siempre visible pero desactivado mientras el pedido está pendiente, con aviso "Primero marca como enviado"
+- Tarjeta del carrito: "Editar" pasa a icono ✏️ en la cabecera; "Enviar por WhatsApp" y "Marcar como enviado" en la misma fila
+- Acordeón de urgentes eliminado del hero; badge rojo con el nº de urgentes en el botón de Realizar pedido (junto al de borradores)
+- `renderHeroEmpty` admite un segundo badge rojo (`btnBadgeAlert` / `btnBadgeAlertTitle`)
+- "Realizar pedido" se despliega como panel (▼/▲) con dos entradas: selector de proveedor y lista compacta de productos urgentes
+- Pulsar un urgente abre directamente su proveedor; sin proveedor, abre el modal de producto puntual ya relleno
+- Badge azul "EN CARRITO" en urgentes que ya están en un pedido activo (pendiente o enviado) o en un borrador local
+- `getPedidoDrafts()`: lectura común de borradores (memoria + localStorage) para el contador y el badge
+
 ## v0.2.40 — Flujo completo de pedidos a proveedores + componente hero (noviembre 2026)
 - Tablas `stock_pedidos` y `stock_pedidos_lineas` en Supabase con RLS y trigger `updated_at`
 - Índice único parcial: como máximo un pedido `pendiente` por proveedor y local

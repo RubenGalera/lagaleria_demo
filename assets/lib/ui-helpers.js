@@ -85,6 +85,8 @@ function _heroEsc(s) {
  * @param {string} [config.btnAction] — código del onclick, p. ej. "openNewRes()".
  * @param {number|null} [config.btnBadge] — si > 0, badge dorado dentro del botón.
  * @param {string} [config.btnBadgeTitle] — tooltip del badge.
+ * @param {number|null} [config.btnBadgeAlert] — si > 0, badge rojo dentro del botón (p. ej. urgentes), tras el dorado.
+ * @param {string} [config.btnBadgeAlertTitle] — tooltip del badge rojo.
  * @param {{label: string, action: string}} [config.btnSecondary] — botón
  *   secundario opcional debajo (borde simple, sin relleno).
  * @returns {string}
@@ -97,6 +99,10 @@ function renderHeroEmpty(config) {
   var badge = badgeN > 0
     ? '<span class="hero-empty-badge"' + (c.btnBadgeTitle ? ' title="' + _heroEsc(c.btnBadgeTitle) + '"' : '') + '>' + badgeN + '</span>'
     : '';
+  var alertN = Number(c.btnBadgeAlert);
+  if (alertN > 0) {
+    badge += '<span class="hero-empty-badge alert"' + (c.btnBadgeAlertTitle ? ' title="' + _heroEsc(c.btnBadgeAlertTitle) + '"' : '') + '>' + alertN + '</span>';
+  }
   var btn = c.btnLabel
     ? '<button type="button" class="add-btn hero-empty-btn" onclick="' + _heroEsc(c.btnAction || '') + '">' + _heroEsc(c.btnLabel) + badge + '</button>'
     : '';

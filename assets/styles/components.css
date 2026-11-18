@@ -185,7 +185,9 @@
 .hero-empty-title   { font-size: var(--fs-md); font-weight: 700; color: var(--txt); margin-bottom: 6px }
 .hero-empty-sub     { font-size: 12px; color: var(--dim); line-height: 1.5; max-width: 300px; margin-bottom: 18px }
 .hero-empty-badge   { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; padding: 0 6px; border-radius: var(--rad-pill); background: var(--acc); color: #1a1810; font-size: 10px; font-weight: 800; line-height: 1 }
-.hero-empty-btn2    { width: 100%; margin-top: 8px; padding: 12px; border: 1px solid var(--brd2); border-radius: var(--rad-md); background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s }
+.hero-empty-badge.alert { background: var(--red); color: #fff }
+.hero-empty-badge + .hero-empty-badge { margin-left: 4px }
+.hero-empty-btn2   { width: 100%; margin-top: 8px; padding: 12px; border: 1px solid var(--brd2); border-radius: var(--rad-md); background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s }
 .hero-empty-btn2:active { background: var(--surf2) }
 
 /* ─── Peligro: borde continuo rojo ─── */

@@ -159,7 +159,7 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 /* ─── Pedido: icono de categoría junto al nombre (reutilizado en renderPedCard) ─── */
 .ped-cat-icon{margin-right:5px;font-size:12px}
 
-/* ─── Pedido: cabecera (hero + acordeón de urgentes) ───
+/* ─── Pedido: cabecera (hero; urgentes = badge rojo del botón) ───
    No es sticky para no robar alto a .ped-prov-wrap, que sí lo es (top:46px). */
 .ped-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 6px;border-radius:var(--rad-pill);font-size:10px;font-weight:800;line-height:1;flex-shrink:0}
 .ped-badge.red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd)}
@@ -175,20 +175,12 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .ped-hero-wrap{position:relative;margin-bottom:16px}
 .ped-hero-cart{position:absolute;top:0;right:0;z-index:1;display:flex;align-items:center;gap:5px;padding:7px 10px;border-radius:var(--rad-pill);background:var(--surf);border:1px solid var(--brd2);color:var(--txt);font-size:15px;line-height:1;cursor:pointer;transition:all .2s}
 .ped-hero-cart:active{transform:scale(.94);border-color:var(--acc-bd)}
-/* Acordeón de urgentes: título centrado en el rojo de alerta de Stock
-   (var(--red), el de .sema.red/.cpill-rep) y badge macizo del mismo color.
-   El chevron va absoluto a la derecha para no descentrar el título. */
-.ped-acc{background:var(--surf);border:1px solid var(--red-bd);border-radius:var(--rad-md);margin-bottom:14px;overflow:hidden}
-.ped-acc-hdr{position:relative;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 36px;background:transparent;border:none;color:var(--red);font-size:13px;font-weight:700;cursor:pointer;text-align:center}
-.ped-acc-hdr:active{opacity:.7}
-.ped-acc-title{flex:none}
-.ped-acc-hdr .ped-badge.red{background:var(--red);border-color:var(--red);color:#fff}
-.ped-acc-chevron{flex-shrink:0;opacity:.6;transition:transform .2s}
-.ped-acc-hdr .ped-acc-chevron{position:absolute;right:12px;top:50%;margin-top:-7px}
-.ped-acc.open .ped-acc-hdr .ped-acc-chevron{transform:rotate(180deg)}
-.ped-acc-body{border-top:1px solid var(--red-bd);padding:2px 12px;max-height:45vh;overflow-y:auto;overscroll-behavior-y:contain}
-.ped-urg-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--brd)}
+/* Panel "Realizar pedido", sección B: lista compacta de urgentes (mismo
+   aspecto que el antiguo acordeón del hero). Cada fila abre su proveedor. */
+.ped-urg-list{background:var(--surf);border:1px solid var(--red-bd);border-radius:var(--rad-md);padding:2px 12px;margin-bottom:14px}
+.ped-urg-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--brd);cursor:pointer}
 .ped-urg-item:last-child{border-bottom:none}
+.ped-urg-item:active{opacity:.7}
 .ped-urg-item .sema{flex-shrink:0}
 .ped-urg-info{flex:1;min-width:0}
 .ped-urg-name{font-size:13px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -197,6 +189,9 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .ped-urg-qty.red{color:var(--red)}
 .ped-urg-qty.amb{color:var(--amb)}
 .ped-urg-qty span{font-size:10px;font-weight:600;color:var(--dim)}
+/* "En carrito": urgente con línea en un pedido activo o en un borrador.
+   Mismo azul que .ped-order-estado.enviado. */
+.ped-en-carrito{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;vertical-align:1px;white-space:nowrap;background:rgba(100,160,200,.1);color:#7ab8d4;border:1px solid rgba(100,160,200,.3)}
 .ped-cart-add{margin:6px 0 8px}
 .ped-edit-hint{font-size:11px;color:var(--amb);background:var(--amb-bg);border:1px solid var(--amb-bd);border-radius:var(--rad-sm);padding:8px 10px;margin-top:6px;line-height:1.4}
 
@@ -211,6 +206,12 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .ped-order-estado{font-size:10px;font-weight:700;padding:3px 8px;border-radius:var(--rad-pill);flex-shrink:0;text-transform:uppercase;letter-spacing:.5px}
 .ped-order-estado.pendiente{background:var(--amb-bg);color:var(--amb);border:1px solid var(--amb-bd)}
 .ped-order-estado.enviado{background:rgba(100,160,200,.1);color:#7ab8d4;border:1px solid rgba(100,160,200,.3)}
+.ped-order-hdr-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+/* Lápiz de editar: discreto, en la esquina; área táctil de 30px */
+.ped-order-edit{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;margin:-6px -6px -6px 0;padding:0;background:transparent;border:none;border-radius:var(--rad-sm);font-size:14px;line-height:1;cursor:pointer;opacity:.6;transition:opacity .2s,background .2s}
+.ped-order-edit:hover{opacity:1}
+.ped-order-edit:active{opacity:1;background:var(--surf2)}
+.ped-order-edit:disabled{opacity:.3}
 .ped-order-meta{font-size:11px;color:var(--dim);margin-top:4px}
 .ped-order-lines{margin:10px 0;padding-top:6px;border-top:1px solid var(--brd)}
 .ped-order-line{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:3px 0}
@@ -218,6 +219,11 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .ped-order-line-qty{color:var(--txt);font-weight:700;white-space:nowrap}
 /* Etiqueta de línea puntual (producto fuera del catálogo) en la tarjeta del carrito */
 .ped-order-line-tag{margin-left:6px;padding:1px 6px;border:1px solid var(--acc-bd);border-radius:6px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--acc);vertical-align:1px}
+/* Revisión de recepción: misma línea, con stepper (.ped-qty-wrap/.sbtn del carrito) */
+.ped-recep-line{align-items:center;padding:5px 0}
+.ped-recep-info{display:flex;flex-direction:column;min-width:0}
+.ped-recep-pedida{font-size:10px;color:var(--dim);margin-top:1px}
+.ped-recep-line.zero .ped-order-line-name,.ped-recep-line.zero .ped-qty-val{opacity:.45}
 .ped-order-actions{display:flex;flex-wrap:wrap;gap:6px}
 .ped-order-actions + .ped-order-actions{margin-top:6px}
 .ped-order-wa{padding:10px;margin-bottom:4px;font-size:12px}
@@ -225,6 +231,11 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .ped-order-wa-hint{font-size:10px;color:var(--faint);text-align:center;margin-bottom:8px}
 .ped-order-actions button{flex:1 1 auto;padding:8px 10px}
 .ped-order-actions button:disabled{opacity:.5}
+/* WhatsApp + "Marcar como enviado" en la misma fila (mismo ancho cada uno) */
+.ped-order-send-row .ped-order-wa{width:auto;flex:1 1 0;min-width:0;margin:0}
+.ped-order-send-row .btn-cancel{flex:1 1 0;min-width:0}
+.ped-order-send-row + .ped-order-wa-hint{margin-top:4px}
+.ped-order-recep-hint{font-size:10px;color:var(--faint);text-align:center;margin-top:4px}
 .ped-btn-danger{color:var(--red);border-color:var(--red-bd)}
 .ped-btn-danger:active{background:var(--red-bg)}
 .ped-order-confirm{background:var(--surf2);border-radius:var(--rad-sm);padding:10px}
