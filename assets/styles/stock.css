@@ -216,6 +216,8 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 .ped-order-line{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:3px 0}
 .ped-order-line-name{color:var(--muted);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ped-order-line-qty{color:var(--txt);font-weight:700;white-space:nowrap}
+/* Etiqueta de línea puntual (producto fuera del catálogo) en la tarjeta del carrito */
+.ped-order-line-tag{margin-left:6px;padding:1px 6px;border:1px solid var(--acc-bd);border-radius:6px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--acc);vertical-align:1px}
 .ped-order-actions{display:flex;flex-wrap:wrap;gap:6px}
 .ped-order-actions + .ped-order-actions{margin-top:6px}
 .ped-order-wa{padding:10px;margin-bottom:4px;font-size:12px}
@@ -306,13 +308,16 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 /* ─── Dropdown de subcategorías — flota bajo el chip padre pulsado ───
    Ancla en .sticky-header (position:sticky cuenta como "positioned" para
    hijos absolutos), así no lo recorta el overflow-x:auto de #cat-bar. */
-#cat-dropdown{display:none;position:absolute;z-index:95;min-width:170px;background:var(--surf);border:1px solid var(--brd);border-radius:10px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+/* left/right los fija openCatDropdown() según el lado de la pantalla en el que
+   está el chip; max-width impide que se salga del viewport en móvil. */
+#cat-dropdown{display:none;position:absolute;z-index:95;box-sizing:border-box;min-width:170px;max-width:calc(100vw - 32px);background:var(--surf);border:1px solid var(--brd);border-radius:10px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.35)}
 #cat-dropdown.show{display:block}
 .cat-dd-item{display:flex;align-items:center;gap:8px;padding:10px 13px;font-size:12px;font-weight:600;color:var(--txt);cursor:pointer;border-bottom:1px solid var(--brd);transition:background .15s}
 .cat-dd-item:last-child{border-bottom:none}
 .cat-dd-item:hover{background:var(--bg)}
 .cat-dd-item:active{background:var(--acc-bg)}
 .cat-dd-item.act{color:var(--acc);background:var(--acc-bg)}
+.cat-dd-item span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ─── Buscador en tiempo real (tab Productos) ─── */
 .search-bar{display:flex;align-items:center;gap:8px;padding:8px var(--sp-md);background:var(--bg);border-bottom:1px solid var(--brd)}
